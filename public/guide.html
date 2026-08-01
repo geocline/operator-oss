@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Operator - Usage & Getting Started</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg-main: #0b0d12;
+      --bg-panel: #12151d;
+      --text-primary: #e6e9f2;
+      --text-muted: #a8afc9;
+      --accent: #5b7cfa;
+      --accent-amber: #d9a13c;
+      --accent-green: #3fbf7f;
+      --border: #1a1e2e;
+      --code-bg: #0f1119;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg-main);
+      color: var(--text-primary);
+      line-height: 1.6;
+      font-size: 16px;
+    }
+
+    .container {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 0;
+      min-height: 100vh;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      background: var(--bg-panel);
+      border-right: 1px solid var(--border);
+      padding: 2rem 1.5rem;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .sidebar-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+      font-weight: 600;
+    }
+
+    .toc {
+      list-style: none;
+    }
+
+    .toc li {
+      margin-bottom: 0.75rem;
+    }
+
+    .toc a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      display: block;
+      padding: 0.5rem 0;
+      border-left: 2px solid transparent;
+      padding-left: 0.75rem;
+      transition: all 0.2s;
+    }
+
+    .toc a:hover {
+      color: var(--accent);
+      border-left-color: var(--accent);
+    }
+
+    .toc a.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      font-weight: 500;
+    }
+
+    /* Main content */
+    .main {
+      padding: 3rem 4rem;
+      max-width: 900px;
+    }
+
+    .header {
+      margin-bottom: 3rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.02em;
+    }
+
+    .tagline {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+
+    .section {
+      margin-bottom: 3rem;
+    }
+
+    .section-num {
+      display: inline-block;
+      background: var(--accent);
+      color: var(--bg-main);
+      font-weight: 700;
+      font-size: 0.85rem;
+      padding: 0.3rem 0.6rem;
+      border-radius: 4px;
+      margin-right: 0.75rem;
+    }
+
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    p {
+      margin-bottom: 1rem;
+      line-height: 1.7;
+      color: var(--text-primary);
+    }
+
+    .intro-text {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    /* Cards and callouts */
+    .card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin: 1.5rem 0;
+    }
+
+    .card-title {
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 0.75rem;
+      font-size: 0.95rem;
+    }
+
+    .card p {
+      font-size: 0.9rem;
+    }
+
+    /* Code blocks */
+    .code-block {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem;
+      margin: 1rem 0;
+      overflow-x: auto;
+      font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      color: var(--accent-green);
+    }
+
+    .code-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+      display: block;
+      font-weight: 600;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5rem 0;
+      font-size: 0.9rem;
+    }
+
+    th {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      padding: 0.75rem;
+      text-align: left;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    td {
+      border: 1px solid var(--border);
+      padding: 0.75rem;
+    }
+
+    td:first-child {
+      font-weight: 500;
+      color: var(--accent);
+    }
+
+    tr:hover {
+      background: var(--bg-panel);
+    }
+
+    /* Loop steps */
+    .loop-step {
+      display: flex;
+      gap: 1.5rem;
+      margin: 1.25rem 0;
+    }
+
+    .loop-num {
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      background: var(--accent);
+      color: var(--bg-main);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+
+    .loop-content {
+      flex: 1;
+      padding-top: 0.25rem;
+    }
+
+    .loop-content p {
+      margin-bottom: 0.5rem;
+    }
+
+    .loop-content strong {
+      color: var(--accent);
+    }
+
+    /* List styles */
+    ul, ol {
+      margin: 1rem 0 1rem 1.5rem;
+      line-height: 1.8;
+    }
+
+    li {
+      margin-bottom: 0.5rem;
+    }
+
+    strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    em {
+      color: var(--accent-amber);
+      font-style: italic;
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration: none;
+      border-bottom: 1px solid var(--accent);
+    }
+
+    a:hover {
+      opacity: 0.8;
+    }
+
+    /* Footer */
+    .footer {
+      margin-top: 4rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .footer p {
+      margin-bottom: 0.5rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .main {
+        padding: 2rem 2.5rem;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: relative;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        padding: 1.5rem;
+      }
+
+      .main {
+        padding: 2rem 1.5rem;
+      }
+
+      h1 {
+        font-size: 1.6rem;
+      }
+
+      h2 {
+        font-size: 1.25rem;
+      }
+
+      .code-block {
+        font-size: 0.8rem;
+        padding: 0.75rem;
+      }
+
+      table {
+        font-size: 0.8rem;
+      }
+
+      th, td {
+        padding: 0.5rem;
+      }
+    }
+
+    .highlight-amber {
+      color: var(--accent-amber);
+    }
+
+    .highlight-green {
+      color: var(--accent-green);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Sidebar TOC -->
+    <aside class="sidebar">
+      <div class="sidebar-title">On this page</div>
+      <ul class="toc">
+        <li><a href="#what-is-this">What This Is</a></li>
+        <li><a href="#core-loop">The Core Loop</a></li>
+        <li><a href="#agents">Agents</a></li>
+        <li><a href="#quota">Quota Fuel Gauge</a></li>
+        <li><a href="#handoff">The Handoff</a></li>
+        <li><a href="#iphone">iPhone Access</a></li>
+        <li><a href="#where-things-live">Where Things Live</a></li>
+        <li><a href="#ops-cheatsheet">Ops Cheatsheet</a></li>
+        <li><a href="#troubleshooting">Troubleshooting</a></li>
+      </ul>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main">
+      <div class="header">
+        <h1>Operator</h1>
+        <p class="tagline">Usage & Getting Started</p>
+      </div>
+
+      <!-- Section 1 -->
+      <section class="section" id="what-is-this">
+        <h2><span class="section-num">1</span>What This Is</h2>
+        <p class="intro-text">A local workbench running many coding-agent sessions in parallel.</p>
+        <p>
+          <strong>Operator</strong> is a local instance at <code>http://localhost:3000</code> running on your Mac. It is forked from <strong>operator-oss</strong> and integrated with your stack. The idea: every coding task gets its own dedicated agent session in its own isolated git worktree. This means parallel work never collides - you review a diff and merge when you're happy.
+        </p>
+        <p>
+          Operator runs as a launchd service on your Mac, so it's always on. Start a task, it streams progress live. Watch it work, answer questions if it asks, then review the diff and merge. Clean separation between sessions means you can safely run 10 tasks at once without tangled git states or conflicting edits.
+        </p>
+      </section>
+
+      <!-- Section 2 -->
+      <section class="section" id="core-loop">
+        <h2><span class="section-num">2</span>The Core Loop</h2>
+        <p class="intro-text">How to work with Operator in 5 steps.</p>
+
+        <div class="loop-step">
+          <div class="loop-num">1</div>
+          <div class="loop-content">
+            <strong>Create a Project</strong>
+            <p>Point Operator at a git repo folder on your Mac. Click "New Project", paste the path, give it a name.</p>
+          </div>
+        </div>
+
+        <div class="loop-step">
+          <div class="loop-num">2</div>
+          <div class="loop-content">
+            <strong>Add a Task</strong>
+            <p>Give the task a title and description. That description becomes the agent's first prompt - be clear about what you want. Pick an agent (Claude Code or Codex) and any model/reasoning overrides you want.</p>
+          </div>
+        </div>
+
+        <div class="loop-step">
+          <div class="loop-num">3</div>
+          <div class="loop-content">
+            <strong>Start Session & Watch</strong>
+            <p>Click "Start". The agent streams work in real time. You see tool calls, code edits, test runs, everything. If it gets stuck or asks a question, the task shows "Needs your input" - answer inline.</p>
+          </div>
+        </div>
+
+        <div class="loop-step">
+          <div class="loop-num">4</div>
+          <div class="loop-content">
+            <strong>Review the Diff</strong>
+            <p>Click the <strong>DIFF</strong> tab in the task header. Review all changes at once. Does it look right? If not, edit it inline or ask the agent to adjust.</p>
+          </div>
+        </div>
+
+        <div class="loop-step">
+          <div class="loop-num">5</div>
+          <div class="loop-content">
+            <strong>Merge & Done</strong>
+            <p>Click <strong>Merge changes</strong> (one click into your main repo branch). Or generate a PR via <code>gh pr create</code>. Task is done. Use <strong>/clear</strong> to save a summary and start fresh on the same task with a clean context window.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 3 -->
+      <section class="section" id="agents">
+        <h2><span class="section-num">3</span>Agents</h2>
+        <p class="intro-text">Two AI agents available, pick per task.</p>
+        <p>
+          <strong>Claude Code:</strong> Your Max login (Claude 5, Sonnet, Haiku, Fable). Connected to Anthropic directly.
+        </p>
+        <p>
+          <strong>Codex:</strong> Your ChatGPT login, routed through the local <strong>opencodex proxy</strong> on port 10100. This is how GPT models (gpt-5.6-sol and others) appear in Operator.
+        </p>
+        <p>
+          Each task shows agent controls in the header. You pick Claude or Codex at creation, and can override the model, reasoning level, or permissions on the fly. Task-level picks override defaults.
+        </p>
+      </section>
+
+      <!-- Section 4 -->
+      <section class="section" id="quota">
+        <h2><span class="section-num">4</span>Quota Fuel Gauge</h2>
+        <p class="intro-text">Live usage tracking in the top bar.</p>
+        <p>
+          The tiny <strong>C/X strip</strong> in the topbar shows real-time quota. <span class="highlight-green">Green</span> = under 50% used. <span class="highlight-amber">Amber</span> = 50-79% used. <span class="highlight-green">Red</span> = 80% or more used.
+        </p>
+        <p>
+          Click the gauge or the gauge icon to open <strong>Provider Quotas</strong> view. You'll see:
+        </p>
+        <ul>
+          <li>Claude: 5-hour session window + weekly limits</li>
+          <li>Codex: weekly limits</li>
+          <li>Countdown to next reset</li>
+          <li>Recent per-model usage (Fable highlighted) from the local session index</li>
+        </ul>
+        <p>
+          All percentages shown are <em>percent used</em> of your quota, not remaining.
+        </p>
+      </section>
+
+      <!-- Section 5 -->
+      <section class="section" id="handoff">
+        <h2><span class="section-num">5</span>The Handoff</h2>
+        <p class="intro-text">The killer feature: seamless agent swap mid-task.</p>
+        <p>
+          When Claude runs low on quota (amber banner appears at your threshold, default 80%, adjustable in Settings), open any running Claude task and look at the task header. You'll see <strong>"Continue with Codex"</strong>. Click it twice - first click arms it, second click confirms.
+        </p>
+        <p>
+          Here's what happens: the session is summarized, the <em>same task</em> continues on Codex in the <em>same worktree</em> with that summary as context. No file state is lost. The button flips to "Continue with Claude Code" if you want to swap back.
+        </p>
+        <p>
+          This is how you run unlimited coding sessions without hitting quota walls. Handoff mid-task, pick up exactly where you left off.
+        </p>
+      </section>
+
+      <!-- Section 6 -->
+      <section class="section" id="iphone">
+        <h2><span class="section-num">6</span>iPhone Access</h2>
+        <p class="intro-text">Access Operator on your phone over Tailscale.</p>
+        <p>
+          If you have Tailscale connected on your iPhone and your Mac, open Safari and navigate to:
+        </p>
+        <div class="code-block"><span class="code-label">iOS</span>http://geos-mbp:3000</div>
+        <p>
+          Or use your Mac's Tailscale IP address. Then:
+        </p>
+        <ol>
+          <li>Tap <strong>Share</strong> button at the bottom</li>
+          <li>Scroll right and tap <strong>Add to Home Screen</strong></li>
+          <li>Tap <strong>Add</strong> in the top-right corner</li>
+        </ol>
+        <p>
+          It launches as a standalone app icon on your home screen. Perfect for checking on running tasks while away from your desk. <em>Your Mac must be awake</em> for phone access to work.
+        </p>
+      </section>
+
+      <!-- Section 7 -->
+      <section class="section" id="where-things-live">
+        <h2><span class="section-num">7</span>Where Things Live</h2>
+        <p class="intro-text">File paths and service URLs.</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Thing</th>
+              <th>Location / URL</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>App code</td>
+              <td><code>/Users/geo/Claude Projects/operator</code></td>
+            </tr>
+            <tr>
+              <td>SQLite database</td>
+              <td><code>~/.zen-orchestrator/orchestrator.db</code></td>
+            </tr>
+            <tr>
+              <td>Agent worktrees</td>
+              <td><code>~/.agent-orchestrator/worktrees</code></td>
+            </tr>
+            <tr>
+              <td>App logs</td>
+              <td><code>/Users/geo/Claude Projects/.services/logs/operator.{log,err}</code></td>
+            </tr>
+            <tr>
+              <td>Operator UI</td>
+              <td><code>http://localhost:3000</code></td>
+            </tr>
+            <tr>
+              <td>Work Cockpit</td>
+              <td><code>http://localhost:8770</code> (click Operator pill in nav)</td>
+            </tr>
+            <tr>
+              <td>Conversations Dashboard</td>
+              <td><code>http://localhost:8772</code> (auto-indexes all sessions)</td>
+            </tr>
+            <tr>
+              <td>Services Dashboard</td>
+              <td><code>http://localhost:8765</code> (start/stop/restart Operator)</td>
+            </tr>
+            <tr>
+              <td>Codex proxy</td>
+              <td><code>http://localhost:10100</code> (traffic for Codex tasks)</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Section 8 -->
+      <section class="section" id="ops-cheatsheet">
+        <h2><span class="section-num">8</span>Ops Cheatsheet</h2>
+        <p class="intro-text">Copy-paste commands for ops work.</p>
+
+        <div class="card">
+          <span class="card-title">Restart Operator app</span>
+          <div class="code-block">launchctl kickstart -k gui/$UID/com.geo.operator</div>
+        </div>
+
+        <div class="card">
+          <span class="card-title">Restart PTY sidecar (terminal panes)</span>
+          <div class="code-block">launchctl kickstart -k gui/$UID/com.geo.operator-pty</div>
+        </div>
+
+        <div class="card">
+          <span class="card-title">Rebuild after code changes, then restart</span>
+          <div class="code-block">cd "/Users/geo/Claude Projects/operator" && npm run build && launchctl kickstart -k gui/$UID/com.geo.operator</div>
+        </div>
+
+        <div class="card">
+          <span class="card-title">Manual run (dev mode)</span>
+          <div class="code-block">npm run start:geo</div>
+        </div>
+
+        <div class="card">
+          <span class="card-title">Watch logs in real time</span>
+          <div class="code-block">tail -f "/Users/geo/Claude Projects/.services/logs/operator.err"</div>
+        </div>
+      </section>
+
+      <!-- Section 9 -->
+      <section class="section" id="troubleshooting">
+        <h2><span class="section-num">9</span>Troubleshooting</h2>
+        <p class="intro-text">Quick fixes for common issues.</p>
+
+        <div class="card">
+          <span class="card-title">Page won't load or app feels slow</span>
+          <p>Check the Services Dashboard at <code>http://localhost:8765</code>. If Operator shows as down, click Restart. Otherwise, run: <code>launchctl kickstart -k gui/$UID/com.geo.operator</code></p>
+        </div>
+
+        <div class="card">
+          <span class="card-title">Quota gauge empty (no numbers showing)</span>
+          <p>The opencodex proxy on port 10100 may be down. Run: <code>launchctl kickstart -k gui/$UID/com.opencodex.proxy</code></p>
+        </div>
+
+        <div class="card">
+          <span class="card-title">Codex tasks show "no output" on verify</span>
+          <p>This is a known issue in the upstream but already patched in this fork. If it still happens, check the logs at <code>/Users/geo/Claude Projects/.services/logs/operator.err</code></p>
+        </div>
+
+        <div class="card">
+          <span class="card-title">Terminal panes (PTY) are dead or unresponsive</span>
+          <p>The PTY sidecar runs on port 3101 and can get stuck. Restart it: <code>launchctl kickstart -k gui/$UID/com.geo.operator-pty</code></p>
+        </div>
+
+        <div class="card">
+          <span class="card-title">Phone can't reach Mac after sleep</span>
+          <p>Your Mac must be awake for Tailscale to route traffic. Wake it up, make sure Tailscale is running on both devices, then try again.</p>
+        </div>
+      </section>
+
+      <!-- Footer -->
+      <div class="footer">
+        <p>
+          <strong>Forked from operator-oss (Apache-2.0)</strong> - local fork with quota gauges, agent handoff, and PWA shell. Architecture docs live in <code>mission-board/BUILDLOG.md</code>.
+        </p>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // Smooth scrolling and active link highlighting
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth' });
+          updateActiveLink(this.getAttribute('href'));
+        }
+      });
+    });
+
+    function updateActiveLink(hash) {
+      document.querySelectorAll('.toc a').forEach(link => {
+        link.classList.remove('active');
+      });
+      const activeLink = document.querySelector(`.toc a[href="${hash}"]`);
+      if (activeLink) {
+        activeLink.classList.add('active');
+      }
+    }
+
+    // Update active link on scroll
+    window.addEventListener('scroll', () => {
+      const sections = document.querySelectorAll('section[id]');
+      let current = '';
+      sections.forEach(section => {
+        const sectionTop = section.offsetTop;
+        const sectionHeight = section.clientHeight;
+        if (window.pageYOffset >= sectionTop - 100) {
+          current = section.getAttribute('id');
+        }
+      });
+      updateActiveLink(`#${current}`);
+    });
+  </script>
+</body>
+</html>
