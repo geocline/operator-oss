@@ -8,6 +8,8 @@ export const metadata: Metadata = {
   title: "Operator — build, verify & host every app with agents",
   description: "Run parallel agent sessions across every project, host each app live under your own domain, and verify changes from any device.",
   manifest: "/manifest.json",
+  // iOS ignores manifest icons for Add to Home Screen; it wants apple-touch-icon.
+  icons: { apple: "/apple-touch-icon.png" },
 };
 
 // viewport-fit=cover lets the app paint under the notch / home indicator so the
