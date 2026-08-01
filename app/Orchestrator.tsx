@@ -100,6 +100,17 @@ export default function Orchestrator() {
   const features = clientFeatures();
   const isDark = o.appearance.theme !== "light";
   const [needsYouOpen, setNeedsYouOpen] = useState(false);
+  // Focus mode: hide the projects/tasks columns so the selected session fills
+  // the workspace. Esc (or the session header button) exits; auto-exits when
+  // no task is selected or the view changes away from the workspace.
+  const [focusMode, setFocusMode] = useState(false);
+  useEffect(() => {
+    if (!focusMode) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setFocusMode(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [focusMode]);
+  useEffect(() => { if (!task || o.view !== "workspace") setFocusMode(false); }, [task, o.view]);
   // Which Settings section to land on when opened programmatically (e.g. the
   // "connect another agent" nudge deep-links to Agents). undefined = default.
   const [settingsSection, setSettingsSection] = useState<string | undefined>();
@@ -219,6 +230,7 @@ export default function Orchestrator() {
             onStart={() => o.runTurn(task.id, "", true)}
             onStop={() => o.stopTurn(task.id)}
             onClear={() => o.clearSession(task.id)} onHandoff={(agent) => o.clearSession(task.id, agent)} onEdit={() => o.setEditId(task.id)}
+            focused={focusMode} onToggleFocus={() => setFocusMode((v) => !v)}
             onReconnect={() => openSettings("agents")}
             onSetStatus={o.setStatus} onSetPriority={o.setPriority} onSetModel={o.setModel}
             onSetReasoning={o.setReasoning} onSetPermission={o.setPermission}
@@ -305,6 +317,7 @@ export default function Orchestrator() {
                 onStart={() => o.runTurn(task.id, "", true)}
                 onStop={() => o.stopTurn(task.id)}
                 onClear={() => o.clearSession(task.id)} onHandoff={(agent) => o.clearSession(task.id, agent)} onEdit={() => o.setEditId(task.id)}
+            focused={focusMode} onToggleFocus={() => setFocusMode((v) => !v)}
                 onReconnect={() => openSettings("agents")}
                 onSetStatus={o.setStatus} onSetPriority={o.setPriority} onSetModel={o.setModel}
                 onSetReasoning={o.setReasoning} onSetPermission={o.setPermission}
@@ -511,6 +524,9 @@ export default function Orchestrator() {
             : mobilePane === "quota" ? quotaColumn
             : mobilePane === "tasks" ? tasksColumn
             : sessionColumn
+        ) : focusMode && task && o.view === "workspace" ? (
+          // Focus mode: the session column alone, full width.
+          sessionColumn
         ) : (
           <>
             {layout.projCollapsed ? (

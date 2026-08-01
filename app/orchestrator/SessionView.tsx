@@ -121,12 +121,15 @@ function useStableHandler<A extends unknown[]>(fn?: (...args: A) => void): (...a
   return useCallback((...args: A) => { ref.current?.(...args); }, []);
 }
 
-export function SessionView({ project, task, agents, messages, running, blockedBy, transcriptLoading, onSend, onStart, onStop, onClear, onHandoff, onEdit, onReconnect, onSetStatus, onSetPriority, onSetModel, onSetReasoning, onSetPermission, onResolveWithAI, onMerged, onPrCreated, onAnswer, onCancelQueued, onBack, mobile, railW, onRailWidth, onRailReset, railCollapsed, onRailCollapse, onRailExpand }: {
+export function SessionView({ project, task, agents, messages, running, blockedBy, transcriptLoading, onSend, onStart, onStop, onClear, onHandoff, focused, onToggleFocus, onEdit, onReconnect, onSetStatus, onSetPriority, onSetModel, onSetReasoning, onSetPermission, onResolveWithAI, onMerged, onPrCreated, onAnswer, onCancelQueued, onBack, mobile, railW, onRailWidth, onRailReset, railCollapsed, onRailCollapse, onRailExpand }: {
   project: ProjectRow; task: TaskRow; agents: AgentsBundle; messages: Msg[]; running: boolean; blockedBy?: string[]; transcriptLoading?: boolean;
   onSend: (t: string) => void; onStart: () => void; onStop: () => void; onClear: () => void; onEdit: () => void;
   // Hand the task to another connected driver across a /clear boundary (same
   // worktree, fresh context seeded with the summary) - the quota-handoff path.
   onHandoff?: (agent: string) => void;
+  // Focus mode: session fills the workspace (desktop). Esc exits in the shell.
+  focused?: boolean;
+  onToggleFocus?: () => void;
   // Deep-link to Settings → Agents, for the transcript's "your login died" recovery button.
   onReconnect?: () => void;
   onSetStatus: (s: Status) => void; onSetPriority: (p: Priority) => void; onSetModel: (m: string | null) => void;
@@ -416,6 +419,15 @@ export function SessionView({ project, task, agents, messages, running, blockedB
                 </Popover>
               )}
             </div>
+            {!mobile && onToggleFocus && (
+              <button
+                className={`btn btn-line btn-sm${focused ? " btn-accent" : ""}`}
+                title={focused ? "Exit focus mode (Esc)" : "Focus mode: hide the projects and tasks columns so this session fills the screen"}
+                onClick={onToggleFocus}
+              >
+                {focused ? Icon.shrink() : Icon.expand()} {focused ? "Exit focus" : "Focus"}
+              </button>
+            )}
             {hasSession && task.started === 1 && (
               <button className="btn btn-line btn-sm" title="Save summary & start a fresh context window" onClick={onClear} disabled={running}>{Icon.clear()} /clear</button>
             )}
