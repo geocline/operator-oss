@@ -11,6 +11,7 @@
     "pty": "node pty-server.js",
     "build": "NODE_ENV=production next build --turbopack",
     "start": "NODE_ENV=production concurrently -k -n app,pty -c blue,green \"node server.js\" \"node pty-server.js\"",
+    "start:geo": "NODE_ENV=production concurrently -k -n app,pty -c blue,green \"node --env-file=.env server.js\" \"node --env-file=.env pty-server.js\"",
     "test": "vitest run",
     "postinstall": "node scripts/fix-pty.js"
   },
