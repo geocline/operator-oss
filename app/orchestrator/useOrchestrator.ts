@@ -403,12 +403,17 @@ export function useOrchestrator() {
     setSelTask(taskId);
   };
 
-  const clearSession = useCallback(async (taskId: string) => {
+  // Optional `agent` hands the task to another driver across the clear
+  // boundary (same worktree, fresh context seeded with the summary) - the
+  // "Continue with Codex" path when Claude quota runs low.
+  const clearSession = useCallback(async (taskId: string, agent?: string) => {
     const t = tasks.find((x) => x.id === taskId);
     if (!t || running.has(taskId) || !t.started) return;
     setTaskRunning(taskId, true);
     try {
-      const { summary } = await jsend<{ summary: string }>(`/api/tasks/${taskId}/clear`, "POST");
+      const { summary } = await jsend<{ summary: string }>(
+        `/api/tasks/${taskId}/clear`, "POST", agent ? { agent } : undefined
+      );
       appendMsg(taskId, { id: `sb-${Date.now()}`, role: "session_break", content: summary, generation: t.generation });
       const fresh = await jget<TaskRow>(`/api/tasks/${taskId}`);
       setTasks((prev) => prev.map((x) => (x.id === taskId ? { ...x, ...fresh } : x)));

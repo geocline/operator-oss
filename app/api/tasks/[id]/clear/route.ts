@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getTask, getProject, updateTask, listMessages, addMessage, addSummary, clearPendingMessages } from "@/lib/store";
+import { getDriver } from "@/lib/agents/registry";
 import { summarizeTranscript } from "@/lib/agents/oneshots";
 import { hasTurn, abortTurn } from "@/lib/abort";
 import { publish, publishGlobal } from "@/lib/events";
@@ -8,12 +9,32 @@ import { buildClippedTranscript } from "@/lib/transcript";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const task = getTask(id);
   if (!task) return NextResponse.json({ error: "not found" }, { status: 404 });
   const project = getProject(task.project_id);
   if (!project) return NextResponse.json({ error: "no project" }, { status: 400 });
+
+  // Optional handoff: `{ agent }` in the body switches the task to another
+  // driver across this clear boundary. The generation bump below already
+  // resets the session id and re-issues title+description+summaries on the
+  // next send, so the new driver resumes with full context in the SAME
+  // worktree/branch - no task duplication. Body is optional and may be empty
+  // (the plain /clear path sends none).
+  let handoffAgent: string | null = null;
+  try {
+    const body = await req.json();
+    if (body && typeof body.agent === "string" && body.agent && body.agent !== task.agent) {
+      // Only accept ids the registry actually knows; unknown ids would fall
+      // back to the default driver and silently mislabel the task.
+      if (getDriver(body.agent).id !== body.agent)
+        return NextResponse.json({ error: `unknown agent "${body.agent}"` }, { status: 400 });
+      handoffAgent = body.agent;
+    }
+  } catch {
+    // no/invalid JSON body - plain clear
+  }
 
   const gen = task.generation;
 
@@ -59,6 +80,13 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     running: 0,
     awaiting_input: 0,
     status: "in_progress",
+    // On handoff, switch drivers and drop driver-specific knobs (model alias,
+    // reasoning preset, permission mode are not portable across CLIs; null =
+    // the new driver's defaults). resolved_model clears so the badge doesn't
+    // show the old driver's model against the new agent.
+    ...(handoffAgent
+      ? { agent: handoffAgent, model: null, resolved_model: null, reasoning: null, permission_mode: null }
+      : {}),
   });
 
   // Discard any follow-ups queued against the OLD generation. They were lined up

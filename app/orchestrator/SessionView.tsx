@@ -121,9 +121,12 @@ function useStableHandler<A extends unknown[]>(fn?: (...args: A) => void): (...a
   return useCallback((...args: A) => { ref.current?.(...args); }, []);
 }
 
-export function SessionView({ project, task, agents, messages, running, blockedBy, transcriptLoading, onSend, onStart, onStop, onClear, onEdit, onReconnect, onSetStatus, onSetPriority, onSetModel, onSetReasoning, onSetPermission, onResolveWithAI, onMerged, onPrCreated, onAnswer, onCancelQueued, onBack, mobile, railW, onRailWidth, onRailReset, railCollapsed, onRailCollapse, onRailExpand }: {
+export function SessionView({ project, task, agents, messages, running, blockedBy, transcriptLoading, onSend, onStart, onStop, onClear, onHandoff, onEdit, onReconnect, onSetStatus, onSetPriority, onSetModel, onSetReasoning, onSetPermission, onResolveWithAI, onMerged, onPrCreated, onAnswer, onCancelQueued, onBack, mobile, railW, onRailWidth, onRailReset, railCollapsed, onRailCollapse, onRailExpand }: {
   project: ProjectRow; task: TaskRow; agents: AgentsBundle; messages: Msg[]; running: boolean; blockedBy?: string[]; transcriptLoading?: boolean;
   onSend: (t: string) => void; onStart: () => void; onStop: () => void; onClear: () => void; onEdit: () => void;
+  // Hand the task to another connected driver across a /clear boundary (same
+  // worktree, fresh context seeded with the summary) - the quota-handoff path.
+  onHandoff?: (agent: string) => void;
   // Deep-link to Settings → Agents, for the transcript's "your login died" recovery button.
   onReconnect?: () => void;
   onSetStatus: (s: Status) => void; onSetPriority: (p: Priority) => void; onSetModel: (m: string | null) => void;
@@ -143,6 +146,14 @@ export function SessionView({ project, task, agents, messages, running, blockedB
   const [modelOpen, setModelOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [view, setView] = useState<"chat" | "changes">("chat");
+  // Armed agent id for the two-step handoff button; disarms after 5s or on task switch.
+  const [armedHandoff, setArmedHandoff] = useState<string | null>(null);
+  useEffect(() => {
+    if (!armedHandoff) return;
+    const t = setTimeout(() => setArmedHandoff(null), 5000);
+    return () => clearTimeout(t);
+  }, [armedHandoff]);
+  useEffect(() => { setArmedHandoff(null); }, [task.id]);
   const sessions = useMemo(() => buildSessions(messages), [messages]);
   const hasSession = task.started === 1 || messages.length > 0;
   const awaiting = isAwaiting(task);
@@ -408,6 +419,24 @@ export function SessionView({ project, task, agents, messages, running, blockedB
             {hasSession && task.started === 1 && (
               <button className="btn btn-line btn-sm" title="Save summary & start a fresh context window" onClick={onClear} disabled={running}>{Icon.clear()} /clear</button>
             )}
+            {hasSession && task.started === 1 && onHandoff && agents.agents
+              .filter((a) => a.id !== task.agent && a.authenticated)
+              .map((a) => (
+                // Two-step arm-then-confirm (the app's delete pattern) instead of
+                // window.confirm, which embedded webviews suppress.
+                <button
+                  key={a.id}
+                  className={`btn btn-line btn-sm${armedHandoff === a.id ? " btn-accent" : ""}`}
+                  title={`Hand this task to ${a.label}: saves a summary of this session, then continues in the same worktree on ${a.label} with a fresh context window`}
+                  disabled={running}
+                  onClick={() => {
+                    if (armedHandoff === a.id) { setArmedHandoff(null); onHandoff(a.id); }
+                    else setArmedHandoff(a.id);
+                  }}
+                >
+                  {Icon.spark()} {armedHandoff === a.id ? `Confirm: hand off to ${a.label}` : `Continue with ${a.label}`}
+                </button>
+              ))}
           </div>
         </div>
 
