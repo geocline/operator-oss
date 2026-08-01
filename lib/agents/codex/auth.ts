@@ -86,11 +86,16 @@ export const codexApiKey: AgentApiKeyAuth = {
  */
 export async function verifyCodexTurn(): Promise<AgentVerifyResult> {
   try {
-    const { stdout } = await run(
+    // codex >= 0.145 reads additional prompt input from stdin when it is a
+    // pipe and blocks until EOF; execFile leaves the pipe open, so close it
+    // immediately or the exec hangs to timeout with empty stdout.
+    const pending = run(
       CODEX,
       ["exec", "--skip-git-repo-check", "--sandbox", "read-only", "Reply with exactly: OK"],
       { timeout: 90_000, env: process.env, maxBuffer: 4 * 1024 * 1024, cwd: os.homedir() }
     );
+    pending.child?.stdin?.end();
+    const { stdout } = await pending;
     const out = stripAnsi(stdout).trim();
     return { ok: out.length > 0, output: out, error: out.length > 0 ? null : "the test turn returned no output" };
   } catch (e) {
