@@ -151,6 +151,31 @@ export function createProject(input: {
   return getProject(id)!;
 }
 
+/**
+ * Find a project whose repo_path points at `repoPath` (trailing-slash
+ * insensitive). Used by the /open deep link so external dashboards can
+ * find-or-create a project by folder without knowing operator ids.
+ */
+export function findProjectByRepoPath(repoPath: string): Project | null {
+  const norm = repoPath.replace(/\/+$/, "");
+  const row = getDb()
+    .prepare("SELECT * FROM projects WHERE rtrim(repo_path, '/') = ? AND deprecated = 0 LIMIT 1")
+    .get(norm) as Project | undefined;
+  return row ?? null;
+}
+
+/**
+ * Reverse-lookup an agent session id (sessions.claude_session_id, opaque per
+ * driver) to its task/project. Newest generation wins if a task somehow
+ * recorded the same id twice.
+ */
+export function findSessionRef(agentSessionId: string): { project_id: string; task_id: string } | null {
+  const row = getDb()
+    .prepare("SELECT project_id, task_id FROM sessions WHERE claude_session_id = ? ORDER BY generation DESC LIMIT 1")
+    .get(agentSessionId) as { project_id: string; task_id: string } | undefined;
+  return row ?? null;
+}
+
 // The next deterministic per-project port: one past the current max (never
 // reusing a freed slot, so a project's port is stable for its lifetime), floored
 // at SERVICE_PORT_BASE. Injected as PORT into the project's services + PTY.
