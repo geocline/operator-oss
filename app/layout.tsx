@@ -7,6 +7,7 @@ import { posthogSnippet } from "@/lib/analytics";
 export const metadata: Metadata = {
   title: "Operator — build, verify & host every app with agents",
   description: "Run parallel agent sessions across every project, host each app live under your own domain, and verify changes from any device.",
+  manifest: "/manifest.json",
 };
 
 // viewport-fit=cover lets the app paint under the notch / home indicator so the
@@ -16,6 +17,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  themeColor: "#0b0d12",
 };
 
 // Render per request so PUBLIC_BASE_URL is read from the runtime environment,
