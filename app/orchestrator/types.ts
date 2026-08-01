@@ -234,10 +234,11 @@ export type TaskView = "list" | "board";
 
 // Which surface fills the work area (the right two columns). "workspace" is the
 // normal tasks+session view; "settings" replaces it with the app settings shell;
-// "insights" with the usage/analytics dashboard. Mirrored into the URL
-// (?view=settings / ?view=insights) so it's deep-linkable + refresh-stable,
-// consistent with how project/task selection is persisted.
-export type View = "workspace" | "settings" | "insights";
+// "insights" with the usage/analytics dashboard; "quota" with the provider
+// quotas fuel-gauge view. Mirrored into the URL (?view=settings / ?view=insights
+// / ?view=quota) so it's deep-linkable + refresh-stable, consistent with how
+// project/task selection is persisted.
+export type View = "workspace" | "settings" | "insights" | "quota";
 // Purely cosmetic, client-only look-and-feel prefs (the "Appearance" panel).
 export interface Appearance { theme: "light" | "dark"; density: string; }
 export const DEFAULT_APPEARANCE: Appearance = { theme: "dark", density: "1" };

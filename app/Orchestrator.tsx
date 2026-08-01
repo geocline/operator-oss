@@ -12,6 +12,8 @@ import { SessionView } from "./orchestrator/SessionView";
 import { ProjectLanding } from "./orchestrator/ProjectLanding";
 import { SettingsView } from "./orchestrator/SettingsView";
 import { InsightsView } from "./orchestrator/InsightsView";
+import { QuotaView } from "./orchestrator/QuotaView";
+import { QuotaStrip } from "./orchestrator/QuotaStrip";
 import { AppearancePanel } from "./orchestrator/AppearancePanel";
 import { ColResize, ColRail, TerminalDrawer, BootSkeleton } from "./orchestrator/Layout";
 import { ServicesDrawer } from "./orchestrator/Services";
@@ -19,6 +21,7 @@ import { clientFeatures } from "@/lib/features";
 import { NewTaskModal, EditTaskModal, ContextModal, NewProjectModal, SessionsModal } from "./orchestrator/modals";
 import { OnboardingWizard } from "./orchestrator/OnboardingWizard";
 import { AgentNudge, AgentAuthBanner } from "./orchestrator/AgentConnect";
+import { QuotaAdvisor } from "./orchestrator/QuotaAdvisor";
 import { WelcomeCoach, WelcomeNudge } from "./orchestrator/Welcome";
 import { NeedsYouMenu } from "./orchestrator/NeedsYouMenu";
 import { CommandPalette, type PaletteCommand } from "./orchestrator/CommandPalette";
@@ -172,8 +175,8 @@ export default function Orchestrator() {
   // elements sit side by side. Which pane shows is derived purely from the
   // selection state, so the titlebar "needs you" pill (which drives selection)
   // navigates correctly from any level.
-  const mobilePane: "projects" | "tasks" | "session" | "settings" | "insights" =
-    o.view === "settings" ? "settings" : o.view === "insights" ? "insights" : !project ? "projects" : !task ? "tasks" : "session";
+  const mobilePane: "projects" | "tasks" | "session" | "settings" | "insights" | "quota" =
+    o.view === "settings" ? "settings" : o.view === "insights" ? "insights" : o.view === "quota" ? "quota" : !project ? "projects" : !task ? "tasks" : "session";
 
   const projectsColumn = (
     <ProjectsColumn
@@ -215,7 +218,7 @@ export default function Orchestrator() {
             onSend={(text) => o.runTurn(task.id, text, false)}
             onStart={() => o.runTurn(task.id, "", true)}
             onStop={() => o.stopTurn(task.id)}
-            onClear={() => o.clearSession(task.id)} onEdit={() => o.setEditId(task.id)}
+            onClear={() => o.clearSession(task.id)} onHandoff={(agent) => o.clearSession(task.id, agent)} onEdit={() => o.setEditId(task.id)}
             onReconnect={() => openSettings("agents")}
             onSetStatus={o.setStatus} onSetPriority={o.setPriority} onSetModel={o.setModel}
             onSetReasoning={o.setReasoning} onSetPermission={o.setPermission}
@@ -301,7 +304,7 @@ export default function Orchestrator() {
                 onSend={(text) => o.runTurn(task.id, text, false)}
                 onStart={() => o.runTurn(task.id, "", true)}
                 onStop={() => o.stopTurn(task.id)}
-                onClear={() => o.clearSession(task.id)} onEdit={() => o.setEditId(task.id)}
+                onClear={() => o.clearSession(task.id)} onHandoff={(agent) => o.clearSession(task.id, agent)} onEdit={() => o.setEditId(task.id)}
                 onReconnect={() => openSettings("agents")}
                 onSetStatus={o.setStatus} onSetPriority={o.setPriority} onSetModel={o.setModel}
                 onSetReasoning={o.setReasoning} onSetPermission={o.setPermission}
@@ -348,6 +351,10 @@ export default function Orchestrator() {
 
   const insightsColumn = (
     <InsightsView agents={o.agents} onClose={() => o.setView("workspace")} />
+  );
+
+  const quotaColumn = (
+    <QuotaView onClose={() => o.setView("workspace")} />
   );
 
   const settingsColumn = (
@@ -446,10 +453,25 @@ export default function Orchestrator() {
 
           <button
             className={`tb-icon${o.view === "insights" ? " on" : ""}`}
-            title="Insights — spend, tokens, tasks shipped, code merged" aria-label="Insights"
+            title="Insights - spend, tokens, tasks shipped, code merged" aria-label="Insights"
             onClick={() => o.setView(o.view === "insights" ? "workspace" : "insights")}
           >
             {Icon.chart()}
+          </button>
+          <QuotaStrip onOpenQuota={() => o.setView("quota")} />
+          {/* Geo's local dashboards - Work Cockpit (8770) and Conversations (8772). */}
+          <a className="tb-icon" href="http://localhost:8770/#cockpit" target="_blank" rel="noopener noreferrer" title="Work Cockpit (Mission Board)" aria-label="Work Cockpit">
+            {Icon.external()}
+          </a>
+          <a className="tb-icon" href="http://localhost:8772" target="_blank" rel="noopener noreferrer" title="Conversations Dashboard (transcript search)" aria-label="Conversations Dashboard">
+            {Icon.external()}
+          </a>
+          <button
+            className={`tb-icon${o.view === "quota" ? " on" : ""}`}
+            title="Provider quotas - real-time fuel gauge" aria-label="Provider quotas"
+            onClick={() => o.setView(o.view === "quota" ? "workspace" : "quota")}
+          >
+            {Icon.gauge()}
           </button>
           <button className="tb-icon" title={isDark ? "Switch to light theme" : "Switch to dark theme"} aria-label="Toggle theme" onClick={() => o.setAppearance("theme", isDark ? "light" : "dark")}>
             {isDark ? Icon.sun() : Icon.moon()}
@@ -464,6 +486,11 @@ export default function Orchestrator() {
           is true for every project, so it lives above the whole workspace rather
           than inside the task that happened to hit it first. */}
       <AgentAuthBanner broken={o.brokenAgents} onReconnect={() => openSettings("agents")} />
+
+      {/* Quota usage threshold advisor — dismissible per-session, warns when
+          provider usage is high and suggests switching to Codex or using the
+          handoff button. */}
+      <QuotaAdvisor onOpenQuota={() => o.setView("quota")} />
 
       <div className={`body${isMobile ? " mobile" : ""}`}>
         {o.bootError ? (
@@ -481,6 +508,7 @@ export default function Orchestrator() {
           mobilePane === "projects" ? projectsColumn
             : mobilePane === "settings" ? settingsColumn
             : mobilePane === "insights" ? insightsColumn
+            : mobilePane === "quota" ? quotaColumn
             : mobilePane === "tasks" ? tasksColumn
             : sessionColumn
         ) : (
@@ -498,7 +526,7 @@ export default function Orchestrator() {
               </>
             )}
 
-            {o.view === "settings" ? settingsColumn : o.view === "insights" ? insightsColumn : boardMode ? boardWorkspace : (
+            {o.view === "settings" ? settingsColumn : o.view === "insights" ? insightsColumn : o.view === "quota" ? quotaColumn : boardMode ? boardWorkspace : (
               <>
                 {project ? (
                   layout.taskCollapsed ? (

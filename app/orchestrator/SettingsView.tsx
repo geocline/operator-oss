@@ -194,33 +194,65 @@ export function SettingsView({ settings, setSetting, appDefaults, setAppDefault,
         <div className="scroll">
           <div className="settings-body">
             {section === "general" && (
-              <div className="field">
-                <div className="lab">{Icon.clear()} /clear recommendation threshold</div>
-                <div className="hlp" style={{ marginTop: 0, marginBottom: 10 }}>
-                  When a session&apos;s context window crosses either limit, the app nudges you to run <code>/clear</code> to start fresh. Whichever is hit first wins.
-                </div>
-                <div style={{ display: "flex", gap: 14, maxWidth: 420 }}>
-                  <div className="field" style={{ flex: 1, marginBottom: 0 }}>
-                    <div className="lab">Percent of window <span className="opt">— %</span></div>
-                    <input
-                      type="number" min={1} max={100} value={settings.clearThresholdPct}
-                      onChange={(e) => setSetting("clearThresholdPct", Number(e.target.value) || 0)}
-                      onBlur={(e) => setSetting("clearThresholdPct", clampPct(Number(e.target.value) || DEFAULT_SETTINGS.clearThresholdPct))}
-                    />
+              <>
+                <div className="field">
+                  <div className="lab">{Icon.clear()} /clear recommendation threshold</div>
+                  <div className="hlp" style={{ marginTop: 0, marginBottom: 10 }}>
+                    When a session&apos;s context window crosses either limit, the app nudges you to run <code>/clear</code> to start fresh. Whichever is hit first wins.
                   </div>
-                  <div className="field" style={{ flex: 1, marginBottom: 0 }}>
-                    <div className="lab">Absolute tokens <span className="opt">— count</span></div>
-                    <input
-                      type="number" min={1000} step={1000} value={settings.clearThresholdTokens}
-                      onChange={(e) => setSetting("clearThresholdTokens", Number(e.target.value) || 0)}
-                      onBlur={(e) => setSetting("clearThresholdTokens", clampTokens(Number(e.target.value) || DEFAULT_SETTINGS.clearThresholdTokens))}
-                    />
+                  <div style={{ display: "flex", gap: 14, maxWidth: 420 }}>
+                    <div className="field" style={{ flex: 1, marginBottom: 0 }}>
+                      <div className="lab">Percent of window <span className="opt">- %</span></div>
+                      <input
+                        type="number" min={1} max={100} value={settings.clearThresholdPct}
+                        onChange={(e) => setSetting("clearThresholdPct", Number(e.target.value) || 0)}
+                        onBlur={(e) => setSetting("clearThresholdPct", clampPct(Number(e.target.value) || DEFAULT_SETTINGS.clearThresholdPct))}
+                      />
+                    </div>
+                    <div className="field" style={{ flex: 1, marginBottom: 0 }}>
+                      <div className="lab">Absolute tokens <span className="opt">- count</span></div>
+                      <input
+                        type="number" min={1000} step={1000} value={settings.clearThresholdTokens}
+                        onChange={(e) => setSetting("clearThresholdTokens", Number(e.target.value) || 0)}
+                        onBlur={(e) => setSetting("clearThresholdTokens", clampTokens(Number(e.target.value) || DEFAULT_SETTINGS.clearThresholdTokens))}
+                      />
+                    </div>
+                  </div>
+                  <div className="hlp" style={{ marginTop: 8 }}>
+                    Defaults: {DEFAULT_SETTINGS.clearThresholdPct}% or {DEFAULT_SETTINGS.clearThresholdTokens.toLocaleString()} tokens.
                   </div>
                 </div>
-                <div className="hlp" style={{ marginTop: 8 }}>
-                  Defaults: {DEFAULT_SETTINGS.clearThresholdPct}% or {DEFAULT_SETTINGS.clearThresholdTokens.toLocaleString()} tokens.
+
+                <div className="field">
+                  <div className="lab">{Icon.gauge()} Quota advisor</div>
+                  <div className="hlp" style={{ marginTop: 0, marginBottom: 10 }}>
+                    Shows a banner when provider usage exceeds a threshold, with suggestions to switch tasks or use the Codex handoff button.
+                  </div>
+                  <div style={{ display: "flex", gap: 14, alignItems: "flex-start", maxWidth: 420 }}>
+                    <div className="field" style={{ flex: 1, marginBottom: 0 }}>
+                      <div className="lab">Enable advisor <span className="opt">- toggle</span></div>
+                      <div className="seg" style={{ marginTop: 8 }}>
+                        <button
+                          className={appDefaults.quota_advisor_enabled === "1" ? "on" : ""}
+                          onClick={() => setAppDefault("quota_advisor_enabled", appDefaults.quota_advisor_enabled === "1" ? "0" : "1")}
+                        >
+                          {appDefaults.quota_advisor_enabled === "1" ? "On" : "Off"}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="field" style={{ flex: 1, marginBottom: 0 }}>
+                      <div className="lab">Warn at <span className="opt">— %</span></div>
+                      <input
+                        type="number" min={1} max={99} value={appDefaults.quota_warn_threshold || "80"}
+                        onChange={(e) => setAppDefault("quota_warn_threshold", String(Math.min(99, Math.max(1, Number(e.target.value) || 80))))}
+                      />
+                    </div>
+                  </div>
+                  <div className="hlp" style={{ marginTop: 8 }}>
+                    Shows a banner when any provider window reaches this percentage of its limit. Defaults: on, 80%.
+                  </div>
                 </div>
-              </div>
+              </>
             )}
             {section === "run" && (
               <>

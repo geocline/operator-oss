@@ -93,3 +93,12 @@ export const ORCH_MCP_SCRIPT = path.join(process.cwd(), "scripts", "orch-mcp.mjs
  * any single-hostname deployment.
  */
 export const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || "").replace(/\/+$/, "");
+
+/**
+ * The base URL for the OpenCodex proxy's provider-quotas endpoint
+ * (e.g. http://127.0.0.1:10100). Used to fetch real-time quota/fuel-gauge data.
+ * Loopback-only on Geo's fork; the proxy serves quota.reports[] with percent-used
+ * and reset-at timestamps per provider. Empty = proxy disabled (quotas unavailable).
+ * Default: http://127.0.0.1:10100.
+ */
+export const OCX_PROXY_URL = process.env.OCX_PROXY_URL || "http://127.0.0.1:10100";
