@@ -443,20 +443,24 @@ export function NewProjectModal({ onClose, onCreate }: { onClose: () => void; on
   const [repo, setRepo] = useState("");
   const colors = ["#C2603C", "#3E7CA8", "#6B6F8C", "#5C8C5A", "#9A6E14", "#9E5BA0"];
   const [color, setColor] = useState(colors[0]);
-  // Where the code comes from: a fresh/local folder (the greenfield path) or a
-  // clone of one of the user's GitHub repos (the onboarding path).
-  const [mode, setMode] = useState<"fresh" | "clone">("fresh");
+  // Where the code comes from: a brand-new auto-created folder (the phone-
+  // friendly zero-typing path), an existing folder on disk, or a clone of one
+  // of the user's GitHub repos. "new" sends no path - the server creates
+  // PROJECTS_DIR/<name> and the folder exists before the first task.
+  const [mode, setMode] = useState<"new" | "existing" | "clone">("new");
   const [cloneSpec, setCloneSpec] = useState(""); // owner/repo or pasted URL
   const [cloning, setCloning] = useState(false);
   const [cloneErr, setCloneErr] = useState<string | null>(null);
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => { ref.current?.focus(); }, []);
-  const ok = name.trim().length > 0 && !cloning && (mode === "fresh" || cloneSpec.trim().length > 0);
+  const ok = name.trim().length > 0 && !cloning
+    && (mode === "new" || (mode === "existing" ? repo.trim().length > 0 : cloneSpec.trim().length > 0));
 
   const submit = async () => {
     if (!ok) return;
     const base = { name: name.trim(), sub: sub.trim() || "app", color, context: context.trim() };
-    if (mode === "fresh") { await onCreate({ ...base, repo_path: repo.trim() }); return; }
+    if (mode === "new") { await onCreate({ ...base, repo_path: "" }); return; }
+    if (mode === "existing") { await onCreate({ ...base, repo_path: repo.trim() }); return; }
     // Clone first; only create the project once the repo actually landed.
     setCloning(true);
     setCloneErr(null);
@@ -500,13 +504,20 @@ export function NewProjectModal({ onClose, onCreate }: { onClose: () => void; on
       <div className="field">
         <div className="lab">{Icon.folder()} Code</div>
         <div className="seg">
-          <button className={mode === "fresh" ? "on" : ""} onClick={() => setMode("fresh")}>Start fresh</button>
+          <button className={mode === "new" ? "on" : ""} onClick={() => setMode("new")}>New folder</button>
+          <button className={mode === "existing" ? "on" : ""} onClick={() => setMode("existing")}>Existing folder</button>
           <button className={mode === "clone" ? "on" : ""} onClick={() => setMode("clone")}>{Icon.github()} Clone from GitHub</button>
         </div>
       </div>
-      {mode === "fresh" ? (
+      {mode === "new" ? (
         <div className="field">
-          <div className="lab">Working dir <span className="opt">— optional, can add later</span></div>
+          <div className="hlp" style={{ margin: 0 }}>
+            A folder named after the project is created automatically in your projects directory - nothing to pick or type.
+          </div>
+        </div>
+      ) : mode === "existing" ? (
+        <div className="field">
+          <div className="lab">Working dir</div>
           <div style={{ display: "flex", gap: 8 }}>
             <input type="text" className="ctx-mono" style={{ flex: 1, minWidth: 0 }} value={repo} placeholder="/Users/you/code/project" onChange={(e) => setRepo(e.target.value)} />
             <BrowseDirButton initial={repo} onPick={setRepo} />
