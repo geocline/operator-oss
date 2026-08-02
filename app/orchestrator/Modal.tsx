@@ -100,6 +100,13 @@ export function BrowseDirButton({ initial, onPick }: { initial?: string; onPick:
   const [browsing, setBrowsing] = useState(false);
   const [busy, setBusy] = useState(false);
   const browse = useCallback(async () => {
+    // The native chooser opens on the HOST Mac's desktop - useless (and
+    // confusing: the button just spins) when the viewer is a phone or any
+    // remote browser. Touch-first devices get the in-app picker directly.
+    if (typeof window !== "undefined" && window.matchMedia("(any-pointer: coarse)").matches) {
+      setBrowsing(true);
+      return;
+    }
     setBusy(true);
     try {
       const r = await jsend<{ path?: string; canceled?: boolean; unsupported?: boolean }>("/api/fs/pick-dir", "POST", { initial: initial || "" });

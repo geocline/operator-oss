@@ -465,7 +465,7 @@ export default function Orchestrator() {
           </div>
 
           <button
-            className={`tb-icon${o.view === "insights" ? " on" : ""}`}
+            className={`tb-icon tb-mobile-hide${o.view === "insights" ? " on" : ""}`}
             title="Insights - spend, tokens, tasks shipped, code merged" aria-label="Insights"
             onClick={() => o.setView(o.view === "insights" ? "workspace" : "insights")}
           >
@@ -473,14 +473,14 @@ export default function Orchestrator() {
           </button>
           <QuotaStrip onOpenQuota={() => o.setView("quota")} />
           {/* Geo's local dashboards - Work Cockpit (8770) and Conversations (8772). */}
-          <a className="tb-icon" href="http://localhost:8770/#cockpit" target="_blank" rel="noopener noreferrer" title="Work Cockpit (Mission Board)" aria-label="Work Cockpit">
+          <a className="tb-icon tb-mobile-hide" href="http://localhost:8770/#cockpit" target="_blank" rel="noopener noreferrer" title="Work Cockpit (Mission Board)" aria-label="Work Cockpit">
             {Icon.external()}
           </a>
-          <a className="tb-icon" href="http://localhost:8772" target="_blank" rel="noopener noreferrer" title="Conversations Dashboard (transcript search)" aria-label="Conversations Dashboard">
+          <a className="tb-icon tb-mobile-hide" href="http://localhost:8772" target="_blank" rel="noopener noreferrer" title="Conversations Dashboard (transcript search)" aria-label="Conversations Dashboard">
             {Icon.external()}
           </a>
           <button
-            className={`tb-icon${o.view === "quota" ? " on" : ""}`}
+            className={`tb-icon tb-mobile-hide${o.view === "quota" ? " on" : ""}`}
             title="Provider quotas - real-time fuel gauge" aria-label="Provider quotas"
             onClick={() => o.setView(o.view === "quota" ? "workspace" : "quota")}
           >

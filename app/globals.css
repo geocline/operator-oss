@@ -1287,8 +1287,16 @@ button.tpeek-more:hover{color:var(--accent-ink);}
      the status bar / notch. */
   .app.mobile .titlebar{padding-top:env(safe-area-inset-top);height:calc(46px + env(safe-area-inset-top));padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right));}
   .app.mobile .tb-user,
+  .app.mobile .tb-mobile-hide,
   .app.mobile .tb-actions{display:none;}
-  .app.mobile .needs-you-pill{height:34px;}
+  .app.mobile .needs-you-pill{height:34px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  /* The desktop titlebar is a 1fr/auto/1fr grid; on a narrow phone the right
+     cluster is wider than its track and, being end-justified, overflows LEFT
+     over the logo. Flex makes the two sides actually negotiate for space. */
+  .app.mobile .titlebar{display:flex;align-items:center;gap:10px;}
+  .app.mobile .tb-left{flex:0 1 auto;min-width:0;}
+  .app.mobile .tb-word{display:none;}
+  .app.mobile .tb-right{flex:1 1 auto;justify-content:flex-end;min-width:0;gap:8px;}
 
   /* Back affordance — a 40px square chevron prepended to the tasks/session header. */
   .mobile-back{flex:0 0 auto;width:40px;height:40px;border-radius:var(--r-sm);display:grid;place-items:center;color:var(--ink-2);margin-right:2px;}
