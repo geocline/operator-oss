@@ -429,7 +429,7 @@ export function SessionView({ project, task, agents, messages, running, blockedB
               </button>
             )}
             {hasSession && task.started === 1 && (
-              <button className="btn btn-line btn-sm" title="Save summary & start a fresh context window" onClick={onClear} disabled={running}>{Icon.clear()} /clear</button>
+              <button className="btn btn-line btn-sm" title="Renew: summarize this session and continue in a fresh context window - the transcript is kept, nothing is erased" onClick={onClear} disabled={running}>{Icon.clear()} Renew</button>
             )}
             {hasSession && task.started === 1 && onHandoff && agents.agents
               .filter((a) => a.id !== task.agent && a.authenticated)

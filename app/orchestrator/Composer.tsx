@@ -100,7 +100,7 @@ export function Composer({ task, agentLabel, disabled, running, onSend, onStop, 
   const ready = atts.filter((a) => a.status === "ready");
   const uploading = atts.some((a) => a.status === "uploading");
   const cmds = [
-    { cmd: "/clear", desc: "save summary · fresh session", run: () => { onClear(); setVal(""); setSlash(false); } },
+    { cmd: "/clear", desc: "renew: save summary, fresh session (transcript kept)", run: () => { onClear(); setVal(""); setSlash(false); } },
   ];
   const submit = () => {
     const v = val.trim();
@@ -156,7 +156,7 @@ export function Composer({ task, agentLabel, disabled, running, onSend, onStop, 
           <div className="comp-area">
             <textarea
               ref={ref} rows={1} value={val} disabled={disabled}
-              placeholder={disabled ? "Start the session to reply…" : running ? "Queue a follow-up… (sent when this turn ends)" : `Reply to ${agentLabel} in “${task.title}”…  (try /clear, drop an image)`}
+              placeholder={disabled ? "Start the session to reply…" : running ? "Queue a follow-up… (sent when this turn ends)" : `Reply to ${agentLabel} in “${task.title}”…  (try Renew, drop a file)`}
               onChange={(e) => { setVal(e.target.value); autosize(e.target); setSlash(e.target.value.trim().startsWith("/")); }}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } if (e.key === "Escape") setSlash(false); }}
               onPaste={(e) => {
@@ -195,7 +195,7 @@ export function Composer({ task, agentLabel, disabled, running, onSend, onStop, 
             {!disabled && (
               <button className="hint" style={{ cursor: "pointer" }} title="Attach a file - image, PDF, spreadsheet, anything (or drag & drop / paste)" onMouseDown={(e) => { e.preventDefault(); fileRef.current?.click(); }}>{Icon.clip()} file</button>
             )}
-            <button className="hint" style={{ cursor: "pointer" }} onMouseDown={(e) => { e.preventDefault(); onClear(); }}>{Icon.clear()} /clear</button>
+            <button className="hint" style={{ cursor: "pointer" }} onMouseDown={(e) => { e.preventDefault(); onClear(); }} title="Summarize and continue in a fresh context window (also: type /clear)">{Icon.clear()} Renew</button>
           </div>
         </div>
       </div>
