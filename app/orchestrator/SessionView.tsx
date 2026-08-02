@@ -274,7 +274,11 @@ export function SessionView({ project, task, agents, messages, running, blockedB
                 const prev = s.messages[mi - 1];
                 // collapse the repeated "Claude Code" header across an assistant run (text → tool → text)
                 const hideWho = m.role === "assistant" && !!prev && (prev.role === "assistant" || prev.role === "tool");
-                return <MessageView key={m.id} m={m} initial={mi === 0 && m.role === "user"} hideWho={hideWho} running={running} agent={task.agent} agentLabel={agentLabel(agents, task.agent)} onAnswer={stableAnswer} onCancelQueued={stableCancelQueued} onClear={stableClear} onReconnect={stableReconnect} />;
+                // Tool noise control: only the tail of the CURRENT session keeps
+                // its peek previews; everything older condenses to one-liners
+                // (click any header to reopen).
+                const condensed = si < sessions.length - 1 || mi < s.messages.length - 6;
+                return <MessageView key={m.id} m={m} initial={mi === 0 && m.role === "user"} hideWho={hideWho} condensed={condensed} running={running} agent={task.agent} agentLabel={agentLabel(agents, task.agent)} onAnswer={stableAnswer} onCancelQueued={stableCancelQueued} onClear={stableClear} onReconnect={stableReconnect} />;
               })}
             </div>
           ))}

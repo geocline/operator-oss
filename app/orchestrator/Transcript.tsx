@@ -55,12 +55,16 @@ function PeekView({ peek, expandable, onExpand }: { peek: ToolPeek; expandable: 
   );
 }
 
-function ToolView({ data }: { data: ToolData }) {
+function ToolView({ data, condensed }: { data: ToolData; condensed?: boolean }) {
   const [open, setOpen] = useState(false);
   const hasDiff = !!data.diff?.length;
   const expandable = !!(data.detail || hasDiff || data.result !== undefined);
   // Failures surface their output automatically, like Claude Code.
   const showBody = open || (!!data.isError && data.result !== undefined);
+  // Older tool calls collapse to their one-line header so a long transcript
+  // reads as prose; the peek tier only renders for the latest activity (or
+  // errors, or anything the user explicitly opened).
+  const showPeek = data.peek && !showBody && (!condensed || !!data.isError);
   return (
     <div className="tool">
       <button className="tool-h" style={{ cursor: expandable ? "pointer" : "default" }} onClick={() => expandable && setOpen((o) => !o)}>
@@ -68,7 +72,7 @@ function ToolView({ data }: { data: ToolData }) {
         <span className="tg">{data.title}</span>
         {data.result !== undefined && <span className={data.isError ? "tx" : "tcheck"}>{data.isError ? Icon.x() : Icon.check()}</span>}
       </button>
-      {data.peek && !showBody && <PeekView peek={data.peek} expandable={expandable} onExpand={() => setOpen(true)} />}
+      {showPeek && <PeekView peek={data.peek!} expandable={expandable} onExpand={() => setOpen(true)} />}
       {showBody && (
         <div className="tool-body">
           {data.detail && <pre className="tool-pre">{data.detail}</pre>}
@@ -177,7 +181,7 @@ function AttachmentStrip({ items }: { items: MsgAttachment[] }) {
 // changes), so unchanged messages skip re-rendering — and re-parsing their
 // markdown — entirely. Callers must pass identity-stable handlers or the memo
 // is defeated (SessionView wraps its handlers for exactly this reason).
-export const MessageView = memo(function MessageView({ m, initial, hideWho, running, agent, agentLabel = "The agent", onAnswer, onCancelQueued, onClear, onReconnect }: { m: Msg; initial: boolean; hideWho: boolean; running?: boolean; agent?: string | null; agentLabel?: string; onAnswer?: (askId: string, questions: AskQuestion[], answers: AskAnswers) => void; onCancelQueued?: (pendingId: string) => void; onClear?: () => void; onReconnect?: () => void }) {
+export const MessageView = memo(function MessageView({ m, initial, hideWho, running, agent, agentLabel = "The agent", condensed, onAnswer, onCancelQueued, onClear, onReconnect }: { m: Msg; initial: boolean; hideWho: boolean; running?: boolean; agent?: string | null; agentLabel?: string; condensed?: boolean; onAnswer?: (askId: string, questions: AskQuestion[], answers: AskAnswers) => void; onCancelQueued?: (pendingId: string) => void; onClear?: () => void; onReconnect?: () => void }) {
   if (m.role === "queued") {
     // A follow-up the user typed mid-turn, waiting its turn. Reads like a user
     // bubble but dimmed, tagged "Queued", with an × to drop it before it runs.
@@ -199,7 +203,7 @@ export const MessageView = memo(function MessageView({ m, initial, hideWho, runn
     if (data.ask) {
       return <div className="msg msg-tool"><AskView data={data} agentLabel={agentLabel} onAnswer={(answers) => onAnswer?.(data.ask?.id || m.toolId || "", data.ask?.questions ?? [], answers)} /></div>;
     }
-    return <div className="msg msg-tool"><ToolView data={data} /></div>;
+    return <div className="msg msg-tool"><ToolView data={data} condensed={condensed} /></div>;
   }
   if (m.role === "system") {
     // A context-overflow failure: render the warning line plus a one-click path
