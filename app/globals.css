@@ -671,7 +671,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 .sess-head .crumb{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);display:flex;align-items:center;gap:6px;}
 .sess-head .crumb .sep{opacity:.5;}
 .sess-head .sh-title{font-size:17px;font-weight:700;letter-spacing:-.02em;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.sess-head .sh-tools{display:flex;align-items:center;gap:7px;flex:0 0 auto;}
+.sess-head .sh-tools{display:flex;align-items:center;gap:7px;flex:0 1 auto;flex-wrap:wrap;row-gap:7px;min-width:0;justify-content:flex-end;}
 
 /* clickable link to the GitHub PR opened from this task's branch */
 .pr-chip{display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 11px;border-radius:99px;border:1px solid var(--line);background:var(--surface-2);font-size:12px;font-weight:600;color:var(--ink-2);text-decoration:none;white-space:nowrap;flex:0 0 auto;}
