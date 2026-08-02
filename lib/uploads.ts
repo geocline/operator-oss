@@ -35,6 +35,10 @@ export const MIME_BY_EXT: Record<string, string> = {
   gif: "image/gif",
   webp: "image/webp",
   txt: "text/plain; charset=utf-8",
+  pdf: "application/pdf",
+  csv: "text/csv; charset=utf-8",
+  json: "application/json; charset=utf-8",
+  md: "text/markdown; charset=utf-8",
 };
 
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB per attachment

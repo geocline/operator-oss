@@ -5,10 +5,12 @@ import { taskUploadsDir, MIME_BY_EXT } from "@/lib/uploads";
 
 export const dynamic = "force-dynamic";
 
-// Server-generated names only (nanoid + whitelisted extension) — this is the
-// traversal guard, so both segments are validated before touching the fs.
+// Server-generated names only (nanoid + short alphanumeric extension) — this
+// is the traversal guard, so both segments are validated before touching the
+// fs. The extension set is open (any file type can be attached); unknown
+// types serve as application/octet-stream.
 const SAFE_SEGMENT = /^[A-Za-z0-9_-]+$/;
-const SAFE_FILE = /^([A-Za-z0-9_-]+)\.(png|jpg|gif|webp|txt)$/;
+const SAFE_FILE = /^([A-Za-z0-9_-]+)\.([A-Za-z0-9]{1,8})$/;
 
 /** Serve an uploaded chat attachment (image thumbnail or text file). Auth: middleware. */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string; file: string }> }) {

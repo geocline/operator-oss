@@ -36,11 +36,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!entry || typeof entry === "string") return NextResponse.json({ error: "missing file" }, { status: 400 });
   const file = entry;
   // file.type may carry a charset (e.g. "text/plain;charset=utf-8"); match on
-  // the bare MIME type.
-  const ext = UPLOAD_EXT_BY_MIME[file.type.split(";")[0].trim()];
-  if (!ext) {
-    return NextResponse.json({ error: "Only PNG, JPEG, GIF, WebP images or plain text are supported." }, { status: 415 });
-  }
+  // the bare MIME type. Types outside the known map (PDFs, CSVs, docs...) are
+  // accepted too: the agent opens them with its Read tool, so any on-disk file
+  // is usable. The extension comes from the original filename, sanitized to a
+  // short alphanumeric token so the serving route's traversal guard holds.
+  const known = UPLOAD_EXT_BY_MIME[file.type.split(";")[0].trim()];
+  const fromName = /\.([A-Za-z0-9]{1,8})$/.exec(file.name || "")?.[1]?.toLowerCase();
+  const ext = known || fromName || "bin";
   if (file.size > MAX_UPLOAD_BYTES) {
     return NextResponse.json({ error: `Attachment too large (max ${MAX_UPLOAD_BYTES / 1024 / 1024} MB).` }, { status: 413 });
   }

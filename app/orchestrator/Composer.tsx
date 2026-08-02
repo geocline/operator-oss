@@ -189,11 +189,11 @@ export function Composer({ task, agentLabel, disabled, running, onSend, onStop, 
             <span className="hint"><span className="kbd">/</span> commands</span>
             <span className="spacer" />
             <input
-              ref={fileRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden
+              ref={fileRef} type="file" multiple hidden
               onChange={(e) => { addFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }}
             />
             {!disabled && (
-              <button className="hint" style={{ cursor: "pointer" }} title="Attach an image (or drag & drop / paste one)" onMouseDown={(e) => { e.preventDefault(); fileRef.current?.click(); }}>{Icon.clip()} image</button>
+              <button className="hint" style={{ cursor: "pointer" }} title="Attach a file - image, PDF, spreadsheet, anything (or drag & drop / paste)" onMouseDown={(e) => { e.preventDefault(); fileRef.current?.click(); }}>{Icon.clip()} file</button>
             )}
             <button className="hint" style={{ cursor: "pointer" }} onMouseDown={(e) => { e.preventDefault(); onClear(); }}>{Icon.clear()} /clear</button>
           </div>
