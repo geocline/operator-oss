@@ -176,6 +176,37 @@ export function findSessionRef(agentSessionId: string): { project_id: string; ta
   return row ?? null;
 }
 
+/**
+ * Find a project whose repo_path CONTAINS `childPath` (deal-lane routing: a
+ * card workspace folder inside a lane opens as a task in that lane, not as a
+ * nested project). Longest matching repo_path wins.
+ */
+export function findProjectContaining(childPath: string): Project | null {
+  const norm = childPath.replace(/\/+$/, "");
+  const rows = getDb().prepare("SELECT * FROM projects WHERE deprecated = 0 AND repo_path != ''").all() as Project[];
+  let best: Project | null = null;
+  for (const p of rows) {
+    const base = p.repo_path.replace(/\/+$/, "");
+    if (norm !== base && norm.startsWith(base + "/") && (!best || base.length > best.repo_path.replace(/\/+$/, "").length)) best = p;
+  }
+  return best;
+}
+
+/**
+ * Find a live (not done/cancelled) task in a project whose description carries
+ * `marker` - the dedup for deep links that create tasks (clicking a card's
+ * Open in Operator twice must land on the same task).
+ */
+export function findOpenTaskByMarker(projectId: string, marker: string): Task | null {
+  const row = getDb()
+    .prepare(
+      `SELECT * FROM tasks WHERE project_id = ? AND suggested = 0 AND status NOT IN ('done','cancelled')
+       AND description LIKE ? ORDER BY created_at DESC LIMIT 1`
+    )
+    .get(projectId, `%${marker}%`) as Task | undefined;
+  return row ?? null;
+}
+
 // The next deterministic per-project port: one past the current max (never
 // reusing a freed slot, so a project's port is stable for its lifetime), floored
 // at SERVICE_PORT_BASE. Injected as PORT into the project's services + PTY.

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { findProjectByRepoPath, findSessionRef, createProject, createTask, getTask } from "@/lib/store";
+import { findProjectByRepoPath, findProjectContaining, findOpenTaskByMarker, findSessionRef, createProject, createTask, getTask } from "@/lib/store";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -150,8 +150,33 @@ export async function GET(req: Request): Promise<Response> {
     }
   }
 
-  // 3) Folder-based: find the project by repo_path, create it if missing.
+  // 3) Folder-based. Exact repo_path match first (a lane opens as itself);
+  //    then deal-lane routing: a folder INSIDE a lane (a tracker card's
+  //    workspace like Ardent/Wobbe/card-projects/TIC-Info) opens as a TASK in
+  //    that lane - project = deal, task = assignment - so the session gets the
+  //    lane's context and index pointers instead of an amnesiac nested
+  //    project. Re-clicking the same card lands on the existing live task.
   if (repoPath && path.isAbsolute(repoPath)) {
+    const exact = findProjectByRepoPath(repoPath);
+    if (exact) return home(`/?project=${exact.id}`);
+
+    const lane = findProjectContaining(repoPath);
+    if (lane && existsSync(repoPath)) {
+      const marker = repoPath.replace(/\/+$/, "");
+      const existing = findOpenTaskByMarker(lane.id, marker);
+      if (existing) return home(`/?project=${lane.id}&task=${existing.id}`);
+      const task = createTask({
+        project_id: lane.id,
+        title: name || path.basename(marker),
+        description:
+          `Tracker card workspace: ${marker}\n\n` +
+          `Read the card bundle there first (description, comments, attachment list) - it defines this assignment. ` +
+          `Write deliverables into that folder. For deal knowledge, start from the deal's INDEX.md and the search tools ` +
+          `named in the project context; open only the files you need.`,
+      });
+      return home(`/?project=${lane.id}&task=${task.id}`);
+    }
+
     const project = projectFor(repoPath, name);
     if (project) return home(`/?project=${project.id}`);
   }
