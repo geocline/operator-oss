@@ -153,7 +153,23 @@ export async function GET(req: Request): Promise<Response> {
   const repoPath = url.searchParams.get("path")?.trim();
   const name = url.searchParams.get("name")?.trim();
 
-  const home = (to: string) => NextResponse.redirect(new URL(to, url.origin), 307);
+  let redirectOrigin = url.origin;
+  const configuredOrigin = process.env.PUBLIC_BASE_URL?.trim();
+  if (configuredOrigin) {
+    try {
+      const parsedOrigin = new URL(configuredOrigin);
+      if (
+        parsedOrigin.protocol === "http:" ||
+        parsedOrigin.protocol === "https:"
+      ) {
+        redirectOrigin = parsedOrigin.origin;
+      }
+    } catch {
+      // Invalid optional configuration falls back to the request origin.
+    }
+  }
+  const home = (to: string) =>
+    NextResponse.redirect(new URL(to, redirectOrigin), 307);
 
   const projectFor = (dir: string, label?: string) => {
     const existing = findProjectByRepoPath(dir);

@@ -138,6 +138,39 @@ describe("workstream activation deep link", () => {
     });
   });
 
+  it("redirects the linked task through the configured public Operator origin", async () => {
+    const lanePath = mkdtempSync(path.join(os.tmpdir(), "operator-public-"));
+    const lane = createProject({ name: "WR1", repo_path: lanePath });
+    vi.stubEnv(
+      "PUBLIC_BASE_URL",
+      "http://geos-mbp.tail9f0829.ts.net:3000",
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(async (url: string) =>
+        Response.json(
+          url.endsWith("/activation/ack")
+            ? { workstream: { status: "active" } }
+            : exchangeBody({
+                card_id: "card-public-origin",
+                project_path: path.join(lanePath, "card-project"),
+              }),
+        ),
+      ),
+    );
+
+    const response = await GET(
+      new Request("http://localhost:3000/open?workstream_token=public-token"),
+    );
+    const redirected = new URL(response.headers.get("location")!);
+
+    expect(redirected.origin).toBe(
+      "http://geos-mbp.tail9f0829.ts.net:3000",
+    );
+    expect(redirected.searchParams.get("project")).toBe(lane.id);
+    expect(redirected.searchParams.get("task")).toBeTruthy();
+  });
+
   it("deduplicates repeated activation by provider and external card id", async () => {
     const lanePath = mkdtempSync(path.join(os.tmpdir(), "operator-lane-"));
     const lane = createProject({ name: "Wobbe", repo_path: lanePath });
