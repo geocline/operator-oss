@@ -98,17 +98,37 @@ export function NewTaskModal({ project, agents, tasks, onClose, onCreate, onOpen
   );
 }
 
-export function EditTaskModal({ task, tasks, onClose, onSave, onDelete }: { task: TaskRow; tasks: TaskRow[]; onClose: () => void; onSave: (id: string, patch: { title: string; description: string; priority: Priority; depends_on: string[] }) => void; onDelete: (id: string) => void }) {
+export function EditTaskModal({ task, tasks, onClose, onSave, onDelete }: { task: TaskRow; tasks: TaskRow[]; onClose: () => void; onSave: (id: string, patch: { title: string; description: string; priority: Priority; depends_on: string[] }) => Promise<void>; onDelete: (id: string) => void }) {
   const [title, setTitle] = useState(task.title);
   const [desc, setDesc] = useState(task.description);
   const [priority, setPriority] = useState<Priority>(task.priority);
   const [deps, setDeps] = useState<string[]>(task.depends_on ?? []);
   const [confirmDel, setConfirmDel] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => { ref.current?.focus(); }, []);
   const can = title.trim().length > 0;
   const candidates = useMemo(() => tasks.filter((t) => t.id !== task.id), [tasks, task.id]);
-  const save = () => can && onSave(task.id, { title: title.trim(), description: desc.trim(), priority, depends_on: deps });
+  const save = async () => {
+    if (!can || saving) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await onSave(task.id, {
+        title: title.trim(),
+        description: desc.trim(),
+        priority,
+        depends_on: deps,
+      });
+    } catch (cause) {
+      setSaveError(
+        cause instanceof Error ? cause.message : "Could not save changes",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
   return (
     <Modal title="Edit task" sub="title + description become the agent's first prompt" onClose={onClose}
       footer={<>
@@ -119,12 +139,17 @@ export function EditTaskModal({ task, tasks, onClose, onSave, onDelete }: { task
         )}
         <span className="spacer" />
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-accent" disabled={!can} onClick={save}>{Icon.check()} Save changes</button>
+        <button className="btn btn-accent" disabled={!can || saving} onClick={() => void save()}>{Icon.check()} {saving ? "Saving…" : "Save changes"}</button>
       </>}>
+      {saveError && (
+        <div role="alert" aria-live="assertive">
+          <ErrNote style={{ marginBottom: 12 }}>{saveError}</ErrNote>
+        </div>
+      )}
       <div className="field">
         <div className="lab">Title</div>
         <input ref={ref} type="text" value={title} placeholder="e.g. Add rate-limiting to auth endpoints"
-          onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && can) save(); }} />
+          onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && can) void save(); }} />
       </div>
       <div className="field">
         <div className="lab">Description <span className="opt">— what to do</span></div>
