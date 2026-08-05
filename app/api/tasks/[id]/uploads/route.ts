@@ -50,7 +50,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const dir = taskUploadsDir(id);
   fs.mkdirSync(dir, { recursive: true });
   const name = `${nanoid()}.${ext}`;
-  const abs = path.join(dir, name);
+  const abs = path.join(/* turbopackIgnore: true */ dir, name);
   fs.writeFileSync(abs, Buffer.from(await file.arrayBuffer()));
   return NextResponse.json({ ok: true, path: abs, url: `/api/tasks/${id}/uploads/${name}`, name: file.name || name });
 }

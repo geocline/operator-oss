@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
  * sha/builtAt are baked into the image at build time (Dockerfile ARGs, fed by
  * scripts/orch-user.sh from the deploy host's git tree); they read "unknown" on
  * a plain `docker build .`. Like /api/instance/idle this is exempted from the
- * origin auth gate ONLY for callers presenting SERVICE_TOKEN — see middleware.ts.
+ * origin auth gate ONLY for callers presenting SERVICE_TOKEN — see proxy.ts.
  */
 export async function GET() {
   return Response.json({

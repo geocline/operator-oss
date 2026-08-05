@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 // `ask_user` tool call to. Persists + publishes the interactive ask card and
 // parks a detached waiter on the user's answer; the bridge then polls the
 // sibling `wait` endpoint for the outcome. Auth is the per-instance
-// SERVICE_TOKEN, enforced in middleware.ts (isAgentToolPath).
+// SERVICE_TOKEN, enforced in proxy.ts (isAgentToolPath).
 
 // Clamp bridge-supplied questions to the AskQuestion shape the UI renders.
 // Anything without a question text or at least one labeled option is dropped —

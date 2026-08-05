@@ -276,7 +276,8 @@ export async function cloneRepo(spec: string): Promise<{ path: string; branch: s
   const base = (spec.split("/").pop() || "repo").replace(/\.git$/, "");
   fs.mkdirSync(PROJECTS_DIR, { recursive: true });
   let dest = path.join(PROJECTS_DIR, base);
-  for (let i = 2; fs.existsSync(dest); i++) dest = path.join(PROJECTS_DIR, `${base}-${i}`);
+  for (let i = 2; fs.existsSync(/* turbopackIgnore: true */ dest); i++)
+    dest = path.join(PROJECTS_DIR, `${base}-${i}`);
 
   const opts = {
     timeout: 10 * 60_000,

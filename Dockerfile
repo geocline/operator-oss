@@ -86,7 +86,7 @@ COPY --from=build --chown=root:root /app/public ./public
 COPY --from=build --chown=root:root /app/server.js /app/pty-server.js /app/next.config.mjs /app/package.json ./
 # server.js dynamically imports the origin auth verifier, the service
 # hostname router, and the inherited-key guard at runtime (un-bundled, unlike
-# the middleware copy compiled into .next). Import graphs:
+# the proxy copy compiled into .next). Import graphs:
 # lib/auth/origin.mjs -> lib/cf-access.mjs;
 # lib/service-router.mjs -> lib/service-host.mjs; lib/env-keys.mjs (also
 # imported by pty-server.js) stands alone.
@@ -130,7 +130,7 @@ ENV ORCH_GIT_SHA=$GIT_SHA \
     ORCH_BUILT_AT=$BUILT_AT
 
 # The idle endpoint doubles as the health probe (it exercises Next + SQLite).
-# It presents SERVICE_TOKEN — the one path middleware.ts exempts from the
+# It presents SERVICE_TOKEN — the one path proxy.ts exempts from the
 # Cloudflare Access check, since no Access JWT exists inside the container.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/instance/idle',{headers:process.env.SERVICE_TOKEN?{'x-service-token':process.env.SERVICE_TOKEN}:{}}).then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"

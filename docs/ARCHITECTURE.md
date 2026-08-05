@@ -124,7 +124,7 @@ equivalent is **`scripts/orch-mcp.mjs`**, a plain-Node stdio MCP server
 reads `ORCH_TASK_ID` / `ORCH_PROJECT_ID` / `ORCH_BASE_URL` / `SERVICE_TOKEN` from env
 (injected by the driver) and POSTs each tool call to the app's internal endpoints
 (`app/api/internal/agent-tools/{suggest-task,expose-service,ask-user}`, gated by the strict
-per-instance `SERVICE_TOKEN` in `middleware.ts`). `ask_user` is the asynchronous one: the
+per-instance `SERVICE_TOKEN` in `proxy.ts`). `ask_user` is the asynchronous one: the
 endpoint persists + publishes the same interactive question card the Claude hook produces,
 parks a **detached** waiter on the user's answer (`lib/asks.ts`, tied to the turn's abort
 signal), and the bridge **polls** the sibling `ask-user/wait` endpoint for the settled

@@ -19,8 +19,9 @@ export async function GET() {
 function defaultRepoPath(name: string): string {
   const base = name.replace(/[\/\\:]+/g, "-").trim() || "project";
   fs.mkdirSync(PROJECTS_DIR, { recursive: true });
-  let dest = path.join(PROJECTS_DIR, base);
-  for (let i = 2; fs.existsSync(dest); i++) dest = path.join(PROJECTS_DIR, `${base}-${i}`);
+  let dest = path.join(/* turbopackIgnore: true */ PROJECTS_DIR, base);
+  for (let i = 2; fs.existsSync(/* turbopackIgnore: true */ dest); i++)
+    dest = path.join(/* turbopackIgnore: true */ PROJECTS_DIR, `${base}-${i}`);
   fs.mkdirSync(dest, { recursive: true });
   return dest;
 }

@@ -35,7 +35,7 @@ process.on("uncaughtException", (err) => {
 });
 
 // Origin auth enforcement (lib/auth/origin.mjs selects the provider: open local
-// mode by default, or Cloudflare Access when configured). middleware.ts
+// mode by default, or Cloudflare Access when configured). proxy.ts
 // covers the HTTP routes; WebSocket upgrades never reach Next middleware, so
 // THIS file is the auth boundary for the terminal — an unverified /pty upgrade
 // would hand out a shell. jose v6 is ESM-only, hence the dynamic import from
@@ -85,7 +85,7 @@ const activity = (globalThis.__orchActivity ??= {
 // Health/metadata probes (idle, version, usage) never count as user activity —
 // otherwise a monitor's own loopback polling would keep an idle box perpetually
 // awake and defeat an idle-stop daemon. Mirrors the service-token path list in
-// middleware.ts.
+// proxy.ts.
 const countsAsActivity = (url) => {
   const p = String(url || "").split("?")[0];
   return (

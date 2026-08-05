@@ -12,6 +12,40 @@ const nextConfig = {
   turbopack: {
     root: fileURLToPath(new URL(".", import.meta.url)),
   },
+  // Dynamic filesystem APIs can make Next conservatively trace the repository
+  // root. These files are build inputs or local artifacts, never route runtime
+  // dependencies, so keep them out of every server function manifest.
+  outputFileTracingExcludes: {
+    "/*": [
+      ".env",
+      ".env.*",
+      "**/.DS_Store",
+      ".dockerignore",
+      ".git/**",
+      ".github/**",
+      ".gitignore",
+      ".npmrc",
+      ".superpowers/**",
+      ".vercel/**",
+      "*.html",
+      "*.md",
+      "Dockerfile",
+      "LICENSE",
+      "coverage/**",
+      "docker-compose.yml",
+      "docker/**",
+      "docs/**",
+      "next-env.d.ts",
+      "package-lock.json",
+      "scripts/check-build-traces.mjs",
+      "scripts/fix-pty.js",
+      "tests/**",
+      "tsconfig.json",
+      "tsconfig.tsbuildinfo",
+      "vitest.config.ts",
+      "worktrees/**",
+    ],
+  },
   // better-sqlite3 and node-pty are native modules and the agent SDKs spawn
   // their CLIs (`claude` / `codex`) — none should be bundled by Next's server
   // compiler.

@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 // Internal endpoint the stdio MCP bridge (scripts/orch-mcp.mjs) proxies the
 // `suggest_task` tool call to, so non-Claude agents (Codex, future CLIs) get the
 // same tool the Claude driver mounts in-process. Auth is the per-instance
-// SERVICE_TOKEN, enforced in middleware.ts (isAgentToolPath). The bridge has
+// SERVICE_TOKEN, enforced in proxy.ts (isAgentToolPath). The bridge has
 // already resolved any title refs in `blocked_by` to task ids.
 export async function POST(req: NextRequest) {
   let body: {

@@ -172,7 +172,7 @@ export async function startCodexLogin(): Promise<AgentLoginSession> {
   g.__orchCodexLogin = st;
 
   try {
-    st.proc = spawn(CODEX, ["login", "--device-auth"], {
+    st.proc = spawn(/* turbopackIgnore: true */ CODEX, ["login", "--device-auth"], {
       cwd: os.homedir(),
       env: process.env,
       stdio: ["ignore", "pipe", "pipe"],

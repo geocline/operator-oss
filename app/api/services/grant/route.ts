@@ -6,7 +6,7 @@ import { mintGateToken } from "@/lib/service-host.mjs";
 export const dynamic = "force-dynamic";
 
 // Session → service-host handoff for private (and shared) services. This route
-// lives on the APP hostname, so middleware.ts has already enforced the
+// lives on the APP hostname, so proxy.ts has already enforced the
 // instance's normal session auth before we get here — reaching this handler IS
 // the proof of identity. We mint a short-lived slug-bound token and bounce the
 // browser to <slug>--<host>/__orch/auth, where the service router swaps it for
