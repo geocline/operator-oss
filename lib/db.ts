@@ -122,6 +122,18 @@ export function init(db: Database.Database) {
       UNIQUE(task_id, generation)
     );
 
+    -- Historical Claude/Codex conversations imported into continuation tasks.
+    -- These are navigation breadcrumbs, not live Operator sessions. Source is
+    -- part of the identity because agent-issued opaque ids are not global.
+    CREATE TABLE IF NOT EXISTS external_session_imports (
+      source              TEXT NOT NULL,
+      external_session_id TEXT NOT NULL,
+      project_id          TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      task_id             TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      created_at          INTEGER NOT NULL,
+      PRIMARY KEY(source, external_session_id)
+    );
+
     -- One row per completed Claude turn, carrying the SDK result message's
     -- token usage + dollar cost. Cumulative spend per task/project is SUM(...).
     CREATE TABLE IF NOT EXISTS task_usage (
@@ -243,6 +255,8 @@ export function init(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_summaries_task ON summaries(task_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_task ON sessions(task_id);
+    CREATE INDEX IF NOT EXISTS idx_external_session_imports_task
+      ON external_session_imports(task_id);
     CREATE INDEX IF NOT EXISTS idx_task_usage_task ON task_usage(task_id);
     CREATE INDEX IF NOT EXISTS idx_task_usage_project ON task_usage(project_id);
     CREATE INDEX IF NOT EXISTS idx_task_merges_project ON task_merges(project_id);
@@ -294,6 +308,42 @@ function ensureOnboardingFlag(db: Database.Database) {
 
 // Add columns introduced after a DB was first created (older orchestrator.db files).
 export function migrate(db: Database.Database) {
+  // Historical conversation imports used to be represented as generation-zero
+  // live sessions. Move those breadcrumbs into their own source-namespaced
+  // table and remove the synthetic session rows. Both statements are
+  // idempotent, so interrupted upgrades safely resume on the next boot.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS external_session_imports (
+      source              TEXT NOT NULL,
+      external_session_id TEXT NOT NULL,
+      project_id          TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      task_id             TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      created_at          INTEGER NOT NULL,
+      PRIMARY KEY(source, external_session_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_external_session_imports_task
+      ON external_session_imports(task_id);
+
+    INSERT OR IGNORE INTO external_session_imports
+      (source, external_session_id, project_id, task_id, created_at)
+    SELECT 'legacy:' || s.task_id, s.claude_session_id,
+           s.project_id, s.task_id, s.started_at
+    FROM sessions s
+    WHERE s.generation = 0
+      AND s.claude_session_id IS NOT NULL;
+
+    DELETE FROM sessions
+    WHERE generation = 0
+      AND EXISTS (
+        SELECT 1
+        FROM external_session_imports e
+        WHERE e.source = 'legacy:' || sessions.task_id
+          AND e.external_session_id = sessions.claude_session_id
+          AND e.project_id = sessions.project_id
+          AND e.task_id = sessions.task_id
+      );
+  `);
+
   const cols = (db.prepare("PRAGMA table_info(projects)").all() as { name: string }[]).map((c) => c.name);
   const add = (name: string, def: string) => {
     if (!cols.includes(name)) db.exec(`ALTER TABLE projects ADD COLUMN ${name} ${def}`);

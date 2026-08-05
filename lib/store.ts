@@ -176,6 +176,136 @@ export function findSessionRef(agentSessionId: string): { project_id: string; ta
   return row ?? null;
 }
 
+export type ExternalSessionImportRef = {
+  source: string;
+  external_session_id: string;
+  project_id: string;
+  task_id: string;
+};
+
+/** Resolve one exact source-namespaced historical conversation import. */
+export function findExternalSessionImport(
+  source: string,
+  externalSessionId: string,
+): ExternalSessionImportRef | null {
+  const row = getDb()
+    .prepare(
+      `SELECT e.source, e.external_session_id, e.project_id, e.task_id
+       FROM external_session_imports e
+       JOIN projects p ON p.id = e.project_id
+       JOIN tasks t ON t.id = e.task_id AND t.project_id = e.project_id
+       WHERE e.source = ? AND e.external_session_id = ?
+       LIMIT 1`,
+    )
+    .get(source, externalSessionId) as ExternalSessionImportRef | undefined;
+  return row ?? null;
+}
+
+/**
+ * Resolve a source-less legacy link only when the opaque id has one mapping.
+ * Two agents may issue the same id, so ambiguity deliberately returns null.
+ */
+export function findUnambiguousExternalSessionImport(
+  externalSessionId: string,
+): ExternalSessionImportRef | null {
+  const rows = getDb()
+    .prepare(
+      `SELECT e.source, e.external_session_id, e.project_id, e.task_id
+       FROM external_session_imports e
+       JOIN projects p ON p.id = e.project_id
+       JOIN tasks t ON t.id = e.task_id AND t.project_id = e.project_id
+       WHERE e.external_session_id = ?
+       LIMIT 2`,
+    )
+    .all(externalSessionId) as ExternalSessionImportRef[];
+  return rows.length === 1 ? rows[0] : null;
+}
+
+/**
+ * Resolve a pre-source migration breadcrumb only when it is the opaque id's
+ * sole mapping. The original cd24de1 row did not persist its agent source.
+ */
+export function findUnambiguousLegacySessionImport(
+  externalSessionId: string,
+): ExternalSessionImportRef | null {
+  const ref = findUnambiguousExternalSessionImport(externalSessionId);
+  return ref?.source.startsWith("legacy:") ? ref : null;
+}
+
+/** Number of source namespaces already mapped for one opaque external id. */
+export function countExternalSessionImports(
+  externalSessionId: string,
+): number {
+  const row = getDb()
+    .prepare(
+      `SELECT COUNT(*) AS count
+       FROM external_session_imports
+       WHERE external_session_id = ?`,
+    )
+    .get(externalSessionId) as { count: number };
+  return row.count;
+}
+
+/**
+ * Atomically resolve or create a continuation task and its durable historical
+ * session breadcrumb. The immediate transaction serializes competing imports;
+ * a crash or constraint failure rolls back both task and mapping.
+ */
+export function findOrCreateExternalSessionImport(input: {
+  source: string;
+  external_session_id: string;
+  project_id: string;
+  title: string;
+  description: string;
+  agent: string;
+}): { task: Task; created: boolean } {
+  if (!input.source || !input.external_session_id) {
+    throw new Error("external session source and id are required");
+  }
+  const db = getDb();
+  const resolve = () => {
+    const ref = findExternalSessionImport(
+      input.source,
+      input.external_session_id,
+    );
+    return ref ? getTask(ref.task_id) : undefined;
+  };
+  const create = db.transaction(() => {
+    const existing = resolve();
+    if (existing) return { task: existing, created: false };
+
+    const task = createTask({
+      project_id: input.project_id,
+      title: input.title,
+      description: input.description,
+      agent: input.agent,
+    });
+    db.prepare(
+      `INSERT INTO external_session_imports
+       (source, external_session_id, project_id, task_id, created_at)
+       VALUES (?, ?, ?, ?, ?)`,
+    ).run(
+      input.source,
+      input.external_session_id,
+      task.project_id,
+      task.id,
+      Date.now(),
+    );
+    return { task, created: true };
+  });
+
+  try {
+    return create.immediate();
+  } catch (error) {
+    // A competing database connection may have won the unique source/id key.
+    // Its task is now authoritative; any task created by this transaction was
+    // rolled back with the failed insert.
+    const existing = resolve();
+    if (existing) return { task: existing, created: false };
+    throw error;
+  }
+}
+
 /**
  * Find a project whose repo_path CONTAINS `childPath` (deal-lane routing: a
  * card workspace folder inside a lane opens as a task in that lane, not as a

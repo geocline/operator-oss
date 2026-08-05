@@ -1,5 +1,18 @@
 import { NextResponse } from "next/server";
-import { findProjectByRepoPath, findProjectContaining, findOpenTaskByMarker, findSessionRef, createProject, createTask, getTask, recordSession } from "@/lib/store";
+import {
+  createProject,
+  createTask,
+  countExternalSessionImports,
+  findExternalSessionImport,
+  findOpenTaskByMarker,
+  findOrCreateExternalSessionImport,
+  findProjectByRepoPath,
+  findProjectContaining,
+  findSessionRef,
+  findUnambiguousExternalSessionImport,
+  findUnambiguousLegacySessionImport,
+  getTask,
+} from "@/lib/store";
 import {
   acknowledgeWorkstreamActivation,
   exchangeWorkstreamToken,
@@ -65,14 +78,27 @@ function turnOf(obj: Record<string, unknown>): { role: string; text: string } | 
  * Look a session id up in the conversations index and rebuild its dialogue
  * (most recent turns, clipped) for seeding a continuation task.
  */
-function importExternalSession(sessionId: string): ExternalSession | null {
+function importExternalSession(
+  sessionId: string,
+  source?: string,
+): ExternalSession | null {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const Database = require("better-sqlite3");
     const db = new Database(CONVERSATIONS_DB, { readonly: true, fileMustExist: true });
     let row: { title?: string; file_path?: string; project_path?: string; source?: string } | undefined;
     try {
-      row = db.prepare("SELECT title, file_path, project_path, source FROM sessions WHERE session_id = ?").get(sessionId);
+      row = source
+        ? db
+            .prepare(
+              "SELECT title, file_path, project_path, source FROM sessions WHERE session_id = ? AND source = ?",
+            )
+            .get(sessionId, source)
+        : db
+            .prepare(
+              "SELECT title, file_path, project_path, source FROM sessions WHERE session_id = ?",
+            )
+            .get(sessionId);
     } finally {
       db.close();
     }
@@ -123,6 +149,7 @@ export async function GET(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const workstreamToken = url.searchParams.get("workstream_token")?.trim();
   const session = url.searchParams.get("session")?.trim();
+  const sessionSource = url.searchParams.get("source")?.trim();
   const repoPath = url.searchParams.get("path")?.trim();
   const name = url.searchParams.get("name")?.trim();
 
@@ -188,15 +215,29 @@ export async function GET(req: Request): Promise<Response> {
     const ref = findSessionRef(session);
     if (ref && getTask(ref.task_id)) return home(`/?project=${ref.project_id}&task=${ref.task_id}`);
 
+    const imported = sessionSource
+      ? findExternalSessionImport(sessionSource, session) ??
+        findUnambiguousLegacySessionImport(session)
+      : findUnambiguousExternalSessionImport(session);
+    if (imported && getTask(imported.task_id)) {
+      return home(`/?project=${imported.project_id}&task=${imported.task_id}`);
+    }
+    const ambiguousImport =
+      !sessionSource && countExternalSessionImports(session) > 1;
+
     // 3) A historical CLI/desktop session: continue it as a new task seeded
     //    with the old dialogue (the cross-border version of Renew's summary).
-    const ext = importExternalSession(session);
+    const ext = ambiguousImport
+      ? null
+      : importExternalSession(session, sessionSource);
     if (ext) {
       const dir = (repoPath && path.isAbsolute(repoPath) ? repoPath : "") || ext.project_path;
       const project = dir ? projectFor(dir, name) : null;
       if (project) {
         const agentLabel = ext.source === "codex" ? "Codex" : "Claude Code";
-        const task = createTask({
+        const { task } = findOrCreateExternalSessionImport({
+          source: ext.source,
+          external_session_id: session,
           project_id: project.id,
           title: `Continue: ${ext.title.slice(0, 90)}`,
           description:
@@ -205,16 +246,7 @@ export async function GET(req: Request): Promise<Response> {
             `Pick up where it left off.\n\n--- Prior dialogue (most recent, clipped) ---\n\n${ext.dialogue}`,
           agent: ext.source === "codex" ? "codex" : "claude",
         });
-        // Generation zero belongs to the imported source conversation. Live
-        // Operator turns start at generation one, so their session ids cannot
-        // overwrite this exact historical-session breadcrumb.
-        recordSession({
-          project_id: project.id,
-          task_id: task.id,
-          generation: 0,
-          claude_session_id: session,
-        });
-        return home(`/?project=${project.id}&task=${task.id}`);
+        return home(`/?project=${task.project_id}&task=${task.id}`);
       }
     }
   }
