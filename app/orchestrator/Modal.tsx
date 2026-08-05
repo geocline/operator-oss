@@ -144,28 +144,43 @@ export function PrioritySeg({ value, onChange }: { value: Priority; onChange: (p
   );
 }
 
-// "Blocked by" picker — choose the tasks that must reach Done before this one can
+// "Blocked by" picker - choose the tasks that must reach Done before this one can
 // start. Candidates are the other tasks in the project (self excluded by caller).
+//
+// Collapsed by default, and hidden entirely when there's nothing to pick.
+// Nothing here has ever been pre-selected (both modals seed the list empty /
+// from the task's own edges), but rendering every sibling task under a
+// "can't be started until…" note made a rare opt-in read like a default the new
+// task was already subject to. The section opens itself when the task IS
+// blocked, so existing edges are never hidden from the person editing them.
 export function DepPicker({ candidates, value, onChange }: { candidates: TaskRow[]; value: string[]; onChange: (ids: string[]) => void }) {
+  const [open, setOpen] = useState(value.length > 0);
   const toggle = (id: string) => onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id]);
+  if (candidates.length === 0) return null;
   return (
     <div className="field">
-      <div className="lab">Blocked by <span className="opt">— must finish first</span></div>
-      {candidates.length === 0 ? (
-        <div className="hlp">No other tasks in this project yet.</div>
-      ) : (
-        <div className="dep-list">
-          {candidates.map((c) => (
-            <label key={c.id} className={`dep-row ${value.includes(c.id) ? "on" : ""}`}>
-              <input type="checkbox" checked={value.includes(c.id)} onChange={() => toggle(c.id)} />
-              <StatusDot status={c.status} />
-              <span className="dep-title">{c.title}</span>
-              <span className="dep-status">{SLABEL[c.status]}</span>
-            </label>
-          ))}
-        </div>
+      <button type="button" className="dep-toggle" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <span className="lab">Blocked by <span className="opt">- optional</span></span>
+        <span className="dep-summary">
+          {value.length === 0 ? "nothing - starts whenever you want" : `${value.length} must finish first`}
+        </span>
+        <span className={`dep-caret${open ? " on" : ""}`}>{Icon.chevDown()}</span>
+      </button>
+      {open && (
+        <>
+          <div className="dep-list">
+            {candidates.map((c) => (
+              <label key={c.id} className={`dep-row ${value.includes(c.id) ? "on" : ""}`}>
+                <input type="checkbox" checked={value.includes(c.id)} onChange={() => toggle(c.id)} />
+                <StatusDot status={c.status} />
+                <span className="dep-title">{c.title}</span>
+                <span className="dep-status">{SLABEL[c.status]}</span>
+              </label>
+            ))}
+          </div>
+          <div className="hlp">This task can&apos;t be started until every selected task is marked Done.</div>
+        </>
       )}
-      <div className="hlp">This task can&apos;t be started until every selected task is marked Done.</div>
     </div>
   );
 }
