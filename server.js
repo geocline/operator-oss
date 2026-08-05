@@ -36,7 +36,7 @@ process.on("uncaughtException", (err) => {
 
 // Origin auth enforcement (lib/auth/origin.mjs selects the provider: open local
 // mode by default, or Cloudflare Access when configured). proxy.ts
-// covers the HTTP routes; WebSocket upgrades never reach Next middleware, so
+// covers the HTTP routes; WebSocket upgrades never reach Next.js Proxy, so
 // THIS file is the auth boundary for the terminal — an unverified /pty upgrade
 // would hand out a shell. jose v6 is ESM-only, hence the dynamic import from
 // this CommonJS file.

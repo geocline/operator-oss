@@ -13,7 +13,7 @@ Orchestrator — a local-first web app that runs many Claude Code sessions in pa
 
 Three processes/entrypoints, one origin:
 
-- **`server.js`** — custom Next.js server (plain Node, CommonJS). Fronts Next on one port, proxies `/pty` WebSocket upgrades to the sidecar, forwards dev HMR upgrades to Next, enforces origin auth on WebSocket upgrades (middleware never sees upgrades — this file is the auth boundary for the terminal), and dispatches public service hostnames (`<slug>--<appHost>`) through `lib/service-router.mjs`.
+- **`server.js`** — custom Next.js server (plain Node, CommonJS). Fronts Next on one port, proxies `/pty` WebSocket upgrades to the sidecar, forwards dev HMR upgrades to Next, enforces origin auth on WebSocket upgrades (Next.js Proxy never sees upgrades — this file is the auth boundary for the terminal), and dispatches public service hostnames (`<slug>--<appHost>`) through `lib/service-router.mjs`.
 - **`pty-server.js`** — node-pty sidecar, bound to `127.0.0.1` only; never exposed directly.
 - **Next app** — UI in `app/`, REST under `app/api/`, server logic in `lib/`.
 
@@ -66,7 +66,7 @@ This is the **open-source repo** — the whole local app lives here and all core
 - **Native modules** (`better-sqlite3`, `node-pty`) and the Agent SDK are in `serverExternalPackages` — don't let Next bundle them. `postinstall` fixes node-pty's exec bit.
 - **Tests are hermetic**: `tests/setup.ts` points `ORCH_DB_DIR`/`ORCH_WORKTREES_DIR` at tmp dirs and pins git config *before the module graph loads* (config is read at import time). Use `tests/helpers.ts` for git fixtures. New env-read-at-import config must be set there too.
 - **Delete is hard delete** throughout — no soft-delete/undo.
-- **Auth is layered on purpose**: Next middleware for HTTP, `server.js` for WebSocket upgrades, per-service visibility for public service hostnames. When adding a route or upgrade path, decide which gate covers it.
+- **Auth is layered on purpose**: Next.js Proxy for HTTP, `server.js` for WebSocket upgrades, per-service visibility for public service hostnames. When adding a route or upgrade path, decide which gate covers it.
 - **Commits are detailed** (explain the why); **keep README.md current** with app state when behavior changes. Markdown tables use minimal separators (`|-|-|`).
 
 ## More detail

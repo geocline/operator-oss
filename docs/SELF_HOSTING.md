@@ -31,7 +31,7 @@ the setup wizard drives that flow from the browser.
 If you front an instance with Cloudflare Access, set `CF_ACCESS_TEAM_DOMAIN` +
 `CF_ACCESS_AUD` and the origin re-verifies the Access JWT (`Cf-Access-Jwt-Assertion`
 header / `CF_Authorization` cookie, checked against the team's public signing keys and
-the app's `aud` tag) on **every HTTP route** (Next.js middleware) **and on every
+the app's `aud` tag) on **every HTTP route** (Next.js Proxy) **and on every
 WebSocket upgrade** (`server.js`, in front of the `/pty` terminal proxy). No valid
 assertion → 403. [`lib/cf-access.mjs`](../lib/cf-access.mjs) is the single shared
 verifier; the titlebar shows the authenticated email.
