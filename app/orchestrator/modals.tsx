@@ -121,6 +121,7 @@ export function EditTaskModal({ task, tasks, onClose, onSave, onDelete }: { task
         priority,
         depends_on: deps,
       });
+      onClose();
     } catch (cause) {
       setSaveError(
         cause instanceof Error ? cause.message : "Could not save changes",

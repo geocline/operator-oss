@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Priority, Status, AskQuestion, AskAnswers } from "@/lib/types";
 import type { ResolveResult } from "../TaskChanges";
-import { jget, jsend } from "./api";
+import { jget, jsend, saveTaskEdit } from "./api";
 import { isAwaiting, blockerTitles, formatAnswersText } from "./format";
 import { loadPersist, readUrlSel } from "./persist";
 import { DEFAULT_SETTINGS, EMPTY_AGENTS, type AgentsBundle, type OnboardingT, type ProjectRow, type TaskRow } from "./types";
@@ -500,9 +500,8 @@ export function useOrchestrator() {
   }, [loadTasks]);
 
   const saveTask = async (id: string, patch: { title: string; description: string; priority: Priority; depends_on: string[] }) => {
-    const fresh = await jsend<TaskRow>(`/api/tasks/${id}`, "PATCH", patch);
+    const fresh = await saveTaskEdit<TaskRow>(id, patch);
     setTasks((prev) => prev.map((x) => (x.id === id ? { ...x, ...fresh } : x)));
-    setEditId(null);
   };
 
   // Hard-deletes the task (and its worktree/branch server-side), closes the edit
