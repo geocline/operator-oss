@@ -25,6 +25,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import {
   SUGGEST_TASK,
+  SUGGEST_TASK_DEPS_ENABLED,
   EXPOSE_SERVICE,
   ASK_USER,
   PUBLISH_WORKSTREAM_UPDATE,
@@ -88,13 +89,19 @@ server.registerTool(
       title: z.string().describe(SUGGEST_TASK.params.title),
       description: z.string().describe(SUGGEST_TASK.params.description),
       priority: z.enum(SUGGEST_TASK.priorities).default(SUGGEST_TASK.defaultPriority),
-      blocked_by: z.array(z.string()).optional().describe(SUGGEST_TASK.params.blocked_by),
+      // Off by default — see SUGGEST_TASK_DEPS_ENABLED in lib/agentToolDefs.mjs.
+      // Kept in lockstep with the in-process server's schema in
+      // lib/agents/claude/driver.ts: both agents see the same tool.
+      ...(SUGGEST_TASK_DEPS_ENABLED
+        ? { blocked_by: z.array(z.string()).optional().describe(SUGGEST_TASK.params.blocked_by) }
+        : {}),
     },
   },
   async ({ title, description, priority, blocked_by }) => {
     // Resolve refs (id passes through; a title from earlier this turn → its id)
-    // before handing off — the endpoint just forwards ids to setTaskDeps.
-    const deps = (blocked_by ?? []).map((ref) => createdByTitle.get(ref) ?? ref);
+    // before handing off — the endpoint just forwards ids to setTaskDeps. With
+    // dependencies disabled, blocked_by never arrives and nothing is sent.
+    const deps = SUGGEST_TASK_DEPS_ENABLED ? (blocked_by ?? []).map((ref) => createdByTitle.get(ref) ?? ref) : [];
     const data = await callInternal("suggest-task", { title, description, priority, blocked_by: deps });
     if (data.id) createdByTitle.set(title, data.id);
     return { content: [{ type: "text", text: data.text }] };

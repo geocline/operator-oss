@@ -2,7 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { createProject, createTask, getTask, getTaskDeps } from "@/lib/store";
+import { createProject, createTask, getTask, getTaskDeps, setTaskDeps } from "@/lib/store";
+import { SUGGEST_TASK, SUGGEST_TASK_DEPS_ENABLED } from "@/lib/agentToolDefs.mjs";
 import {
   createSuggestedTask,
   proposeCardChange,
@@ -82,18 +83,43 @@ describe("agentTools shared logic", () => {
     expect(text).toContain(task.id);
   });
 
-  it("wires blocked_by deps and drops unknown/foreign ids without throwing", () => {
+  // Agent-set dependencies are gated by SUGGEST_TASK_DEPS_ENABLED
+  // (lib/agentToolDefs.mjs), currently off: a suggested task must never arrive
+  // already blocked, because the user never chose that. These pin both halves —
+  // the gate itself, and the wiring it guards, so re-enabling can't silently
+  // ship broken.
+  it("ignores blocked_by while agent-set dependencies are disabled", () => {
     const project = createProject({ name: "Deps" });
     const a = createSuggestedTask(project, { title: "A", description: "" }).task;
     const b = createSuggestedTask(project, { title: "B", description: "", blocked_by: [a.id] });
-    expect(getTaskDeps(b.task.id)).toEqual([a.id]);
-    expect(b.text).toContain("Blocked by 1 task(s).");
 
-    // An unknown id is silently dropped by setTaskDeps — no throw, real dep kept.
-    const other = createProject({ name: "Deps2" });
+    expect(SUGGEST_TASK_DEPS_ENABLED).toBe(false);
+    expect(getTaskDeps(b.task.id)).toEqual([]);
+    // …and the confirmation text handed back to the agent doesn't claim otherwise.
+    expect(b.text).not.toContain("Blocked by");
+  });
+
+  it("keeps the dependency schema off the tool the agent sees", () => {
+    // Two schemas are built from this descriptor (the in-process Claude server
+    // and the stdio bridge); both spread the parameter in only when enabled.
+    // The param doc survives for the re-enable, but the tool description must
+    // not advertise ordering the model can't actually request.
+    expect(SUGGEST_TASK.description).not.toContain("blocked_by");
+    expect(SUGGEST_TASK.description).not.toContain("ORDERED");
+    expect(SUGGEST_TASK.params.blocked_by).toBeTruthy();
+  });
+
+  it("setTaskDeps still drops unknown/foreign ids without throwing", () => {
+    // The behaviour behind the flag: this is what wires up again when it flips,
+    // and what the manual picker in the task modals uses today.
+    const project = createProject({ name: "Deps2" });
+    const a = createSuggestedTask(project, { title: "A", description: "" }).task;
+    const b = createSuggestedTask(project, { title: "B", description: "" }).task;
+    const other = createProject({ name: "Deps3" });
     const foreign = createSuggestedTask(other, { title: "Foreign", description: "" }).task;
-    const c = createSuggestedTask(project, { title: "C", description: "", blocked_by: [a.id, "ghost", foreign.id] });
-    expect(getTaskDeps(c.task.id)).toEqual([a.id]);
+
+    setTaskDeps(b.id, [a.id, "ghost", foreign.id]);
+    expect(getTaskDeps(b.id)).toEqual([a.id]);
   });
 
   it("resolveTitleRefs maps session titles to ids and passes ids through", () => {
@@ -128,7 +154,9 @@ describe("internal agent-tool endpoints", () => {
     expect(json.text).toContain("Endpoint task");
   });
 
-  it("suggest-task forwards resolved blocked_by ids to setTaskDeps", async () => {
+  it("suggest-task drops blocked_by while agent-set dependencies are disabled", async () => {
+    // The endpoint still forwards the field (so re-enabling is one flag), but
+    // createSuggestedTask is the choke point — a direct POST can't chain tasks.
     const project = createProject({ name: "EP-Deps" });
     const blocker = createSuggestedTask(project, { title: "Blocker", description: "" }).task;
     const res = await post(suggestTask, "/api/internal/agent-tools/suggest-task", {
@@ -138,7 +166,7 @@ describe("internal agent-tool endpoints", () => {
       blocked_by: [blocker.id],
     });
     const json = (await res.json()) as { id: string };
-    expect(getTaskDeps(json.id)).toEqual([blocker.id]);
+    expect(getTaskDeps(json.id)).toEqual([]);
   });
 
   it("suggest-task rejects an unknown project (404) and a missing title (400)", async () => {

@@ -9,7 +9,10 @@ export const dynamic = "force-dynamic";
 // `suggest_task` tool call to, so non-Claude agents (Codex, future CLIs) get the
 // same tool the Claude driver mounts in-process. Auth is the per-instance
 // SERVICE_TOKEN, enforced in proxy.ts (isAgentToolPath). The bridge has
-// already resolved any title refs in `blocked_by` to task ids.
+// already resolved any title refs in `blocked_by` to task ids — though while
+// SUGGEST_TASK_DEPS_ENABLED is off (lib/agentToolDefs.mjs) the bridge never
+// sends any and createSuggestedTask ignores the field regardless. The
+// pass-through below stays wired so flipping that one flag is the whole change.
 export async function POST(req: NextRequest) {
   let body: {
     projectId?: string;

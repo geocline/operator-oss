@@ -21,6 +21,7 @@ import {
 } from "../../agentTools";
 import {
   SUGGEST_TASK,
+  SUGGEST_TASK_DEPS_ENABLED,
   EXPOSE_SERVICE,
   PUBLISH_WORKSTREAM_UPDATE,
   PROPOSE_CARD_CHANGE,
@@ -84,7 +85,12 @@ function orchestratorServer(
           title: z.string().describe(SUGGEST_TASK.params.title),
           description: z.string().describe(SUGGEST_TASK.params.description),
           priority: z.enum(["hi", "med", "lo"]).default("med"),
-          blocked_by: z.array(z.string()).optional().describe(SUGGEST_TASK.params.blocked_by),
+          // Off by default — see SUGGEST_TASK_DEPS_ENABLED in lib/agentToolDefs.mjs.
+          // Absent from the schema means the model is never told the parameter
+          // exists, so it can't propose pre-blocked work at all.
+          ...(SUGGEST_TASK_DEPS_ENABLED
+            ? { blocked_by: z.array(z.string()).optional().describe(SUGGEST_TASK.params.blocked_by) }
+            : {}),
         },
         async (args: { title: string; description: string; priority: "hi" | "med" | "lo"; blocked_by?: string[] }) => {
           // Resolve refs (id passes through; a title from earlier this session maps

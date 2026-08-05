@@ -15,6 +15,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { Project, Task, ServiceInfo, Priority, AskQuestion, ToolData } from "./types";
 import { createTask, setTaskDeps, addMessage, updateMessage, updateTask } from "./store";
+import { SUGGEST_TASK_DEPS_ENABLED } from "./agentToolDefs.mjs";
 import { exposeService } from "./services";
 import { publish } from "./events";
 import { waitForAnswer, settleAsk } from "./asks";
@@ -670,7 +671,14 @@ export function createSuggestedTask(project: Project, input: SuggestTaskInput): 
     suggested: true,
   });
   let depNote = "";
-  if (input.blocked_by?.length) {
+  // Gated on SUGGEST_TASK_DEPS_ENABLED (lib/agentToolDefs.mjs), which is off:
+  // no agent may leave a task blocked without the user choosing it. The check
+  // is here as well as in the two tool schemas because this is the one choke
+  // point both the in-process server and the internal HTTP endpoint pass
+  // through - a blocked_by from a stale client or a direct POST is dropped
+  // rather than quietly honored. The wiring below is unchanged and runs again
+  // the moment the flag flips.
+  if (SUGGEST_TASK_DEPS_ENABLED && input.blocked_by?.length) {
     try {
       setTaskDeps(task.id, input.blocked_by);
       depNote = ` Blocked by ${input.blocked_by.length} task(s).`;

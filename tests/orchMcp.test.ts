@@ -109,7 +109,7 @@ describe("orch-mcp stdio bridge", () => {
     }
   });
 
-  it("proxies suggest_task with project/task/token and resolves title refs", async () => {
+  it("proxies suggest_task with project/task/token, and never chains tasks", async () => {
     calls.length = 0;
     nextId = 0;
     const { client, close } = await connectBridge();
@@ -120,7 +120,9 @@ describe("orch-mcp stdio bridge", () => {
       })) as { content: { type: string; text: string }[] };
       expect(r1.content[0].text).toContain("id-0");
 
-      // Reference the first task BY TITLE — the bridge should resolve it to id-0.
+      // Agent-set dependencies are off (SUGGEST_TASK_DEPS_ENABLED in
+      // lib/agentToolDefs.mjs), so the bridge doesn't advertise blocked_by and
+      // forwards an empty list even when a caller supplies one.
       await client.callTool({
         name: "suggest_task",
         arguments: { title: "Second", description: "do second", blocked_by: ["First"] },
@@ -132,7 +134,12 @@ describe("orch-mcp stdio bridge", () => {
       expect(first.body).toMatchObject({ projectId: "proj-abc", taskId: "task-xyz", priority: "hi" });
 
       const second = calls.find((c) => c.body.title === "Second")!;
-      expect(second.body.blocked_by).toEqual(["id-0"]);
+      expect(second.body.blocked_by).toEqual([]);
+
+      // The tool the agent actually sees carries no dependency parameter.
+      const listed = await client.listTools();
+      const suggest = listed.tools.find((t) => t.name === "suggest_task")!;
+      expect(Object.keys(suggest.inputSchema.properties ?? {})).not.toContain("blocked_by");
     } finally {
       await close();
     }
