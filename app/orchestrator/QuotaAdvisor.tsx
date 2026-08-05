@@ -28,8 +28,8 @@ function formatResetTime(resetAt: number | null): string {
 /**
  * Quota threshold advisor banner: shows when quota usage exceeds the configured
  * threshold. Appears above the workspace, is dismissible per-session, and directs
- * users to consider switching tasks to Codex or using the Continue with Codex
- * handoff button.
+ * users to consider switching tasks to Codex via the session header's agent
+ * picker (which hands an in-flight task over across a /clear boundary).
  */
 export function QuotaAdvisor({ onOpenQuota }: QuotaAdvisorProps) {
   const { data: quotaData } = useQuota();
@@ -109,7 +109,7 @@ export function QuotaAdvisor({ onOpenQuota }: QuotaAdvisorProps) {
     message = (
       <>
         Claude is at {claudeMax}% of its weekly limit{claudeResetStr ? ` (resets in ${claudeResetStr})` : ""}.
-        Consider switching new tasks to Codex, or hand active Claude tasks to Codex using the Continue with Codex button.
+        Consider switching new tasks to Codex, or hand active Claude tasks over with the agent picker in the session header.
       </>
     );
   } else {

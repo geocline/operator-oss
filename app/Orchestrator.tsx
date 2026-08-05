@@ -229,7 +229,7 @@ export default function Orchestrator() {
             onSend={(text) => o.runTurn(task.id, text, false)}
             onStart={() => o.runTurn(task.id, "", true)}
             onStop={() => o.stopTurn(task.id)}
-            onClear={() => o.clearSession(task.id)} onHandoff={(agent) => o.clearSession(task.id, agent)} onEdit={() => o.setEditId(task.id)}
+            onClear={() => o.clearSession(task.id)} onHandoff={(agent) => o.clearSession(task.id, agent)} onSetAgent={o.setAgent} onEdit={() => o.setEditId(task.id)}
             focused={focusMode} onToggleFocus={() => setFocusMode((v) => !v)}
             onReconnect={() => openSettings("agents")}
             onSetStatus={o.setStatus} onSetPriority={o.setPriority} onSetModel={o.setModel}
@@ -316,7 +316,7 @@ export default function Orchestrator() {
                 onSend={(text) => o.runTurn(task.id, text, false)}
                 onStart={() => o.runTurn(task.id, "", true)}
                 onStop={() => o.stopTurn(task.id)}
-                onClear={() => o.clearSession(task.id)} onHandoff={(agent) => o.clearSession(task.id, agent)} onEdit={() => o.setEditId(task.id)}
+                onClear={() => o.clearSession(task.id)} onHandoff={(agent) => o.clearSession(task.id, agent)} onSetAgent={o.setAgent} onEdit={() => o.setEditId(task.id)}
             focused={focusMode} onToggleFocus={() => setFocusMode((v) => !v)}
                 onReconnect={() => openSettings("agents")}
                 onSetStatus={o.setStatus} onSetPriority={o.setPriority} onSetModel={o.setModel}

@@ -5,6 +5,7 @@ import { removeTaskUploads } from "@/lib/uploads";
 import { abortTurn } from "@/lib/abort";
 import { publishGlobal } from "@/lib/events";
 import { queueManualWorkstreamCompletion } from "@/lib/workstreams/worker";
+import { isKnownAgent } from "@/lib/agents/capabilities";
 import type { Task } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +45,34 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
   // A manual status change is the user taking the wheel — clear the "your turn" flag.
   if ("status" in allowed) allowed.awaiting_input = 0;
+  // Switching which agent a task runs on. Only legal BEFORE the task has a
+  // session: once one exists, changing tasks.agent would hand the new driver a
+  // session/thread id minted by the old one, so that case belongs to the
+  // /clear handoff (summarize → fresh generation → same worktree) instead.
+  // Validated against the SDK-free capability map rather than getDriver, whose
+  // forgiving fallback would silently rewrite a typo'd id to Claude.
+  if ("agent" in body) {
+    const next = (body as { agent?: unknown }).agent;
+    if (typeof next !== "string" || !isKnownAgent(next)) {
+      return NextResponse.json({ error: `unknown agent "${String(next)}"` }, { status: 400 });
+    }
+    if (next !== previous.agent) {
+      if (previous.started === 1 || previous.session_id) {
+        return NextResponse.json(
+          { error: "This task already has a session - hand it off instead so its context carries over." },
+          { status: 409 },
+        );
+      }
+      allowed.agent = next;
+      // The run knobs are per-CLI vocabularies ("opus" means nothing to codex),
+      // so a switch resets them to the new driver's defaults - the same reset
+      // the /clear handoff performs.
+      allowed.model = null;
+      allowed.reasoning = null;
+      allowed.permission_mode = null;
+      allowed.resolved_model = null;
+    }
+  }
   // Cancelling means "stop working on this": kill any in-flight turn. The
   // runner's finally block settles running=0 and discards the parked queue.
   // (The worktree is kept — Cancelled ≠ Delete — so the diff stays reviewable
@@ -68,7 +97,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   // A manual status change settles status + awaiting_input outside any turn, so
   // no runner publish will follow — announce it ourselves or every other tab's
   // "needs you" badges keep counting this task until their next reconnect.
-  if ("status" in allowed) publishGlobal(id, { type: "task_updated" });
+  // An agent switch rides the same announcement: every other tab renders the
+  // agent badge from its own task row, which would otherwise stay stale.
+  if ("status" in allowed || "agent" in allowed) publishGlobal(id, { type: "task_updated" });
   return NextResponse.json({ ...task, depends_on: getTaskDeps(id) });
 }
 

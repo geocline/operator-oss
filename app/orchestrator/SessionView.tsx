@@ -12,7 +12,7 @@ import {
   type WorkstreamLinkT,
 } from "./types";
 import { capsFor, agentLabel, findAgent } from "./agents";
-import { StatusDot, Avatar, Popover, AgentBadge, Skel } from "./shared";
+import { StatusDot, Avatar, Popover, Skel } from "./shared";
 import { MessageView, SessionBreak } from "./Transcript";
 import { Composer } from "./Composer";
 import { SessionRail } from "./SessionRail";
@@ -249,12 +249,16 @@ function useStableHandler<A extends unknown[]>(fn?: (...args: A) => void): (...a
   return useCallback((...args: A) => { ref.current?.(...args); }, []);
 }
 
-export function SessionView({ project, task, agents, messages, running, blockedBy, transcriptLoading, onSend, onStart, onStop, onClear, onHandoff, focused, onToggleFocus, onEdit, onReconnect, onSetStatus, onSetPriority, onSetModel, onSetReasoning, onSetPermission, onResolveWithAI, onMerged, onPrCreated, onAnswer, onCancelQueued, onBack, mobile, railW, onRailWidth, onRailReset, railCollapsed, onRailCollapse, onRailExpand }: {
+export function SessionView({ project, task, agents, messages, running, blockedBy, transcriptLoading, onSend, onStart, onStop, onClear, onHandoff, onSetAgent, focused, onToggleFocus, onEdit, onReconnect, onSetStatus, onSetPriority, onSetModel, onSetReasoning, onSetPermission, onResolveWithAI, onMerged, onPrCreated, onAnswer, onCancelQueued, onBack, mobile, railW, onRailWidth, onRailReset, railCollapsed, onRailCollapse, onRailExpand }: {
   project: ProjectRow; task: TaskRow; agents: AgentsBundle; messages: Msg[]; running: boolean; blockedBy?: string[]; transcriptLoading?: boolean;
   onSend: (t: string) => void; onStart: () => void; onStop: () => void; onClear: () => void; onEdit: () => void;
   // Hand the task to another connected driver across a /clear boundary (same
   // worktree, fresh context seeded with the summary) - the quota-handoff path.
   onHandoff?: (agent: string) => void;
+  // Move a task that has no session yet straight onto another agent (a plain
+  // column write - nothing to summarize). The agent picker chooses between this
+  // and onHandoff by task state; see AGENT PICKER below.
+  onSetAgent?: (agent: string) => void;
   // Focus mode: session fills the workspace (desktop). Esc exits in the shell.
   focused?: boolean;
   onToggleFocus?: () => void;
@@ -276,6 +280,7 @@ export function SessionView({ project, task, agents, messages, running, blockedB
   const [priOpen, setPriOpen] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [agentOpen, setAgentOpen] = useState(false);
   const [view, setView] = useState<"chat" | "changes">("chat");
   // Armed agent id for the two-step handoff button; disarms after 5s or on task switch.
   const [armedHandoff, setArmedHandoff] = useState<string | null>(null);
@@ -457,7 +462,6 @@ export function SessionView({ project, task, agents, messages, running, blockedB
                 {Icon.github()} PR{prNum ? ` #${prNum}` : ""} {Icon.external()}
               </a>
             )}
-            <AgentBadge label={agentLabel(agents, task.agent)} multi={multiAgent} />
             {(task.cost_usd > 0 || task.total_tokens > 0) && (
               <span className="usage-chip" title={usageTooltip(usage, task.cost_usd, cost)}>
                 {fmtTokens(usage.fresh)} tok
@@ -471,8 +475,68 @@ export function SessionView({ project, task, agents, messages, running, blockedB
                 <button className={`viewseg-btn ${view === "changes" ? "on" : ""}`} onClick={() => setView("changes")}>Changes</button>
               </div>
             )}
+            {/* AGENT PICKER - head of the agent → model → thinking chain. The two
+                chips after it re-derive from this task's agent capabilities, so
+                switching here repopulates both with no per-agent UI logic.
+                Hidden when only one driver is registered (nothing to choose). */}
+            {multiAgent && (
+              <div style={{ position: "relative" }}>
+                <button
+                  className="status-ctl"
+                  title={`Which agent runs this task${running ? " - finish or stop the turn to change it" : ""}`}
+                  disabled={running}
+                  onClick={(e) => { e.stopPropagation(); setAgentOpen((o) => !o); setModelOpen(false); setStatusOpen(false); setPriOpen(false); setSettingsOpen(false); }}
+                >
+                  {Icon.bolt()}
+                  <span className="cv">{agentLabel(agents, task.agent)}</span>
+                  {Icon.chevDown()}
+                </button>
+                {agentOpen && (
+                  <Popover onClose={() => { setAgentOpen(false); setArmedHandoff(null); }}>
+                    <div className="pop-sec">Agent</div>
+                    {agents.agents.map((a) => {
+                      const current = a.id === task.agent;
+                      // Three different actions wear the same row, because from
+                      // the user's side they're one question ("run this on what?"):
+                      //   connected + no session → straight column write
+                      //   connected + session    → /clear handoff, arm-then-confirm
+                      //                            (it spends a summarization turn)
+                      //   not connected          → deep-link to Settings → Agents
+                      const armed = armedHandoff === a.id;
+                      const sub = current
+                        ? "running this task"
+                        : !a.authenticated
+                          ? "not connected - set it up"
+                          : hasSession
+                            ? "hand off: saves a summary, same worktree, fresh context"
+                            : "switch now - nothing has run yet";
+                      return (
+                        <div
+                          key={a.id}
+                          className="pop-item"
+                          style={!current && !a.authenticated ? { opacity: 0.65 } : undefined}
+                          onClick={() => {
+                            if (current) { setAgentOpen(false); return; }
+                            if (!a.authenticated) { setAgentOpen(false); onReconnect?.(); return; }
+                            if (!hasSession) { setAgentOpen(false); onSetAgent?.(a.id); return; }
+                            if (armed) { setArmedHandoff(null); setAgentOpen(false); onHandoff?.(a.id); }
+                            else setArmedHandoff(a.id);
+                          }}
+                        >
+                          <div>
+                            <div>{armed ? `Confirm: hand off to ${a.label}` : a.label}</div>
+                            <div className="pi-sub">{armed ? "this ends the current session" : sub}</div>
+                          </div>
+                          {current && <span className="pi-check">{Icon.check()}</span>}
+                        </div>
+                      );
+                    })}
+                  </Popover>
+                )}
+              </div>
+            )}
             <div style={{ position: "relative" }}>
-              <button className="status-ctl" title={`Model this task's ${agentLabel(agents, task.agent)} session uses`} onClick={(e) => { e.stopPropagation(); setModelOpen((o) => !o); setStatusOpen(false); setPriOpen(false); setSettingsOpen(false); }}>
+              <button className="status-ctl" title={`Model this task's ${agentLabel(agents, task.agent)} session uses`} onClick={(e) => { e.stopPropagation(); setModelOpen((o) => !o); setStatusOpen(false); setPriOpen(false); setSettingsOpen(false); setAgentOpen(false); }}>
                 {Icon.spark()}
                 <span className="cv">{models.find((m) => m.value === task.model)?.label ?? "Default"}</span>
                 {task.resolved_model && <span className="model-badge" title={`Last ran on ${task.resolved_model}`}>{modelLabel(task.resolved_model, caps)}</span>}
@@ -495,7 +559,7 @@ export function SessionView({ project, task, agents, messages, running, blockedB
               )}
             </div>
             <div style={{ position: "relative" }}>
-              <button className="status-ctl" title="Reasoning level & permission mode for this task" onClick={(e) => { e.stopPropagation(); setSettingsOpen((o) => !o); setModelOpen(false); setStatusOpen(false); setPriOpen(false); }}>
+              <button className="status-ctl" title="Reasoning level & permission mode for this task" onClick={(e) => { e.stopPropagation(); setSettingsOpen((o) => !o); setModelOpen(false); setStatusOpen(false); setPriOpen(false); setAgentOpen(false); }}>
                 {Icon.gear()}
                 <span className="cv">{reasoningOpts.find((r) => r.value === task.reasoning)?.label ?? "Default"}</span>
                 {Icon.chevDown()}
@@ -521,7 +585,7 @@ export function SessionView({ project, task, agents, messages, running, blockedB
               )}
             </div>
             <div style={{ position: "relative" }}>
-              <button className="status-ctl" onClick={(e) => { e.stopPropagation(); setPriOpen((o) => !o); setStatusOpen(false); setModelOpen(false); setSettingsOpen(false); }}>
+              <button className="status-ctl" onClick={(e) => { e.stopPropagation(); setPriOpen((o) => !o); setStatusOpen(false); setModelOpen(false); setSettingsOpen(false); setAgentOpen(false); }}>
                 {Icon.flag()} <span className="cv">{PLABEL[task.priority]}</span>
               </button>
               {priOpen && (
@@ -536,7 +600,7 @@ export function SessionView({ project, task, agents, messages, running, blockedB
               )}
             </div>
             <div style={{ position: "relative" }}>
-              <button className={`status-ctl ${awaiting ? "awaiting" : ""}`} onClick={(e) => { e.stopPropagation(); setStatusOpen((o) => !o); setPriOpen(false); setModelOpen(false); setSettingsOpen(false); }}>
+              <button className={`status-ctl ${awaiting ? "awaiting" : ""}`} onClick={(e) => { e.stopPropagation(); setStatusOpen((o) => !o); setPriOpen(false); setModelOpen(false); setSettingsOpen(false); setAgentOpen(false); }}>
                 <StatusDot status={task.status} running={running} awaiting={awaiting} />
                 <span className="cv">{awaiting ? AWAIT_LABEL : SLABEL[task.status]}</span>
                 {Icon.chevDown()}
@@ -565,24 +629,6 @@ export function SessionView({ project, task, agents, messages, running, blockedB
             {hasSession && task.started === 1 && (
               <button className="btn btn-line btn-sm" title="Renew: summarize this session and continue in a fresh context window - the transcript is kept, nothing is erased" onClick={onClear} disabled={running}>{Icon.clear()} Renew</button>
             )}
-            {hasSession && task.started === 1 && onHandoff && agents.agents
-              .filter((a) => a.id !== task.agent && a.authenticated)
-              .map((a) => (
-                // Two-step arm-then-confirm (the app's delete pattern) instead of
-                // window.confirm, which embedded webviews suppress.
-                <button
-                  key={a.id}
-                  className={`btn btn-line btn-sm${armedHandoff === a.id ? " btn-accent" : ""}`}
-                  title={`Hand this task to ${a.label}: saves a summary of this session, then continues in the same worktree on ${a.label} with a fresh context window`}
-                  disabled={running}
-                  onClick={() => {
-                    if (armedHandoff === a.id) { setArmedHandoff(null); onHandoff(a.id); }
-                    else setArmedHandoff(a.id);
-                  }}
-                >
-                  {Icon.spark()} {armedHandoff === a.id ? `Confirm: hand off to ${a.label}` : `Continue with ${a.label}`}
-                </button>
-              ))}
           </div>
         </div>
 

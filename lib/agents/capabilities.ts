@@ -32,6 +32,23 @@ export function getCapabilities(id: string | null | undefined): AgentCapabilitie
   return (id && CAPABILITIES[id]) || CAPABILITIES[DEFAULT_AGENT];
 }
 
+/**
+ * Strict "is this a registered agent id?" - the SDK-free twin of
+ * getDriverStrict, for routes that must REJECT an unknown id rather than
+ * quietly resolve it to the default (PATCH /api/tasks/[id] writing tasks.agent).
+ * Lives here rather than in registry.ts so the task route keeps its graph free
+ * of the agent SDKs; the registry and this map are pinned to the same keys by
+ * tests/agentSwitch.test.ts.
+ */
+export function isKnownAgent(id: string | null | undefined): boolean {
+  return !!id && Object.hasOwn(CAPABILITIES, id);
+}
+
+/** Every registered agent id - the key set behind isKnownAgent. */
+export function knownAgentIds(): string[] {
+  return Object.keys(CAPABILITIES);
+}
+
 // Context window for an (agent, model) pair, from the capability descriptor
 // (models[].contextWindow) — so a Codex task's ~272k window and a Fable task's
 // 1M window are both correct, with no per-agent table here. Unknown/inherited

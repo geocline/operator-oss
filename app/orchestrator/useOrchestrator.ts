@@ -450,6 +450,14 @@ export function useOrchestrator() {
     const fresh = await jsend<TaskRow>(`/api/tasks/${task.id}`, "PATCH", { model: m });
     setTasks((prev) => prev.map((x) => (x.id === task.id ? { ...x, ...fresh } : x)));
   };
+  // Move a not-yet-started task to another agent. The server rejects this once
+  // a session exists (409) - that case goes through clearSession(id, agent),
+  // which summarizes first so context survives the switch.
+  const setAgent = async (a: string) => {
+    if (!task) return;
+    const fresh = await jsend<TaskRow>(`/api/tasks/${task.id}`, "PATCH", { agent: a });
+    setTasks((prev) => prev.map((x) => (x.id === task.id ? { ...x, ...fresh } : x)));
+  };
   const setReasoning = async (r: string | null) => {
     if (!task) return;
     const fresh = await jsend<TaskRow>(`/api/tasks/${task.id}`, "PATCH", { reasoning: r });
@@ -608,7 +616,7 @@ export function useOrchestrator() {
     servicesOpen, setServicesOpen, servicesMounted, setServicesMounted, servicesHeight, setServicesHeight,
     // actions
     setSelTask, fetchRecap, runTurn, answerQuestion, stopTurn, cancelQueued, resolveConflictsWithAI,
-    selectProject, jumpToNeedsYou, goToTask, clearSession, setStatus, setPriority, setModel,
+    selectProject, jumpToNeedsYou, goToTask, clearSession, setStatus, setPriority, setModel, setAgent,
     setReasoning, setPermission, createTask, saveTask, removeTask, moveTask, startSuggestion, acceptSuggestion,
     dismissSuggestion, saveContext, createProject, reorderProjects, removeProject, setDeprecated,
     resetSettings, setProjectDefaultAgent,
