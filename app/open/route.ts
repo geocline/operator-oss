@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { findProjectByRepoPath, findProjectContaining, findOpenTaskByMarker, findSessionRef, createProject, createTask, getTask } from "@/lib/store";
+import { findProjectByRepoPath, findProjectContaining, findOpenTaskByMarker, findSessionRef, createProject, createTask, getTask, recordSession } from "@/lib/store";
 import {
   acknowledgeWorkstreamActivation,
   exchangeWorkstreamToken,
@@ -204,6 +204,15 @@ export async function GET(req: Request): Promise<Response> {
             `You have the recent dialogue below; earlier context is searchable in the Conversations Dashboard (http://localhost:8772). ` +
             `Pick up where it left off.\n\n--- Prior dialogue (most recent, clipped) ---\n\n${ext.dialogue}`,
           agent: ext.source === "codex" ? "codex" : "claude",
+        });
+        // Generation zero belongs to the imported source conversation. Live
+        // Operator turns start at generation one, so their session ids cannot
+        // overwrite this exact historical-session breadcrumb.
+        recordSession({
+          project_id: project.id,
+          task_id: task.id,
+          generation: 0,
+          claude_session_id: session,
         });
         return home(`/?project=${project.id}&task=${task.id}`);
       }
