@@ -44,7 +44,7 @@ function isAgentToolPath(pathname: string): boolean {
   return pathname.startsWith(AGENT_TOOLS_PREFIX);
 }
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Local dev with no origin provider configured runs fully open (single-user

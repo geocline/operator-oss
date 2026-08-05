@@ -835,14 +835,15 @@ describe("boot restore wiring", () => {
     const server = await import("node:fs/promises").then((fs) =>
       fs.readFile(new URL("../server.js", import.meta.url), "utf8"),
     );
-    const middleware = await import("node:fs/promises").then((fs) =>
-      fs.readFile(new URL("../middleware.ts", import.meta.url), "utf8"),
+    const proxy = await import("node:fs/promises").then((fs) =>
+      fs.readFile(new URL("../proxy.ts", import.meta.url), "utf8"),
     );
 
     expect(server).toContain("/api/internal/workstreams/restore");
     expect(server).toContain(
       'p !== "/api/internal/workstreams/restore"',
     );
-    expect(middleware).toContain("/api/internal/workstreams/restore");
+    expect(proxy).toContain("export async function proxy");
+    expect(proxy).toContain("/api/internal/workstreams/restore");
   });
 });

@@ -12,7 +12,10 @@
     "build": "NODE_ENV=production next build --turbopack",
     "start": "NODE_ENV=production concurrently -k -n app,pty -c blue,green \"node server.js\" \"node pty-server.js\"",
     "start:geo": "NODE_ENV=production concurrently -k -n app,pty -c blue,green \"node --env-file=.env server.js\" \"node --env-file=.env pty-server.js\"",
+    "audit:production": "npm audit --omit=dev",
     "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "verify": "npm run audit:production && npm test && npm run typecheck && npm run build",
     "postinstall": "node scripts/fix-pty.js"
   },
   "dependencies": {
