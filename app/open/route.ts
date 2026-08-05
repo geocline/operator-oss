@@ -145,6 +145,66 @@ function importExternalSession(
   }
 }
 
+/** PUBLIC_BASE_URL as a parsed http(s) origin, or null when unset/unusable. */
+function configuredOrigin(): URL | null {
+  const raw = process.env.PUBLIC_BASE_URL?.trim();
+  if (!raw) return null;
+  try {
+    const parsed = new URL(raw);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+
+/**
+ * Where to send the browser back to - "the device you clicked from is the
+ * device you stay on".
+ *
+ * `new URL(req.url).origin` is NOT the client's origin here. Behind the custom
+ * server, Next rebuilds the request URL from an internal base, so it reads
+ * http://localhost:3000 no matter which hostname the browser actually used -
+ * and it gets the port wrong on any non-default port. That's why this route
+ * used to force PUBLIC_BASE_URL unconditionally: the request origin was
+ * useless, so the public origin was the only thing that worked from a phone.
+ * The cost was that a laptop clicking a deep link at localhost got bounced onto
+ * the tailnet hostname, which is slower and (being a separate origin over plain
+ * HTTP/1.1) burns its own six-connection browser budget.
+ *
+ * The Host header is the honest record of how the client reached us, so prefer
+ * it: loopback stays loopback (laptop), the public hostname stays public
+ * (phone). Anything else falls back to PUBLIC_BASE_URL rather than trusting it,
+ * since Host is caller-controlled and echoing it into a redirect would make
+ * this an open redirect.
+ */
+function clientOrigin(req: Request, requestUrl: URL): string {
+  const configured = configuredOrigin();
+  const fallback = configured?.origin ?? requestUrl.origin;
+  // X-Forwarded-* wins when a tunnel or reverse proxy terminates TLS in front
+  // of this plain-HTTP server; each may be a comma-separated chain.
+  const first = (v: string | null) => (v ?? "").split(",")[0].trim();
+  const host = first(req.headers.get("x-forwarded-host")) || first(req.headers.get("host"));
+  if (!host) return fallback;
+
+  const hostname = host.replace(/:\d+$/, "").toLowerCase();
+  const isLoopback = LOOPBACK.has(hostname);
+  const isConfigured = !!configured && configured.host.toLowerCase() === host.toLowerCase();
+  if (!isLoopback && !isConfigured) return fallback;
+
+  const proto =
+    first(req.headers.get("x-forwarded-proto")) ||
+    // A loopback client is talking to this server directly, so it's plain http;
+    // the configured host keeps whatever scheme PUBLIC_BASE_URL declares.
+    (isConfigured && !isLoopback ? configured.protocol.replace(":", "") : "http");
+  try {
+    return new URL(`${proto}://${host}`).origin;
+  } catch {
+    return fallback;
+  }
+}
+
 export async function GET(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const workstreamToken = url.searchParams.get("workstream_token")?.trim();
@@ -153,21 +213,7 @@ export async function GET(req: Request): Promise<Response> {
   const repoPath = url.searchParams.get("path")?.trim();
   const name = url.searchParams.get("name")?.trim();
 
-  let redirectOrigin = url.origin;
-  const configuredOrigin = process.env.PUBLIC_BASE_URL?.trim();
-  if (configuredOrigin) {
-    try {
-      const parsedOrigin = new URL(configuredOrigin);
-      if (
-        parsedOrigin.protocol === "http:" ||
-        parsedOrigin.protocol === "https:"
-      ) {
-        redirectOrigin = parsedOrigin.origin;
-      }
-    } catch {
-      // Invalid optional configuration falls back to the request origin.
-    }
-  }
+  const redirectOrigin = clientOrigin(req, url);
   const home = (to: string) =>
     NextResponse.redirect(new URL(to, redirectOrigin), 307);
 

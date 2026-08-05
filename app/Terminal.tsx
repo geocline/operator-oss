@@ -72,7 +72,14 @@ export function TerminalView({ cwd, port, fontSize = 12.5, onReady }: { cwd: str
       // hostname carries both (works behind a tunnel). PUBLIC_BASE_URL (injected
       // by the layout) overrides the origin when the instance's public address
       // differs from what the browser sees; empty = same origin as the app.
-      const baseUrl = (window as { __PUBLIC_BASE_URL?: string }).__PUBLIC_BASE_URL || window.location.origin;
+      //
+      // Except on loopback: a page served from localhost is already talking to
+      // this server directly, so the override would only push its terminal
+      // socket out to the public hostname - a second origin, with its own
+      // browser connection budget, for no gain. Stay where the page loaded.
+      const publicBase = (window as { __PUBLIC_BASE_URL?: string }).__PUBLIC_BASE_URL;
+      const onLoopback = ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
+      const baseUrl = (!onLoopback && publicBase) || window.location.origin;
       const wsBase = baseUrl.replace(/^http/, "ws");
       const portQ = port && port > 0 ? `&port=${port}` : "";
       const url = `${wsBase}/pty?cwd=${encodeURIComponent(cwd)}&cols=${term.cols}&rows=${term.rows}${portQ}`;

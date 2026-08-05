@@ -138,37 +138,72 @@ describe("workstream activation deep link", () => {
     });
   });
 
-  it("redirects the linked task through the configured public Operator origin", async () => {
-    const lanePath = mkdtempSync(path.join(os.tmpdir(), "operator-public-"));
-    const lane = createProject({ name: "WR1", repo_path: lanePath });
-    vi.stubEnv(
-      "PUBLIC_BASE_URL",
-      "http://geos-mbp.tail9f0829.ts.net:3000",
-    );
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockImplementation(async (url: string) =>
-        Response.json(
-          url.endsWith("/activation/ack")
-            ? { workstream: { status: "active" } }
-            : exchangeBody({
-                card_id: "card-public-origin",
-                project_path: path.join(lanePath, "card-project"),
-              }),
+  // Deep links must land the user back on the origin they clicked from: a
+  // laptop on localhost stays on localhost, a phone on the tailnet stays on the
+  // tailnet. Neither can be read from new URL(req.url) - behind the custom
+  // server Next rebuilds that from an internal base and it always says
+  // localhost:3000 - so the route reads the Host header, and refuses hosts it
+  // doesn't recognise so a forged Host can't turn this into an open redirect.
+  describe("deep-link redirect origin", () => {
+    const PUBLIC = "http://geos-mbp.tail9f0829.ts.net:3000";
+
+    async function openWith(headers: Record<string, string>, cardId: string) {
+      const lanePath = mkdtempSync(path.join(os.tmpdir(), "operator-public-"));
+      const lane = createProject({ name: `WR-${cardId}`, repo_path: lanePath });
+      vi.stubEnv("PUBLIC_BASE_URL", PUBLIC);
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockImplementation(async (url: string) =>
+          Response.json(
+            url.endsWith("/activation/ack")
+              ? { workstream: { status: "active" } }
+              : exchangeBody({ card_id: cardId, project_path: path.join(lanePath, "card-project") }),
+          ),
         ),
-      ),
-    );
+      );
+      const response = await GET(
+        new Request(`http://localhost:3000/open?workstream_token=${cardId}`, { headers }),
+      );
+      return { lane, redirected: new URL(response.headers.get("location")!) };
+    }
 
-    const response = await GET(
-      new Request("http://localhost:3000/open?workstream_token=public-token"),
-    );
-    const redirected = new URL(response.headers.get("location")!);
+    it("keeps a laptop on localhost instead of bouncing it to the tailnet", async () => {
+      const { lane, redirected } = await openWith({ host: "localhost:3000" }, "card-local");
+      expect(redirected.origin).toBe("http://localhost:3000");
+      expect(redirected.searchParams.get("project")).toBe(lane.id);
+      expect(redirected.searchParams.get("task")).toBeTruthy();
+    });
 
-    expect(redirected.origin).toBe(
-      "http://geos-mbp.tail9f0829.ts.net:3000",
-    );
-    expect(redirected.searchParams.get("project")).toBe(lane.id);
-    expect(redirected.searchParams.get("task")).toBeTruthy();
+    it("keeps a phone on the public hostname it arrived on", async () => {
+      const { lane, redirected } = await openWith(
+        { host: "geos-mbp.tail9f0829.ts.net:3000" },
+        "card-public-origin",
+      );
+      expect(redirected.origin).toBe(PUBLIC);
+      expect(redirected.searchParams.get("project")).toBe(lane.id);
+    });
+
+    it("honours a proxy's forwarded host and scheme", async () => {
+      const { redirected } = await openWith(
+        {
+          host: "127.0.0.1:3000",
+          "x-forwarded-host": "geos-mbp.tail9f0829.ts.net:3000",
+          "x-forwarded-proto": "https",
+        },
+        "card-forwarded",
+      );
+      expect(redirected.origin).toBe("https://geos-mbp.tail9f0829.ts.net:3000");
+    });
+
+    it("refuses an unrecognised Host rather than redirecting off-instance", async () => {
+      const { redirected } = await openWith({ host: "evil.example.com" }, "card-evil");
+      expect(redirected.origin).toBe(PUBLIC);
+    });
+
+    it("falls back to the configured public origin when there's no Host at all", async () => {
+      const { redirected } = await openWith({}, "card-nohost");
+      expect(redirected.origin).toBe(PUBLIC);
+    });
   });
 
   it("deduplicates repeated activation by provider and external card id", async () => {
