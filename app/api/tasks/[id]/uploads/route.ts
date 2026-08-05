@@ -8,10 +8,10 @@ import { taskUploadsDir, UPLOAD_EXT_BY_MIME, MAX_UPLOAD_BYTES } from "@/lib/uplo
 export const dynamic = "force-dynamic";
 
 /**
- * Attach an image to a task's chat. Saves the file under DB_DIR/uploads/<task>/
+ * Attach a file to a task's chat. Saves the file under DB_DIR/uploads/<task>/
  * (outside the worktree — see lib/uploads.ts) and returns both the absolute
  * path (embedded in the message for Claude to Read) and the serving URL (for
- * transcript thumbnails). The composer uploads eagerly on attach; the file only
+ * transcript links/previews). The composer uploads eagerly on attach; the file only
  * enters the conversation when the message referencing it is sent.
  */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {

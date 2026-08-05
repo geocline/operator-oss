@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 const SAFE_SEGMENT = /^[A-Za-z0-9_-]+$/;
 const SAFE_FILE = /^([A-Za-z0-9_-]+)\.([A-Za-z0-9]{1,8})$/;
 
-/** Serve an uploaded chat attachment (image thumbnail or text file). Auth: middleware. */
+/** Serve an uploaded chat attachment (image preview or downloadable file). Auth: middleware. */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string; file: string }> }) {
   const { id, file } = await params;
   const m = SAFE_FILE.exec(file);

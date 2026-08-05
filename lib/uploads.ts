@@ -2,19 +2,19 @@ import fs from "node:fs";
 import path from "node:path";
 import { DB_DIR } from "@/lib/config";
 
-// Chat attachments (images + large text pastes). Uploaded files live under the
-// DB dir, deliberately OUTSIDE the task's git worktree — a pasted screenshot or
-// a 500 KB log dump must never show up in the task's diff or get swept into a
-// merge. The message text carries a marker line with the absolute path (see
-// attachmentMarker / fileAttachmentMarker in app/orchestrator/format.ts);
-// Claude Code opens it with its Read tool (rendering images natively, reading
-// text files as text), so no SDK content-block plumbing is needed and
-// queued/pending messages keep working as plain text.
+// Chat attachments (arbitrary files, images, and large text pastes). Uploaded
+// files live under the DB dir, deliberately OUTSIDE the task's git worktree — a
+// pasted screenshot or 500 KB log dump must never show up in the task's diff or
+// get swept into a merge. The message text carries a marker line with the
+// absolute path (see attachmentMarker / fileAttachmentMarker in
+// app/orchestrator/format.ts); the coding harness opens it with its file tools,
+// so no SDK content-block plumbing is needed and queued/pending messages keep
+// working as plain text.
 
 export const UPLOADS_DIR = path.join(DB_DIR, "uploads");
 
-// Image types Claude Code's Read tool can render. Keys are browser MIME types,
-// values the on-disk extension (also the URL-safe serving whitelist).
+// Image types supported by Composer previews. Keys are browser MIME types,
+// values the on-disk extension.
 export const IMAGE_EXT_BY_MIME: Record<string, string> = {
   "image/png": "png",
   "image/jpeg": "jpg",
@@ -22,8 +22,8 @@ export const IMAGE_EXT_BY_MIME: Record<string, string> = {
   "image/webp": "webp",
 };
 
-// Everything the upload route accepts: images plus plain text (a big paste the
-// composer diverts to a file instead of inlining, see PASTE_ATTACH_THRESHOLD).
+// Known MIME-to-extension overrides. The upload route also accepts unknown MIME
+// types using a sanitized original extension, or .bin when none is available.
 export const UPLOAD_EXT_BY_MIME: Record<string, string> = {
   ...IMAGE_EXT_BY_MIME,
   "text/plain": "txt",

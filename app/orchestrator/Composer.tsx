@@ -22,18 +22,18 @@ const saveDraft = (taskId: string, v: string) => {
   } catch { /* private mode / quota — drafts just won't persist */ }
 };
 
-// An attachment on the draft — an image (drop/paste/pick) or a large text paste
-// diverted to a .txt file (see PASTE_ATTACH_THRESHOLD) so it never bloats the
-// prompt and poisons the session. Uploaded eagerly on attach so send stays
-// instant; on send its server path is appended to the message as a marker line
-// (attachmentMarker for images, fileAttachmentMarker for text). Not persisted
-// with the draft — object URLs don't survive a remount, and an unsent upload is
-// just an orphaned file that the task's hard delete sweeps away.
+// An attachment on the draft — any picked/dropped file, pasted image, or large
+// text paste diverted to a .txt file (see PASTE_ATTACH_THRESHOLD) so it never
+// bloats the prompt and poisons the session. Uploaded eagerly on attach so send
+// stays instant; on send its server path is appended to the message as a marker
+// line (attachmentMarker for images, fileAttachmentMarker for other files). Not
+// persisted with the draft — object URLs don't survive a remount, and an unsent
+// upload is just an orphaned file that the task's hard delete sweeps away.
 type Attachment = {
   key: string;
   kind: "image" | "file";
   name: string;
-  preview: string; // local object URL for the image thumbnail ("" for text files)
+  preview: string; // local object URL for the image thumbnail ("" for other files)
   path: string; // absolute server path once uploaded
   status: "uploading" | "ready" | "error";
   error?: string;
@@ -67,12 +67,10 @@ export function Composer({ task, agentLabel, disabled, running, onSend, onStop, 
     if (disabled) return;
     for (const f of files) {
       const isImage = f.type.startsWith("image/");
-      const isText = f.type.startsWith("text/plain");
-      if (!isImage && !isText) continue;
       const key = `att-${++attSeq.current}`;
       const kind = isImage ? "image" : "file";
       const name = f.name || (isImage ? "image" : "pasted-text.txt");
-      // Only images get a local object-URL thumbnail; text chips render a label.
+      // Only images get a local object-URL thumbnail; other files render a label.
       const preview = isImage ? URL.createObjectURL(f) : "";
       setAtts((prev) => [...prev, { key, kind, name, preview, path: "", status: "uploading" }]);
       const body = new FormData();
