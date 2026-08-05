@@ -115,3 +115,36 @@ merge, never rebase; expect conflicts mostly in app/Orchestrator.tsx.
   in Work_Cockpit need a ?v= cache-bust.
 - Tracker deploys via git push to GitHub (Vercel auto-builds). npm run build
   locally first.
+
+## 2026-08-04 - Card workstreams, breadcrumbs, and hardening
+
+- Operator commit `9e9c83f` implements the approved single-user card workstream
+  bridge: manual activation, pause/resume/post-now/disconnect controls, durable
+  delivery, proposal handling, exact conversation registration, and private
+  task/card linkage.
+- Tracker commit `05447de` implements owner-only workstreams, fixed bot
+  attribution, exact breadcrumbs, proposal approval, private AI Workspace
+  storage, hardened automatic HTML attachments, and migrations 0044 and 0045.
+- MCP commit `c7480f3` implements exact standalone session breadcrumbs and the
+  fixed `Geo's Bot` attribution. Conversations dashboard commit `5265797`
+  exposes exact annotation revisions.
+- Operator hardening commits through `3b9db50` upgrade the secure runtime to
+  Next 16.3 and Node 20.9+, remove production audit findings, accept arbitrary
+  composer files, atomically deduplicate historical external-session imports,
+  add CI for Node 20.9 and Node 22, validate production traces, and migrate the
+  Next file convention from middleware to proxy.
+- Tracker hardening commits `f139569` and `36d3fdc` anchor Turbopack to the app
+  root, upgrade Next to 16.3, replace the stale registry XLSX package with the
+  official SheetJS CE 0.20.3 tarball, and reduce the production audit from four
+  high findings to zero.
+- Fresh release verification passed: Operator 450 tests, Tracker 103 tests,
+  MCP 55 tests, dashboard 1 test, plus type checks, lint, builds, audit, trace
+  checks, and independent reviews.
+- Operator `main` is pushed and running locally. The tracker release is pushed
+  only to `codex/card-workstreams-rollout`. Do not promote tracker `main` until
+  migrations 0044 and 0045 have been applied and verified in that order.
+- Production gate still open: the Supabase dashboard session is signed out.
+  After Geo signs in, run migrations 0044 then 0045, verify the new tables,
+  functions, RLS, and removal of `cards.ai_project_path`, push tracker `main`,
+  confirm Vercel production, and complete the signed-in activation/breadcrumb/
+  comment/control/proposal/attachment acceptance pass.
