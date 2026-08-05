@@ -92,7 +92,8 @@ const countsAsActivity = (url) => {
     p !== "/api/instance/idle" &&
     p !== "/api/instance/usage" &&
     p !== "/api/version" &&
-    p !== "/api/instance/services-restore"
+    p !== "/api/instance/services-restore" &&
+    p !== "/api/internal/workstreams/restore"
   );
 };
 
@@ -118,6 +119,31 @@ function restorePersistedServices() {
       .catch((err) => {
         if (attempts < 5) setTimeout(ping, 3000).unref?.();
         else console.warn(`[services] boot restore ping failed: ${err?.message || err}`);
+      });
+  };
+  ping();
+}
+
+// Start the durable workstream outbox worker at boot. The route owns the
+// TypeScript/SQLite module graph; this plain-Node server uses the same
+// loopback trigger pattern as managed-service restoration.
+function restoreWorkstreamDelivery() {
+  const url = `http://127.0.0.1:${port}/api/internal/workstreams/restore`;
+  const headers = process.env.SERVICE_TOKEN
+    ? { "x-service-token": process.env.SERVICE_TOKEN }
+    : {};
+  let attempts = 0;
+  const ping = () => {
+    attempts++;
+    fetch(url, { method: "POST", headers })
+      .then((res) => {
+        if (!res.ok) throw new Error(`status ${res.status}`);
+      })
+      .catch((err) => {
+        if (attempts < 5) setTimeout(ping, 3000).unref?.();
+        else console.warn(
+          `[workstreams] boot restore ping failed: ${err?.message || err}`,
+        );
       });
   };
   ping();
@@ -237,6 +263,7 @@ Promise.all([app.prepare(), cfAccessImport, serviceRouterImport, envKeysImport])
 
   server.listen(port, hostname, () => {
     restorePersistedServices();
+    restoreWorkstreamDelivery();
     const auth = cfAccess.originAuthEnabled()
       ? `origin auth ON — Cloudflare Access (team ${process.env.CF_ACCESS_TEAM_DOMAIN})`
       : "origin auth OFF — set CF_ACCESS_*" +

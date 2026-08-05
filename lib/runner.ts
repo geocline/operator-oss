@@ -18,6 +18,10 @@ import { isPromptTooLong, CONTEXT_OVERFLOW_NOTICE } from "@/lib/promptLimits";
 import { isAuthFailure, AUTH_EXPIRED_NOTICE } from "@/lib/authFailure";
 import { isUsageLimit, USAGE_LIMIT_NOTICE } from "@/lib/usageLimit";
 import { markAgentAuthBroken, clearAgentAuthBroken } from "@/lib/agents/connections";
+import {
+  queueWorkstreamConversationRegistration,
+  queueWorkstreamLifecycle,
+} from "@/lib/workstreams/worker";
 import type { Task, Project, ToolData, TurnUsage } from "@/lib/types";
 
 /**
@@ -183,6 +187,7 @@ async function run(task: Task, project: Project, userText: string, syncNote: str
   const gen = task.generation;
   let sessionId: string | null = task.session_id;
   let opened = false;
+  let conversationRegistrationQueued = false;
   // tool_use_id -> { dbId, data } so a later tool_result can be merged in.
   const toolMsgs: Record<string, { dbId: string; data: ToolData }> = {};
   // Asks still awaiting an answer — one assistant message can park several at
@@ -241,15 +246,32 @@ async function run(task: Task, project: Project, userText: string, syncNote: str
       const m = addMessage(id, gen, "system", syncNote);
       publish(id, { type: "notice", content: syncNote, msgId: m.id, generation: gen });
     }
-    for await (const ev of getDriver(task.agent).runTurn(task, project, userText, abortController)) {
+    const driver = getDriver(task.agent);
+    for await (const ev of driver.runTurn(task, project, userText, abortController)) {
       // Persist first, then publish enriched with the DB message id — so a
       // snapshot taken at any instant plus the live tail never loses an event,
       // and clients can upsert by id instead of appending duplicates.
       if (ev.type === "session") {
         sessionId = ev.sessionId;
         opened = true;
+        if (!conversationRegistrationQueued) {
+          const projectPath = task.worktree_path || project.repo_path;
+          conversationRegistrationQueued = Boolean(
+            queueWorkstreamConversationRegistration({
+              taskId: id,
+              sessionId: ev.sessionId,
+              source: driver.id,
+              title: `${project.name}: ${task.title}`.slice(0, 300),
+              ...(projectPath ? { projectPath } : {}),
+            }),
+          );
+        }
+        const firstSessionOpen = !task.started;
         // Session is live — now it's officially started / in progress.
         updateTask(id, { started: 1, status: "in_progress" });
+        if (firstSessionOpen) {
+          queueWorkstreamLifecycle(id, "work_started", String(gen));
+        }
         // Persist this generation's agent session id for the project view.
         recordSession({ project_id: project.id, task_id: id, generation: gen, claude_session_id: sessionId });
         publish(id, ev);
@@ -280,12 +302,16 @@ async function run(task: Task, project: Project, userText: string, syncNote: str
         const data: ToolData = { title: "Question for you", ask: { id: ev.id, questions: ev.questions } };
         const m = addMessage(id, gen, "tool", JSON.stringify(data));
         toolMsgs[ev.id] = { dbId: m.id, data };
+        const firstOpenAsk = openAsks.size === 0;
         openAsks.add(ev.id);
         // The turn is still live but parked on the user — flag it so the task
         // list / project badges surface "Needs your input" right now, not only
         // once the turn fully ends. Persisted BEFORE publishing so reloads and
         // the global /api/events stream (which re-reads the row per event) agree.
         updateTask(id, { awaiting_input: 1 });
+        if (firstOpenAsk) {
+          queueWorkstreamLifecycle(id, "input_needed", `${gen}:${ev.id}`);
+        }
         publish(id, { ...ev, msgId: m.id, generation: gen });
       } else if (ev.type === "ask_answered") {
         const t = toolMsgs[ev.id];
@@ -508,6 +534,20 @@ async function run(task: Task, project: Project, userText: string, syncNote: str
       }
     }
     if (!continued) {
+      // A settled, still-in-progress turn is waiting on the user. Publish the
+      // fixed input-needed template, but never infer completion from the agent
+      // ending a normal turn. Automatic queued-message handoffs skip this block.
+      if (
+        opened &&
+        !generationAdvanced &&
+        current?.status === "in_progress"
+      ) {
+        queueWorkstreamLifecycle(
+          id,
+          "input_needed",
+          `${gen}:turn:${startedAt}`,
+        );
+      }
       // Release occupancy only now, at the very end of this synchronous block —
       // a no-op if a Stop already deleted the entry or a handoff replaced it.
       unregisterTurn(id, abortController);

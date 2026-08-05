@@ -1,5 +1,15 @@
 import { NextResponse } from "next/server";
 import { findProjectByRepoPath, findProjectContaining, findOpenTaskByMarker, findSessionRef, createProject, createTask, getTask } from "@/lib/store";
+import {
+  acknowledgeWorkstreamActivation,
+  exchangeWorkstreamToken,
+} from "@/lib/workstreams/client";
+import {
+  activateWorkstream,
+  getWorkstreamByExternalCard,
+  setWorkstreamState,
+} from "@/lib/workstreams/store";
+import { queueWorkstreamLifecycle } from "@/lib/workstreams/worker";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -15,6 +25,7 @@ export const dynamic = "force-dynamic";
  *     a historical CLI/desktop session operator never saw) a NEW task seeded
  *     with that conversation's dialogue so the work continues with context
  *   /open?path=<abs repo dir>&name=<label>    -> project by folder (created if missing)
+ *   /open?workstream_token=<opaque-token>     -> linked tracker task
  *
  * Both params together: operator-owned session wins, then import-by-session,
  * then plain path. The client already honors ?project= / ?task= on boot
@@ -110,6 +121,7 @@ function importExternalSession(sessionId: string): ExternalSession | null {
 
 export async function GET(req: Request): Promise<Response> {
   const url = new URL(req.url);
+  const workstreamToken = url.searchParams.get("workstream_token")?.trim();
   const session = url.searchParams.get("session")?.trim();
   const repoPath = url.searchParams.get("path")?.trim();
   const name = url.searchParams.get("name")?.trim();
@@ -123,12 +135,60 @@ export async function GET(req: Request): Promise<Response> {
     return createProject({ name: label || path.basename(dir), repo_path: dir });
   };
 
-  // 1) A session operator itself ran: jump straight to its task.
+  // 1) Explicit tracker activation. The token is exchanged server-to-server
+  // before any other deep-link path is considered, and never enters task text.
+  if (workstreamToken) {
+    const remote = await exchangeWorkstreamToken(workstreamToken);
+    if (!remote || !path.isAbsolute(remote.project_path)) {
+      return home("/?workstream_error=unavailable");
+    }
+
+    const lane = findProjectContaining(remote.project_path);
+    if (!lane) return home("/?workstream_error=unavailable");
+
+    const linked = getWorkstreamByExternalCard("ardent", remote.card_id);
+    const linkedTask = linked ? getTask(linked.task_id) : undefined;
+    const task =
+      linked && linkedTask
+        ? linkedTask
+        : createTask({
+            project_id: lane.id,
+            title: remote.title.slice(0, 120),
+            description:
+              "Work from the linked tracker card. Review its current details and attachments before starting. " +
+              "Use the deal lane context for supporting knowledge and publish team-facing updates only through the linked workstream.",
+          });
+    const pending = activateWorkstream({
+      taskId: task.id,
+      provider: "ardent",
+      externalCardId: remote.card_id,
+      externalWorkstreamId: remote.workstream_id,
+      initialState: "paused",
+    });
+    const acknowledged = await acknowledgeWorkstreamActivation({
+      externalWorkstreamId: remote.workstream_id,
+      activationAckToken: remote.activation_ack_token,
+    });
+    if (!acknowledged) {
+      return home(
+        `/?project=${task.project_id}&task=${task.id}&workstream_error=activation-pending`,
+      );
+    }
+    const activated = setWorkstreamState(pending.id, "active");
+    queueWorkstreamLifecycle(
+      activated.task_id,
+      "activation",
+      remote.workstream_id,
+    );
+    return home(`/?project=${task.project_id}&task=${task.id}`);
+  }
+
+  // 2) A session operator itself ran: jump straight to its task.
   if (session) {
     const ref = findSessionRef(session);
     if (ref && getTask(ref.task_id)) return home(`/?project=${ref.project_id}&task=${ref.task_id}`);
 
-    // 2) A historical CLI/desktop session: continue it as a new task seeded
+    // 3) A historical CLI/desktop session: continue it as a new task seeded
     //    with the old dialogue (the cross-border version of Renew's summary).
     const ext = importExternalSession(session);
     if (ext) {
@@ -150,7 +210,7 @@ export async function GET(req: Request): Promise<Response> {
     }
   }
 
-  // 3) Folder-based. Exact repo_path match first (a lane opens as itself);
+  // 4) Folder-based. Exact repo_path match first (a lane opens as itself);
   //    then deal-lane routing: a folder INSIDE a lane (a tracker card's
   //    workspace like Ardent/Wobbe/card-projects/TIC-Info) opens as a TASK in
   //    that lane - project = deal, task = assignment - so the session gets the

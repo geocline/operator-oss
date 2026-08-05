@@ -23,7 +23,13 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { SUGGEST_TASK, EXPOSE_SERVICE, ASK_USER } from "../lib/agentToolDefs.mjs";
+import {
+  SUGGEST_TASK,
+  EXPOSE_SERVICE,
+  ASK_USER,
+  PUBLISH_WORKSTREAM_UPDATE,
+  PROPOSE_CARD_CHANGE,
+} from "../lib/agentToolDefs.mjs";
 
 const TASK_ID = process.env.ORCH_TASK_ID || "";
 const PROJECT_ID = process.env.ORCH_PROJECT_ID || "";
@@ -132,6 +138,47 @@ server.registerTool(
         return { content: [{ type: "text", text: "The user did not answer the question. Proceed with your best judgment." }] };
       }
     }
+  }
+);
+
+server.registerTool(
+  PUBLISH_WORKSTREAM_UPDATE.name,
+  {
+    description: PUBLISH_WORKSTREAM_UPDATE.description,
+    inputSchema: {
+      body: z.string().min(1).max(20_000).describe(PUBLISH_WORKSTREAM_UPDATE.params.body),
+      files: z
+        .array(z.string())
+        .max(5)
+        .optional()
+        .describe(PUBLISH_WORKSTREAM_UPDATE.params.files),
+    },
+  },
+  async ({ body, files }) => {
+    const data = await callInternal("publish-workstream-update", {
+      body,
+      ...(files ? { files } : {}),
+    });
+    return { content: [{ type: "text", text: data.text }] };
+  }
+);
+
+server.registerTool(
+  PROPOSE_CARD_CHANGE.name,
+  {
+    description: PROPOSE_CARD_CHANGE.description,
+    inputSchema: {
+      kind: z
+        .enum(PROPOSE_CARD_CHANGE.kinds)
+        .describe(PROPOSE_CARD_CHANGE.params.kind),
+      value: z
+        .record(z.string(), z.unknown())
+        .describe(PROPOSE_CARD_CHANGE.params.value),
+    },
+  },
+  async ({ kind, value }) => {
+    const data = await callInternal("propose-card-change", { kind, value });
+    return { content: [{ type: "text", text: data.text }] };
   }
 );
 

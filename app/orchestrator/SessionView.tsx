@@ -9,6 +9,7 @@ import {
   SLABEL, SSUB, AWAIT_LABEL, STATUSES, PLABEL, PRIORITIES,
   modelOptions, reasoningOptions, permissionOptions, RAIL_W,
   type ProjectRow, type TaskRow, type Msg, type SyncStatusResp, type AgentsBundle,
+  type WorkstreamLinkT,
 } from "./types";
 import { capsFor, agentLabel, findAgent } from "./agents";
 import { StatusDot, Avatar, Popover, AgentBadge, Skel } from "./shared";
@@ -72,6 +73,133 @@ function SyncBanner({ taskId, running, onResolveWithAI, onSwitchToChat }: {
         <button className="tc-btn primary" onClick={doFix} disabled={busy || running}>{busy ? "…" : "Fix with AI"}</button>
       ) : (
         <button className="tc-btn primary" onClick={doSync} disabled={busy || running}>{busy ? "Syncing…" : "Sync"}</button>
+      )}
+    </div>
+  );
+}
+
+type WorkstreamUiCommand = "pause" | "resume" | "disconnect" | "post-now";
+
+function WorkstreamTaskControls({ taskId }: { taskId: string }) {
+  const [workstream, setWorkstream] = useState<
+    WorkstreamLinkT | null | undefined
+  >(undefined);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState<WorkstreamUiCommand | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const response = await fetch(
+        `/api/tasks/${taskId}/workstream`,
+        { cache: "no-store" },
+      );
+      if (!response.ok) return null;
+      const body = (await response.json()) as {
+        workstream?: WorkstreamLinkT | null;
+      };
+      return body.workstream ?? null;
+    } catch {
+      return null;
+    }
+  }, [taskId]);
+
+  useEffect(() => {
+    let current = true;
+    setWorkstream(undefined);
+    setOpen(false);
+    setFailed(false);
+    const refresh = () => {
+      void load()
+      .then((value) => {
+        if (current) setWorkstream(value);
+      });
+    };
+    refresh();
+    const interval = setInterval(refresh, 15_000);
+    return () => {
+      current = false;
+      clearInterval(interval);
+    };
+  }, [load]);
+
+  if (!workstream) return null;
+
+  const label =
+    workstream.state === "paused"
+      ? "Updates paused"
+      : workstream.state === "disconnected"
+        ? "Disconnected"
+        : workstream.state === "activating"
+          ? "Connecting"
+          : "Linked";
+
+  const command = async (next: WorkstreamUiCommand) => {
+    setBusy(next);
+    setFailed(false);
+    try {
+      const response = await fetch(
+        `/api/tasks/${taskId}/workstream/${next}`,
+        { method: "POST" },
+      );
+      const body = (await response.json()) as {
+        workstream?: WorkstreamLinkT;
+      };
+      if (!response.ok || !body.workstream) throw new Error("command failed");
+      setWorkstream(body.workstream);
+      if (next !== "post-now") setOpen(false);
+    } catch {
+      setFailed(true);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const action = (
+    next: WorkstreamUiCommand,
+    text: string,
+    disabled = false,
+  ) => (
+    <button
+      className="pop-item"
+      disabled={disabled || busy !== null}
+      onClick={() => void command(next)}
+      style={{ width: "100%", border: 0, background: "transparent" }}
+    >
+      <span>{busy === next ? "Working..." : text}</span>
+    </button>
+  );
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        className="status-ctl"
+        title="Linked tracker workstream controls"
+        onClick={(event) => {
+          event.stopPropagation();
+          setOpen((value) => !value);
+        }}
+      >
+        <span className="cv">{label}</span>
+        {Icon.chevDown()}
+      </button>
+      {open && (
+        <Popover onClose={() => setOpen(false)}>
+          <div className="pop-sec">Workstream updates</div>
+          {workstream.state === "active" &&
+            action("pause", "Pause updates")}
+          {workstream.state === "paused" &&
+            action("resume", "Resume updates")}
+          {workstream.state === "paused" &&
+            action("post-now", "Post update now")}
+          {workstream.state !== "disconnected" &&
+            action("disconnect", "Disconnect")}
+          {failed && (
+            <div className="pi-sub" style={{ padding: "7px 10px" }}>
+              Command unavailable
+            </div>
+          )}
+        </Popover>
       )}
     </div>
   );
@@ -323,6 +451,7 @@ export function SessionView({ project, task, agents, messages, running, blockedB
             <div className="sh-title">{task.title}</div>
           </div>
           <div className="sh-tools">
+            <WorkstreamTaskControls taskId={task.id} />
             {task.pr_url && (
               <a className="pr-chip" href={task.pr_url} target="_blank" rel="noreferrer" title={`Open this task's pull request — ${task.pr_url}`}>
                 {Icon.github()} PR{prNum ? ` #${prNum}` : ""} {Icon.external()}

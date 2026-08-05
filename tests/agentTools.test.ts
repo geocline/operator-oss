@@ -1,9 +1,26 @@
-import { describe, it, expect } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { createProject, getTask, getTaskDeps } from "@/lib/store";
-import { createSuggestedTask, registerExposedService, resolveTitleRefs } from "@/lib/agentTools";
+import { createProject, createTask, getTask, getTaskDeps } from "@/lib/store";
+import {
+  createSuggestedTask,
+  proposeCardChange,
+  publishWorkstreamUpdate,
+  registerExposedService,
+  resolveTitleRefs,
+} from "@/lib/agentTools";
+import { getDb } from "@/lib/db";
+import {
+  activateWorkstream,
+  getWorkstreamByTask,
+  setWorkstreamState,
+} from "@/lib/workstreams/store";
+import { buildWorkstreamRuntimeGuidance } from "@/lib/agents/shared";
 import { POST as suggestTask } from "@/app/api/internal/agent-tools/suggest-task/route";
 import { POST as exposeService } from "@/app/api/internal/agent-tools/expose-service/route";
+import { POST as publishUpdate } from "@/app/api/internal/agent-tools/publish-workstream-update/route";
+import { POST as proposeChange } from "@/app/api/internal/agent-tools/propose-card-change/route";
 import { instanceServiceTokenOk } from "@/lib/cf-access.mjs";
 
 function post(handler: (req: NextRequest) => Promise<Response>, url: string, body: unknown) {
@@ -15,6 +32,45 @@ function post(handler: (req: NextRequest) => Promise<Response>, url: string, bod
     })
   );
 }
+
+function workstreamFixture(label: string) {
+  const repoPath = fs.mkdtempSync(
+    path.join(process.env.ORCH_TEST_TMP!, `agent-tool-${label}-`),
+  );
+  const project = createProject({
+    name: `Agent tool ${label} ${Date.now()} ${Math.random()}`,
+    repo_path: repoPath,
+  });
+  const task = createTask({
+    project_id: project.id,
+    title: `${label} linked task`,
+  });
+  const link = activateWorkstream({
+    taskId: task.id,
+    provider: "ardent",
+    externalCardId: `card-${label}-${Math.random()}`,
+    externalWorkstreamId: "123e4567-e89b-42d3-a456-426614174000",
+  });
+  return { repoPath, project, task, link };
+}
+
+function outboxRows(linkId: string) {
+  return getDb()
+    .prepare(
+      "SELECT event_type, payload, state, attempts FROM workstream_outbox WHERE link_id = ? ORDER BY created_at, id",
+    )
+    .all(linkId) as Array<{
+    event_type: string;
+    payload: string;
+    state: string;
+    attempts: number;
+  }>;
+}
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+});
 
 describe("agentTools shared logic", () => {
   it("createSuggestedTask creates a suggested task with the given priority", () => {
@@ -118,6 +174,323 @@ describe("internal agent-tool endpoints", () => {
       });
       expect(res.status).toBe(400);
     }
+  });
+
+  it("rejects a task/project scope mismatch before resolving a workstream", async () => {
+    const first = workstreamFixture("scope-first");
+    const second = workstreamFixture("scope-second");
+    const response = await post(
+      publishUpdate,
+      "/api/internal/agent-tools/publish-workstream-update",
+      {
+        projectId: second.project.id,
+        taskId: first.task.id,
+        body: "The review is complete.",
+      },
+    );
+    expect(response.status).toBe(409);
+    expect(outboxRows(first.link.id)).toEqual([]);
+  });
+
+  it("derives the update target from the task, delivers with a fixed payload, and deduplicates retries", async () => {
+    vi.stubEnv("ARDENT_TRACKER_BASE_URL", "https://tracker.example");
+    vi.stubEnv("ARDENT_WORKSTREAM_BRIDGE_TOKEN", "bridge-secret");
+    const { project, task, link } = workstreamFixture("delivered");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(Response.json({ comment_id: "comment-visible" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const input = {
+      body: "The revised analysis is ready for review.",
+      files: [],
+    };
+    const first = await publishWorkstreamUpdate(task, project, input);
+    const duplicate = await publishWorkstreamUpdate(task, project, input);
+
+    expect(first.status).toBe("delivered");
+    expect(duplicate.status).toBe("delivered");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const request = JSON.parse(
+      (fetchMock.mock.calls[0][1] as RequestInit).body as string,
+    ) as Record<string, unknown>;
+    expect(request).toMatchObject({
+      workstream_id: link.external_workstream_id,
+      body: input.body,
+      attachments: [],
+    });
+    expect(request).not.toHaveProperty("card_id");
+    expect(request).not.toHaveProperty("author");
+    expect(request).not.toHaveProperty("agent");
+    expect(request).not.toHaveProperty("session");
+    expect(outboxRows(link.id)).toEqual([
+      expect.objectContaining({
+        event_type: "routine_update",
+        state: "delivered",
+        attempts: 1,
+      }),
+    ]);
+  });
+
+  it("queues a privacy-safe update while paused and does not call the bridge", async () => {
+    const { project, task, link } = workstreamFixture("paused");
+    setWorkstreamState(link.id, "paused");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await publishWorkstreamUpdate(task, project, {
+      body: "The revised comparison is ready.",
+    });
+
+    expect(result.status).toBe("paused");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(outboxRows(link.id)).toEqual([
+      expect.objectContaining({
+        event_type: "routine_update",
+        state: "pending",
+        attempts: 0,
+      }),
+    ]);
+  });
+
+  it("releases an immediate-delivery claim when the tracker reports pause", async () => {
+    vi.stubEnv("ARDENT_TRACKER_BASE_URL", "https://tracker.example");
+    vi.stubEnv("ARDENT_WORKSTREAM_BRIDGE_TOKEN", "bridge-secret");
+    const { project, task, link } = workstreamFixture("pause-race");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json(
+          {
+            error: "workstream is paused",
+            workstream: { status: "paused" },
+            retryable: false,
+          },
+          { status: 423 },
+        ),
+      ),
+    );
+
+    const result = await publishWorkstreamUpdate(task, project, {
+      body: "The revised comparison is ready.",
+    });
+
+    expect(result.status).toBe("paused");
+    expect(getWorkstreamByTask(task.id)?.state).toBe("paused");
+    expect(outboxRows(link.id)).toEqual([
+      expect.objectContaining({
+        state: "pending",
+        attempts: 0,
+      }),
+    ]);
+  });
+
+  it("returns disconnected without creating an undeliverable outbox row", async () => {
+    const { project, task, link } = workstreamFixture("disconnected");
+    setWorkstreamState(link.id, "disconnected");
+
+    const result = await publishWorkstreamUpdate(task, project, {
+      body: "The revised comparison is ready.",
+    });
+
+    expect(result.status).toBe("disconnected");
+    expect(outboxRows(link.id)).toEqual([]);
+  });
+
+  it("fails closed on private card-facing text before enqueue or delivery", async () => {
+    const { project, task, link } = workstreamFixture("privacy");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await publishWorkstreamUpdate(task, project, {
+      body: "See /Users/example/private/report.pdf from the Codex session.",
+    });
+
+    expect(result.status).toBe("rejected");
+    expect(result.text).toMatch(/privacy/i);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(outboxRows(link.id)).toEqual([]);
+  });
+
+  it("reports a permanent tracker policy rejection instead of retrying it", async () => {
+    vi.stubEnv("ARDENT_TRACKER_BASE_URL", "https://tracker.example");
+    vi.stubEnv("ARDENT_WORKSTREAM_BRIDGE_TOKEN", "bridge-secret");
+    const { project, task, link } = workstreamFixture("remote-policy");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json(
+          { error: "private implementation detail", retryable: false },
+          { status: 422 },
+        ),
+      ),
+    );
+
+    const result = await publishWorkstreamUpdate(task, project, {
+      body: "The revised comparison is ready.",
+    });
+
+    expect(result.status).toBe("rejected");
+    expect(result.text).not.toContain("private implementation detail");
+    expect(outboxRows(link.id)).toEqual([
+      expect.objectContaining({
+        event_type: "routine_update",
+        state: "failed",
+        attempts: 1,
+      }),
+    ]);
+  });
+
+  it("reads supported attachments only from the task workspace and never persists their path", async () => {
+    vi.stubEnv("ARDENT_TRACKER_BASE_URL", "https://tracker.example");
+    vi.stubEnv("ARDENT_WORKSTREAM_BRIDGE_TOKEN", "bridge-secret");
+    const { repoPath, project, task, link } = workstreamFixture("attachment");
+    const deliverables = path.join(repoPath, "deliverables");
+    fs.mkdirSync(deliverables);
+    const attachmentPath = path.join(deliverables, "summary.html");
+    fs.writeFileSync(
+      attachmentPath,
+      "<!doctype html><html><body>Final underwriting summary.</body></html>",
+    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(Response.json({ comment_id: "comment-with-file" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await publishWorkstreamUpdate(task, project, {
+      body: "The final underwriting summary is attached.",
+      files: ["deliverables/summary.html"],
+    });
+
+    expect(result.status).toBe("delivered");
+    const request = JSON.parse(
+      (fetchMock.mock.calls[0][1] as RequestInit).body as string,
+    ) as {
+      attachments: Array<{
+        filename: string;
+        content_type: string;
+        content_base64: string;
+      }>;
+    };
+    expect(request.attachments).toEqual([
+      {
+        filename: "summary.html",
+        content_type: "text/html",
+        content_base64: Buffer.from(
+          fs.readFileSync(attachmentPath),
+        ).toString("base64"),
+      },
+    ]);
+    expect(outboxRows(link.id)[0].payload).not.toContain(repoPath);
+
+    const outside = path.join(process.env.ORCH_TEST_TMP!, "outside.pdf");
+    fs.writeFileSync(outside, "%PDF-1.4");
+    const rejected = await publishWorkstreamUpdate(task, project, {
+      body: "A second file is attached.",
+      files: [outside],
+    });
+    expect(rejected.status).toBe("rejected");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("queues an allowlisted proposal for owner approval and rejects unsafe or unsupported values", async () => {
+    vi.stubEnv("ARDENT_TRACKER_BASE_URL", "https://tracker.example");
+    vi.stubEnv("ARDENT_WORKSTREAM_BRIDGE_TOKEN", "bridge-secret");
+    const { project, task, link } = workstreamFixture("proposal");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(Response.json({ action: { id: "review-item" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const accepted = await proposeCardChange(task, project, {
+      kind: "card_update",
+      value: {
+        due_date: "2026-08-20",
+        priority: true,
+        description: "The final review is ready.",
+      },
+    });
+    expect(accepted.status).toBe("delivered");
+    const body = JSON.parse(
+      (fetchMock.mock.calls[0][1] as RequestInit).body as string,
+    ) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      workstream_id: link.external_workstream_id,
+      kind: "card_update",
+      payload: {
+        due_date: "2026-08-20",
+        priority: true,
+        description: "The final review is ready.",
+      },
+    });
+    expect(body).not.toHaveProperty("card_id");
+    expect(body).not.toHaveProperty("author");
+
+    const unsafe = await proposeCardChange(task, project, {
+      kind: "card_update",
+      value: { description: "Open file:///Users/example/private.txt" },
+    });
+    const unsupported = await proposeCardChange(task, project, {
+      kind: "delete_card" as "card_update",
+      value: {},
+    });
+    expect(unsafe.status).toBe("rejected");
+    expect(unsupported.status).toBe("rejected");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(outboxRows(link.id)).toHaveLength(1);
+  });
+
+  it("routes both workstream tools through the current task context", async () => {
+    vi.stubEnv("ARDENT_TRACKER_BASE_URL", "https://tracker.example");
+    vi.stubEnv("ARDENT_WORKSTREAM_BRIDGE_TOKEN", "bridge-secret");
+    const { project, task } = workstreamFixture("route");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(async () =>
+        Response.json({ delivered: true }),
+      ),
+    );
+
+    const updateResponse = await post(
+      publishUpdate,
+      "/api/internal/agent-tools/publish-workstream-update",
+      {
+        projectId: project.id,
+        taskId: task.id,
+        body: "The summary is ready.",
+      },
+    );
+    const proposalResponse = await post(
+      proposeChange,
+      "/api/internal/agent-tools/propose-card-change",
+      {
+        projectId: project.id,
+        taskId: task.id,
+        kind: "complete_card",
+        value: {},
+      },
+    );
+    expect(updateResponse.status).toBe(200);
+    expect(await updateResponse.json()).toMatchObject({
+      status: "delivered",
+    });
+    expect(proposalResponse.status).toBe(200);
+    expect(await proposalResponse.json()).toMatchObject({
+      status: "delivered",
+    });
+  });
+});
+
+describe("linked-task runtime guidance", () => {
+  it("adds no rule for an unlinked task and no private identity for a linked task", () => {
+    expect(buildWorkstreamRuntimeGuidance(false)).toBe("");
+    const guidance = buildWorkstreamRuntimeGuidance(true);
+    expect(guidance).toContain("publish_workstream_update");
+    expect(guidance).toContain("propose_card_change");
+    expect(guidance).toMatch(/team-facing/i);
+    expect(guidance).not.toMatch(
+      /Geo|George|Ari|Operator|Claude|Codex|card id|workstream id|project path/i,
+    );
   });
 });
 

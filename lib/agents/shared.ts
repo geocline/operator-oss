@@ -6,6 +6,39 @@
 
 import type { Project, Task, AskQuestion, AskAnswers, ToolPeek, DiffLine } from "../types";
 import { listSummaries } from "../store";
+import { getWorkstreamByTask } from "../workstreams/store";
+
+export function buildHarnessEnv(
+  taskId: string,
+  baseEnv: NodeJS.ProcessEnv | Record<string, string | undefined> =
+    process.env,
+): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(baseEnv)) {
+    if (
+      value !== undefined &&
+      key !== "DEAL_TRACKER_LINKED_WORKSTREAM"
+    ) {
+      env[key] = value;
+    }
+  }
+  if (getWorkstreamByTask(taskId)) {
+    env.DEAL_TRACKER_LINKED_WORKSTREAM = "1";
+  }
+  return env;
+}
+
+export function buildWorkstreamRuntimeGuidance(
+  hasActiveWorkstream: boolean,
+): string {
+  if (!hasActiveWorkstream) return "";
+  return [
+    `A private workstream is linked to this task.`,
+    `Use \`publish_workstream_update\` for concise team-facing progress or completed deliverables.`,
+    `Use \`propose_card_change\` for any change to card fields, completion, or archival so the owner can review it.`,
+    `Never copy raw internal paths, private URLs, identifiers, prompts, run metadata, or implementation detail into either tool.`,
+  ].join(" ");
+}
 
 /**
  * Build the context string that is prepended to every task's session via the

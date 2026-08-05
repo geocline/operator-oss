@@ -25,6 +25,7 @@ const VERSION_PATH = "/api/version";
 const USAGE_PATH = "/api/instance/usage";
 // The boot-time self-ping from server.js that restores persisted services.
 const SERVICES_RESTORE_PATH = "/api/instance/services-restore";
+const WORKSTREAM_RESTORE_PATH = "/api/internal/workstreams/restore";
 function isServiceTokenPath(pathname: string): boolean {
   return (
     pathname === HEALTH_PATH ||
@@ -51,6 +52,13 @@ export async function middleware(req: NextRequest) {
   if (!originAuthEnabled()) return NextResponse.next();
 
   if (isServiceTokenPath(pathname) && serviceTokenOk(req.headers.get("x-service-token"))) {
+    return NextResponse.next();
+  }
+
+  if (
+    pathname === WORKSTREAM_RESTORE_PATH &&
+    instanceServiceTokenOk(req.headers.get("x-service-token"))
+  ) {
     return NextResponse.next();
   }
 

@@ -12,14 +12,28 @@ import type { Project, Task, StreamEvent, AskQuestion } from "../../types";
 import type { AgentDriver } from "../types";
 import { CLAUDE_CAPABILITIES } from "./capabilities";
 import { getSetting } from "../../store";
-import { createSuggestedTask, registerExposedService, resolveTitleRefs } from "../../agentTools";
-import { SUGGEST_TASK, EXPOSE_SERVICE } from "../../agentToolDefs.mjs";
+import {
+  createSuggestedTask,
+  proposeCardChange,
+  publishWorkstreamUpdate,
+  registerExposedService,
+  resolveTitleRefs,
+} from "../../agentTools";
+import {
+  SUGGEST_TASK,
+  EXPOSE_SERVICE,
+  PUBLISH_WORKSTREAM_UPDATE,
+  PROPOSE_CARD_CHANGE,
+} from "../../agentToolDefs.mjs";
+import { getWorkstreamByTask } from "../../workstreams/store";
 import { waitForAnswer } from "../../asks";
 import { CLAUDE_CLI_PATH as CLAUDE_PATH } from "../../config";
 import { isUsageLimit } from "../../usageLimit";
 import { hasApiKey, looksLikeApiKey, setApiKey, clearApiKey } from "../../anthropic-key";
 import {
   buildProjectContext,
+  buildHarnessEnv,
+  buildWorkstreamRuntimeGuidance,
   describeToolUse,
   summarizeResult,
   formatAnswers,
@@ -37,7 +51,12 @@ import {
   verifyTurn,
 } from "../../claude-auth";
 
-function orchestratorServer(project: Project, onSuggest: (title: string) => void, onExpose: (info: { name: string; url: string }) => void) {
+function orchestratorServer(
+  project: Project,
+  task: Task,
+  onSuggest: (title: string) => void,
+  onExpose: (info: { name: string; url: string }) => void,
+) {
   // Titles created this session, so `blocked_by` can reference earlier suggestions
   // by title (not just id) — friendlier for the model when planning a roadmap.
   const createdByTitle = new Map<string, string>();
@@ -81,6 +100,45 @@ function orchestratorServer(project: Project, onSuggest: (title: string) => void
           onSuggest(args.title);
           return { content: [{ type: "text", text }] };
         }
+      ),
+      tool(
+        PUBLISH_WORKSTREAM_UPDATE.name,
+        PUBLISH_WORKSTREAM_UPDATE.description,
+        {
+          body: z
+            .string()
+            .min(1)
+            .max(20_000)
+            .describe(PUBLISH_WORKSTREAM_UPDATE.params.body),
+          files: z
+            .array(z.string())
+            .max(5)
+            .optional()
+            .describe(PUBLISH_WORKSTREAM_UPDATE.params.files),
+        },
+        async (args: { body: string; files?: string[] }) => {
+          const result = await publishWorkstreamUpdate(task, project, args);
+          return { content: [{ type: "text", text: result.text }] };
+        },
+      ),
+      tool(
+        PROPOSE_CARD_CHANGE.name,
+        PROPOSE_CARD_CHANGE.description,
+        {
+          kind: z
+            .enum(["card_update", "complete_card", "archive_card"])
+            .describe(PROPOSE_CARD_CHANGE.params.kind),
+          value: z
+            .record(z.string(), z.unknown())
+            .describe(PROPOSE_CARD_CHANGE.params.value),
+        },
+        async (args: {
+          kind: "card_update" | "complete_card" | "archive_card";
+          value: Record<string, unknown>;
+        }) => {
+          const result = await proposeCardChange(task, project, args);
+          return { content: [{ type: "text", text: result.text }] };
+        },
       ),
     ],
   });
@@ -167,6 +225,12 @@ async function* runTurn(
   const prompt = /^\[Attached (image|file): .+\]$/m.test(userText)
     ? `${userText}\n\n(Read each attached image/file with the Read tool before responding.)`
     : userText;
+  const workstreamGuidance = buildWorkstreamRuntimeGuidance(
+    getWorkstreamByTask(task.id)?.state === "active",
+  );
+  const systemAppend = [buildProjectContext(project, task), workstreamGuidance]
+    .filter(Boolean)
+    .join("\n\n---\n\n");
 
   const response = query({
     prompt,
@@ -181,13 +245,19 @@ async function* runTurn(
       // Reasoning preset → thinking budget + effort (Off/Think/Think hard/Ultrathink).
       // Omitted keys leave Claude Code's default thinking.
       ...reasoningOptions(reasoning),
-      systemPrompt: { type: "preset", preset: "claude_code", append: buildProjectContext(project, task) },
+      systemPrompt: {
+        type: "preset",
+        preset: "claude_code",
+        append: systemAppend,
+      },
       // Permission mode (default bypassPermissions; "plan" proposes without editing).
       permissionMode: permissionModeFor(permission),
       pathToClaudeCodeExecutable: CLAUDE_PATH,
+      env: buildHarnessEnv(task.id),
       mcpServers: {
         orchestrator: orchestratorServer(
           project,
+          task,
           (t) => suggested.push(t),
           ({ name, url }) => queue.push({ type: "notice", content: `Service "${name}" is live at ${url}` })
         ),

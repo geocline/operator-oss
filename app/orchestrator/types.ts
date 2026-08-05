@@ -52,6 +52,16 @@ export interface TaskRow {
   context_tokens: number; // latest turn's input-side tokens ≈ current context-window occupancy
   context_pct: number; // context_tokens as a percent (0–100) of the model's window
 }
+export interface WorkstreamLinkT {
+  id: string;
+  task_id: string;
+  provider: string;
+  external_card_id: string;
+  external_workstream_id: string;
+  state: "activating" | "active" | "paused" | "disconnected";
+  created_at: number;
+  updated_at: number;
+}
 // A single row in the titlebar "need you" dropdown: an awaiting task plus enough
 // of its project to label and color it. Mirrors lib/store.ts listNeedsYou().
 export interface NeedsYouRow {

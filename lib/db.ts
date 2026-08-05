@@ -163,6 +163,41 @@ export function init(db: Database.Database) {
       PRIMARY KEY (task_id, depends_on_id)
     );
 
+    -- Stable links between an Operator task and an external card. Provider data
+    -- stays isolated here instead of leaking into the generic tasks table.
+    CREATE TABLE IF NOT EXISTS workstream_links (
+      id                     TEXT PRIMARY KEY,
+      task_id                TEXT NOT NULL UNIQUE REFERENCES tasks(id) ON DELETE CASCADE,
+      provider               TEXT NOT NULL,
+      external_card_id       TEXT NOT NULL,
+      external_workstream_id TEXT NOT NULL,
+      state                  TEXT NOT NULL DEFAULT 'active'
+                               CHECK (state IN ('active', 'paused', 'disconnected')),
+      created_at             INTEGER NOT NULL,
+      updated_at             INTEGER NOT NULL,
+      UNIQUE(provider, external_card_id)
+    );
+
+    -- Durable card-facing writes. Rows are never cleared on startup. Delivery
+    -- claims and retries only select rows whose link is currently active.
+    CREATE TABLE IF NOT EXISTS workstream_outbox (
+      id                TEXT PRIMARY KEY,
+      link_id           TEXT NOT NULL REFERENCES workstream_links(id) ON DELETE CASCADE,
+      idempotency_key   TEXT NOT NULL UNIQUE,
+      event_type        TEXT NOT NULL,
+      payload           TEXT NOT NULL,
+      state             TEXT NOT NULL DEFAULT 'pending'
+                          CHECK (state IN ('pending', 'delivering', 'delivered', 'failed')),
+      attempts          INTEGER NOT NULL DEFAULT 0,
+      next_attempt_at   INTEGER NOT NULL,
+      claim_expires_at  INTEGER NOT NULL DEFAULT 0,
+      claim_token       TEXT NOT NULL DEFAULT '',
+      last_error        TEXT NOT NULL DEFAULT '',
+      delivered_at      INTEGER NOT NULL DEFAULT 0,
+      created_at        INTEGER NOT NULL,
+      updated_at        INTEGER NOT NULL
+    );
+
     -- App-level key/value preferences that must be readable server-side (e.g. the
     -- default reasoning level + permission mode a task inherits when it hasn't
     -- overridden them). Distinct from the browser-local UI settings in localStorage.
@@ -212,6 +247,12 @@ export function init(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_task_usage_project ON task_usage(project_id);
     CREATE INDEX IF NOT EXISTS idx_task_merges_project ON task_merges(project_id);
     CREATE INDEX IF NOT EXISTS idx_task_merges_task ON task_merges(task_id);
+    CREATE INDEX IF NOT EXISTS idx_workstream_links_external
+      ON workstream_links(provider, external_card_id);
+    CREATE INDEX IF NOT EXISTS idx_workstream_outbox_due
+      ON workstream_outbox(state, next_attempt_at, created_at);
+    CREATE INDEX IF NOT EXISTS idx_workstream_outbox_link
+      ON workstream_outbox(link_id);
   `);
 
   migrate(db);
@@ -360,6 +401,22 @@ export function migrate(db: Database.Database) {
   // table shipped; see lib/services.ts restoreServices).
   const svcCols = (db.prepare("PRAGMA table_info(services)").all() as { name: string }[]).map((c) => c.name);
   if (!svcCols.includes("pid")) db.exec("ALTER TABLE services ADD COLUMN pid INTEGER NOT NULL DEFAULT 0");
+
+  // Workstream delivery claim leases were added after the outbox first shipped.
+  // A zero expiry makes any pre-lease delivering row immediately recoverable.
+  const outboxCols = (
+    db.prepare("PRAGMA table_info(workstream_outbox)").all() as { name: string }[]
+  ).map((c) => c.name);
+  if (!outboxCols.includes("claim_expires_at")) {
+    db.exec(
+      "ALTER TABLE workstream_outbox ADD COLUMN claim_expires_at INTEGER NOT NULL DEFAULT 0",
+    );
+  }
+  if (!outboxCols.includes("claim_token")) {
+    db.exec(
+      "ALTER TABLE workstream_outbox ADD COLUMN claim_token TEXT NOT NULL DEFAULT ''",
+    );
+  }
 
   // Which driver produced each usage row, stamped at write time (Insights breaks
   // spend down by provider). Backfilled from the task's current agent — exact

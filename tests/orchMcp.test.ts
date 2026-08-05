@@ -37,6 +37,10 @@ beforeAll(async () => {
       } else if (req.url?.endsWith("/expose-service")) {
         const url = `http://localhost:${body.port}`;
         res.end(JSON.stringify({ ok: true, name: body.name, url, text: `Registered "${body.name}" at ${url}.` }));
+      } else if (req.url?.endsWith("/publish-workstream-update")) {
+        res.end(JSON.stringify({ ok: true, status: "delivered", text: "Update delivered." }));
+      } else if (req.url?.endsWith("/propose-card-change")) {
+        res.end(JSON.stringify({ ok: true, status: "delivered", text: "Proposal queued for review." }));
       } else {
         res.statusCode = 404;
         res.end(JSON.stringify({ error: "not found" }));
@@ -68,13 +72,38 @@ async function connectBridge() {
 }
 
 describe("orch-mcp stdio bridge", () => {
-  it("exposes suggest_task, expose_service and ask_user over stdio", async () => {
+  it("exposes the portable workstream tools over stdio without identity parameters", async () => {
     const { client, close } = await connectBridge();
     try {
       const { tools } = await client.listTools();
-      expect(tools.map((t) => t.name).sort()).toEqual(["ask_user", "expose_service", "suggest_task"]);
+      expect(tools.map((t) => t.name).sort()).toEqual([
+        "ask_user",
+        "expose_service",
+        "propose_card_change",
+        "publish_workstream_update",
+        "suggest_task",
+      ]);
       // Descriptions come from the shared defs — sanity check they're populated.
       expect(tools.find((t) => t.name === "suggest_task")?.description).toContain("Suggested tray");
+      const forbidden = [
+        "author",
+        "agent",
+        "session",
+        "source",
+        "card_id",
+        "cardId",
+        "workstream_id",
+        "workstreamId",
+      ];
+      for (const name of ["publish_workstream_update", "propose_card_change"]) {
+        const schema = tools.find((tool) => tool.name === name)?.inputSchema as {
+          properties?: Record<string, unknown>;
+        };
+        expect(schema?.properties).toBeTruthy();
+        expect(Object.keys(schema.properties ?? {})).not.toEqual(
+          expect.arrayContaining(forbidden),
+        );
+      }
     } finally {
       await close();
     }
@@ -121,6 +150,61 @@ describe("orch-mcp stdio bridge", () => {
       const call = calls.find((c) => c.path.endsWith("/expose-service"))!;
       expect(call.body).toMatchObject({ projectId: "proj-abc", name: "dev", port: 4300 });
       expect(call.token).toBe("smoke-token");
+    } finally {
+      await close();
+    }
+  });
+
+  it("proxies a workstream update using only the bridge-injected task and project scope", async () => {
+    calls.length = 0;
+    const { client, close } = await connectBridge();
+    try {
+      const res = (await client.callTool({
+        name: "publish_workstream_update",
+        arguments: {
+          body: "The review is complete and the revised summary is ready.",
+          files: ["deliverables/revised-summary.pdf"],
+        },
+      })) as { content: { type: string; text: string }[] };
+      expect(res.content[0].text).toBe("Update delivered.");
+      const call = calls.find((item) =>
+        item.path.endsWith("/publish-workstream-update"),
+      )!;
+      expect(call.token).toBe("smoke-token");
+      expect(call.body).toEqual({
+        projectId: "proj-abc",
+        taskId: "task-xyz",
+        body: "The review is complete and the revised summary is ready.",
+        files: ["deliverables/revised-summary.pdf"],
+      });
+      expect(JSON.stringify(call.body)).not.toContain("author");
+      expect(JSON.stringify(call.body)).not.toContain("workstream");
+    } finally {
+      await close();
+    }
+  });
+
+  it("proxies an allowlisted card proposal without accepting a target identity", async () => {
+    calls.length = 0;
+    const { client, close } = await connectBridge();
+    try {
+      const res = (await client.callTool({
+        name: "propose_card_change",
+        arguments: {
+          kind: "card_update",
+          value: { due_date: "2026-08-20", priority: true },
+        },
+      })) as { content: { type: string; text: string }[] };
+      expect(res.content[0].text).toBe("Proposal queued for review.");
+      const call = calls.find((item) =>
+        item.path.endsWith("/propose-card-change"),
+      )!;
+      expect(call.body).toEqual({
+        projectId: "proj-abc",
+        taskId: "task-xyz",
+        kind: "card_update",
+        value: { due_date: "2026-08-20", priority: true },
+      });
     } finally {
       await close();
     }

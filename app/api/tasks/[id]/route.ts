@@ -4,6 +4,7 @@ import { removeWorktree } from "@/lib/git";
 import { removeTaskUploads } from "@/lib/uploads";
 import { abortTurn } from "@/lib/abort";
 import { publishGlobal } from "@/lib/events";
+import { queueManualWorkstreamCompletion } from "@/lib/workstreams/worker";
 import type { Task } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +33,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const body = (await req.json()) as Partial<Task>;
+  const previous = getTask(id);
+  if (!previous) {
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
   // Whitelist user-editable fields.
   const allowed: Partial<Task> = {};
   for (const k of ["title", "description", "priority", "status", "suggested", "model", "reasoning", "permission_mode"] as const) {
@@ -54,6 +59,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
   const task = updateTask(id, allowed);
   if (!task) return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (allowed.status === "done" && previous.status !== "done") {
+    queueManualWorkstreamCompletion(
+      id,
+      `${task.generation}:${task.updated_at}`,
+    );
+  }
   // A manual status change settles status + awaiting_input outside any turn, so
   // no runner publish will follow — announce it ourselves or every other tab's
   // "needs you" badges keep counting this task until their next reconnect.

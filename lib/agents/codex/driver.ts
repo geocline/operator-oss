@@ -25,7 +25,12 @@ import type { AgentDriver } from "../types";
 import { CODEX_CAPABILITIES } from "./capabilities";
 import { getSetting } from "../../store";
 import { CODEX_CLI_PATH, INTERNAL_BASE_URL, ORCH_MCP_SCRIPT } from "../../config";
-import { buildProjectContext } from "../shared";
+import {
+  buildProjectContext,
+  buildHarnessEnv,
+  buildWorkstreamRuntimeGuidance,
+} from "../shared";
+import { getWorkstreamByTask } from "../../workstreams/store";
 import { mapThreadEvent, newState } from "./events";
 import { resolveCodexModel } from "./pricing";
 import { codexStatus, verifyCodexTurn, startCodexLogin, getCodexLogin, submitCodexCode, cancelCodexLogin, codexApiKey } from "./auth";
@@ -139,12 +144,20 @@ async function* runTurn(
   const codex = new Codex({
     codexPathOverride: CODEX_CLI_PATH || undefined,
     config: orchestratorMcpConfig(project, task),
+    env: buildHarnessEnv(task.id),
   });
   const thread = task.session_id ? codex.resumeThread(task.session_id, threadOptions) : codex.startThread(threadOptions);
 
   // Fresh session: seed the opening prompt with the project context (project
   // description, task framing, and carried summaries from prior generations).
-  const prompt = task.session_id ? userText : `${buildProjectContext(project, task)}\n\n---\n\n${userText}`;
+  const workstreamGuidance = buildWorkstreamRuntimeGuidance(
+    getWorkstreamByTask(task.id)?.state === "active",
+  );
+  const prompt = task.session_id
+    ? [workstreamGuidance, userText].filter(Boolean).join("\n\n---\n\n")
+    : [buildProjectContext(project, task), workstreamGuidance, userText]
+        .filter(Boolean)
+        .join("\n\n---\n\n");
 
   yield { type: "model", model };
 
