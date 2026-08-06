@@ -52,6 +52,10 @@ function orchestratorMcpConfig(project: Project, task: Task): CodexOptions["conf
         // default per-tool-call timeout (60s) would kill the parked call, so
         // raise it to ~1 day (mirrors the Claude driver's PreToolUse hook cap).
         tool_timeout_sec: 86_400,
+        tools: {
+          publish_workstream_update: { approval_mode: "approve" },
+          propose_card_change: { approval_mode: "approve" },
+        },
         env: {
           ORCH_TASK_ID: task.id,
           ORCH_PROJECT_ID: project.id,
