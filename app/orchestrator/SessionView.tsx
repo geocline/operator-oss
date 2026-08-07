@@ -279,6 +279,7 @@ export function SessionView({ project, task, agents, messages, running, blockedB
   const [statusOpen, setStatusOpen] = useState(false);
   const [priOpen, setPriOpen] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
+  const [modelRefreshing, setModelRefreshing] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
   const [view, setView] = useState<"chat" | "changes">("chat");
@@ -303,6 +304,20 @@ export function SessionView({ project, task, agents, messages, running, blockedB
   const models = modelOptions(caps);
   const reasoningOpts = reasoningOptions(caps);
   const permissionOpts = permissionOptions(caps);
+  const refreshLiteLLMModels = async () => {
+    setModelRefreshing(true);
+    try {
+      const response = await fetch("/api/agents/litellm-codex/models/refresh", {
+        method: "POST",
+      });
+      if (response.ok) {
+        window.dispatchEvent(new Event("operator:refresh-agents"));
+      }
+    } finally {
+      setModelRefreshing(false);
+      setModelOpen(false);
+    }
+  };
   // Usage chip: tokens split into fresh work vs re-read cache (the raw total is
   // mostly cache reads and wildly overstates what ran), and a dollar figure whose
   // presentation follows how this agent is signed in — a subscription login's
@@ -544,6 +559,19 @@ export function SessionView({ project, task, agents, messages, running, blockedB
               </button>
               {modelOpen && (
                 <Popover onClose={() => setModelOpen(false)}>
+                  {task.agent === "litellm-codex" && (
+                    <>
+                      <div className="pop-sec">LiteLLM</div>
+                      <button
+                        type="button"
+                        className="pop-item"
+                        onClick={() => void refreshLiteLLMModels()}
+                        disabled={modelRefreshing}
+                      >
+                        {modelRefreshing ? "Refreshing…" : "Refresh LiteLLM models"}
+                      </button>
+                    </>
+                  )}
                   {models.map((m, i) => (
                     <Fragment key={m.label}>
                       {/* Section header whenever the group changes — Claude Code's

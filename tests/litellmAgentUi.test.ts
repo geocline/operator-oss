@@ -46,4 +46,12 @@ describe("LiteLLM managed agent surface", () => {
     expect(source).toContain("/api/agents/litellm-codex/models/refresh");
     expect(source).toContain("Refresh models");
   });
+
+  it("offers refresh directly in the LiteLLM task model picker", () => {
+    const view = readFileSync(path.join(process.cwd(), "app/orchestrator/SessionView.tsx"), "utf8");
+    const hook = readFileSync(path.join(process.cwd(), "app/orchestrator/useOrchestrator.ts"), "utf8");
+    expect(view).toContain("Refresh LiteLLM models");
+    expect(view).toContain("/api/agents/litellm-codex/models/refresh");
+    expect(hook).toContain("operator:refresh-agents");
+  });
 });

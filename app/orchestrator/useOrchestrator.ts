@@ -142,6 +142,11 @@ export function useOrchestrator() {
     []
   );
   useEffect(() => { void refreshAgents(); }, [refreshAgents]);
+  useEffect(() => {
+    const refresh = () => { void refreshAgents(); };
+    window.addEventListener("operator:refresh-agents", refresh);
+    return () => window.removeEventListener("operator:refresh-agents", refresh);
+  }, [refreshAgents]);
 
   // Agents that are connected on record but whose credentials just stopped
   // working — the titlebar reconnect banner's input. Normally empty.
