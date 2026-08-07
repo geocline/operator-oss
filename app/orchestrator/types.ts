@@ -171,7 +171,8 @@ export type ClaudeVerifyT = {
 // aren't wired up. Only the fields the client reads are typed here.
 export type AgentCapabilitiesT = {
   apiKeyHint: string | null;
-  loginStyle: "paste_code" | "device_code";
+  loginStyle: "paste_code" | "device_code" | "managed_endpoint";
+  connectionStyle?: "paste_code" | "device_code" | "managed_endpoint";
 };
 export type AgentInfoT = {
   id: string;
@@ -201,7 +202,7 @@ export const PRIORITIES: Priority[] = ["hi", "med", "lo"];
 // capability descriptor (models / reasoning / permission modes it supports, plus
 // feature flags) served by GET /api/agents. The client renders every picker from
 // this data, so a task's controls always match the agent it runs under.
-export interface AgentModelOption { value: string; label: string; sub: string; contextWindow: number; group?: string }
+export interface AgentModelOption { value: string; label: string; sub: string; contextWindow: number; contextWindowKnown?: boolean; group?: string }
 export interface AgentPickerOption { value: string; label: string; sub: string }
 export interface AgentCapabilities {
   models: AgentModelOption[];

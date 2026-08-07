@@ -17,18 +17,21 @@
 import type { AgentCapabilities } from "./types";
 import { CLAUDE_CAPABILITIES } from "./claude/capabilities";
 import { CODEX_CAPABILITIES } from "./codex/capabilities";
+import { liteLLMCapabilities } from "./litellm/capabilities";
 
 export const DEFAULT_AGENT = "claude";
 
 const CAPABILITIES: Record<string, AgentCapabilities> = {
   claude: CLAUDE_CAPABILITIES,
   codex: CODEX_CAPABILITIES,
+  "litellm-codex": liteLLMCapabilities(),
 };
 
 /** Capability descriptor by agent id; unknown/null ids fall back to the default
  * agent (same forgiving resolution as getDriver — a hand-edited tasks.agent row
  * should still resolve to something). */
 export function getCapabilities(id: string | null | undefined): AgentCapabilities {
+  if (id === "litellm-codex") return liteLLMCapabilities();
   return (id && CAPABILITIES[id]) || CAPABILITIES[DEFAULT_AGENT];
 }
 

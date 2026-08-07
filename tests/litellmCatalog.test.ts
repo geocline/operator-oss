@@ -7,6 +7,7 @@ import {
   parseLiteLLMModelInfo,
   replaceLiteLLMCatalog,
 } from "@/lib/agents/litellm/catalog";
+import { getCapabilities, isKnownAgent, knownAgentIds } from "@/lib/agents/capabilities";
 
 const valid = (overrides: Record<string, unknown> = {}) => ({
   model_name: "operator.frontier",
@@ -92,5 +93,22 @@ describe("Operator-tagged LiteLLM catalog", () => {
     expect(modelForHarness("operator.frontier", "codex")?.label).toBe("Operator Frontier");
     expect(modelForHarness("operator.frontier", "claude")).toBeNull();
     expect(modelForHarness("", "codex")).toBeNull();
+  });
+
+  it("drives the SDK-free litellm-codex capability descriptor dynamically", () => {
+    replaceLiteLLMCatalog({
+      ...parseLiteLLMModelInfo({ data: [valid()] }),
+      refreshedAt: "2026-08-07T12:00:00.000Z",
+      stale: false,
+    });
+    expect(knownAgentIds()).toContain("litellm-codex");
+    expect(isKnownAgent("litellm-codex")).toBe(true);
+    expect(getCapabilities("litellm-codex").models).toEqual([
+      expect.objectContaining({
+        value: "operator.frontier",
+        label: "Operator Frontier",
+        contextWindow: 1_000_000,
+      }),
+    ]);
   });
 });

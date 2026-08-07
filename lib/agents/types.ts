@@ -21,6 +21,7 @@ export interface AgentModelOption {
   label: string;
   sub: string; // short picker subtitle, e.g. "most capable"
   contextWindow: number;
+  contextWindowKnown?: boolean;
   group?: string;
 }
 
@@ -69,7 +70,8 @@ export interface AgentCapabilities {
    * the app (Claude); "device_code" — the app shows a one-time code the user
    * enters in the browser, then polls until it lands (Codex).
    */
-  loginStyle: "paste_code" | "device_code";
+  loginStyle: "paste_code" | "device_code" | "managed_endpoint";
+  connectionStyle?: "paste_code" | "device_code" | "managed_endpoint";
 }
 
 // ---------- auth surface (shape after lib/claude-auth.ts) ----------

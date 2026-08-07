@@ -156,6 +156,7 @@ describe("the SDK-free agent id map", () => {
   it("is strict where getDriver is forgiving", () => {
     expect(isKnownAgent("claude")).toBe(true);
     expect(isKnownAgent("codex")).toBe(true);
+    expect(isKnownAgent("litellm-codex")).toBe(true);
     expect(isKnownAgent("gemini")).toBe(false);
     expect(isKnownAgent("")).toBe(false);
     expect(isKnownAgent(null)).toBe(false);
