@@ -14,8 +14,9 @@ import { buildHarnessEnv, buildProjectContext, buildWorkstreamRuntimeGuidance } 
 import { getWorkstreamByTask } from "../../workstreams/store";
 import { mapThreadEvent, newState } from "../codex/events";
 import { liteLLMCapabilities } from "./capabilities";
-import { modelForHarness } from "./catalog";
+import { getLiteLLMCatalog, modelForHarness } from "./catalog";
 import { refreshLiteLLMCatalog } from "./catalog-store";
+import { writeLiteLLMModelCatalog } from "./model-catalog";
 import { getLiteLLMRelay } from "./relay";
 import { appendOperatorSessionIndex } from "./session-index";
 
@@ -38,8 +39,13 @@ function runControls(mode: string | null): RunControls {
     : { sandboxMode: "workspace-write", approvalPolicy: "never", networkAccessEnabled: true };
 }
 
-function orchestratorMcpConfig(project: Project, task: Task): CodexOptions["config"] {
+function orchestratorMcpConfig(
+  project: Project,
+  task: Task,
+  modelCatalogPath: string,
+): CodexOptions["config"] {
   return {
+    model_catalog_json: modelCatalogPath,
     mcp_servers: {
       orchestrator: {
         command: process.execPath,
@@ -86,6 +92,10 @@ async function* runTurn(
   }
 
   mkdirSync(LITELLM_CODEX_HOME, { recursive: true, mode: 0o700 });
+  const modelCatalogPath = writeLiteLLMModelCatalog(
+    LITELLM_CODEX_HOME,
+    getLiteLLMCatalog().models,
+  );
   const relay = await getLiteLLMRelay();
   const controls = runControls(task.permission_mode);
   const requestedEffort = task.reasoning ? EFFORT[task.reasoning] : undefined;
@@ -105,7 +115,7 @@ async function* runTurn(
     codexPathOverride: CODEX_CLI_PATH || undefined,
     baseUrl: relay.baseUrl,
     apiKey: relay.childApiKey,
-    config: orchestratorMcpConfig(project, task),
+    config: orchestratorMcpConfig(project, task, modelCatalogPath),
     env: buildLiteLLMHarnessEnv(task.id),
   });
   const thread = task.session_id

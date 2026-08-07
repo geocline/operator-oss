@@ -1,4 +1,5 @@
 import http from "node:http";
+import WebSocket, { WebSocketServer } from "ws";
 import { LITELLM_API_KEY, LITELLM_BASE_URL } from "../../config";
 
 export interface LiteLLMRelay {
@@ -16,6 +17,11 @@ const CHILD_KEY = "operator-loopback-relay" as const;
 
 export async function createLiteLLMRelay(options: RelayOptions): Promise<LiteLLMRelay> {
   const upstreamRoot = options.upstreamBaseUrl.replace(/\/v1\/?$/, "");
+  const upstreamWebSocketRoot = upstreamRoot
+    .replace(/^http:/, "ws:")
+    .replace(/^https:/, "wss:");
+  const websocketServer = new WebSocketServer({ noServer: true });
+  const websocketPairs = new Set<[WebSocket, WebSocket]>();
   const server = http.createServer(async (request, response) => {
     const requestPath = request.url || "/";
     if (!requestPath.startsWith("/v1/")) {
@@ -63,6 +69,77 @@ export async function createLiteLLMRelay(options: RelayOptions): Promise<LiteLLM
       response.end('{"error":"LiteLLM gateway unavailable"}');
     }
   });
+  server.on("upgrade", (request, socket, head) => {
+    const requestPath = request.url || "/";
+    if (!requestPath.startsWith("/v1/")) {
+      socket.end("HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n");
+      return;
+    }
+
+    websocketServer.handleUpgrade(request, socket, head, (client) => {
+      const headers: Record<string, string> = {};
+      for (const [name, value] of Object.entries(request.headers)) {
+        if (
+          value !== undefined
+          && ![
+            "host",
+            "authorization",
+            "connection",
+            "upgrade",
+            "sec-websocket-key",
+            "sec-websocket-version",
+            "sec-websocket-extensions",
+            "sec-websocket-protocol",
+          ].includes(name)
+        ) {
+          headers[name] = Array.isArray(value) ? value.join(", ") : value;
+        }
+      }
+      headers.Authorization = `Bearer ${options.gatewayToken}`;
+      const requestedProtocols = String(request.headers["sec-websocket-protocol"] || "")
+        .split(",")
+        .map((protocol) => protocol.trim())
+        .filter(Boolean);
+      const upstream = new WebSocket(
+        `${upstreamWebSocketRoot}${requestPath}`,
+        requestedProtocols,
+        { headers },
+      );
+      const pair: [WebSocket, WebSocket] = [client, upstream];
+      websocketPairs.add(pair);
+      const pending: Array<{ data: WebSocket.RawData; isBinary: boolean }> = [];
+
+      client.on("message", (data, isBinary) => {
+        if (upstream.readyState === WebSocket.OPEN) upstream.send(data, { binary: isBinary });
+        else if (upstream.readyState === WebSocket.CONNECTING) pending.push({ data, isBinary });
+      });
+      upstream.on("open", () => {
+        for (const message of pending) {
+          upstream.send(message.data, { binary: message.isBinary });
+        }
+        pending.length = 0;
+      });
+      upstream.on("message", (data, isBinary) => {
+        if (client.readyState === WebSocket.OPEN) client.send(data, { binary: isBinary });
+      });
+      client.on("close", (code, reason) => {
+        websocketPairs.delete(pair);
+        if (upstream.readyState === WebSocket.OPEN) upstream.close(code, reason);
+        else if (upstream.readyState === WebSocket.CONNECTING) upstream.terminate();
+      });
+      upstream.on("close", (code, reason) => {
+        websocketPairs.delete(pair);
+        if (client.readyState === WebSocket.OPEN) client.close(code, reason);
+      });
+      client.on("error", () => {
+        if (upstream.readyState === WebSocket.OPEN) upstream.close(1011, "relay client error");
+        else upstream.terminate();
+      });
+      upstream.on("error", () => {
+        if (client.readyState === WebSocket.OPEN) client.close(1011, "gateway unavailable");
+      });
+    });
+  });
 
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
@@ -74,6 +151,12 @@ export async function createLiteLLMRelay(options: RelayOptions): Promise<LiteLLM
     baseUrl: `http://127.0.0.1:${address.port}/v1`,
     childApiKey: CHILD_KEY,
     close: () => new Promise<void>((resolve, reject) => {
+      for (const [client, upstream] of websocketPairs) {
+        client.terminate();
+        upstream.terminate();
+      }
+      websocketPairs.clear();
+      websocketServer.close();
       server.close((error) => error ? reject(error) : resolve());
     }),
   };

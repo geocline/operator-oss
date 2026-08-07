@@ -102,6 +102,9 @@ describe("LiteLLM Codex harness driver", () => {
       baseUrl: "http://127.0.0.1:43210/v1",
       apiKey: "operator-loopback-relay",
       env: expect.objectContaining({ CODEX_HOME: expect.stringContaining("/litellm-codex") }),
+      config: expect.objectContaining({
+        model_catalog_json: expect.stringMatching(/operator-model-catalog\.json$/),
+      }),
     });
     expect(captures.threadOptions).toMatchObject({
       model: "operator.frontier",
