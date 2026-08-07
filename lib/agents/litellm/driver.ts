@@ -17,6 +17,7 @@ import { liteLLMCapabilities } from "./capabilities";
 import { modelForHarness } from "./catalog";
 import { refreshLiteLLMCatalog } from "./catalog-store";
 import { getLiteLLMRelay } from "./relay";
+import { appendOperatorSessionIndex } from "./session-index";
 
 const EFFORT: Record<string, ModelReasoningEffort> = {
   off: "low",
@@ -132,7 +133,20 @@ async function* runTurn(
       yield { type: "error", content: error instanceof Error ? error.message : String(error) };
     }
   }
-  yield { type: "done", sessionId: thread.id ?? task.session_id };
+  const sessionId = thread.id ?? task.session_id;
+  if (sessionId) {
+    appendOperatorSessionIndex(LITELLM_CODEX_HOME, {
+      session_id: sessionId,
+      task_id: task.id,
+      project_id: project.id,
+      task_title: task.title,
+      project_path: project.repo_path,
+      harness: "codex",
+      model: selected.value,
+      updated_at: new Date().toISOString(),
+    });
+  }
+  yield { type: "done", sessionId };
 }
 
 const managedLogin = (error: string | null): AgentLoginSession => ({
