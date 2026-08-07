@@ -38,6 +38,27 @@ export const CLAUDE_CLI_PATH =
  */
 export const CODEX_CLI_PATH = process.env.CODEX_CLI_PATH || "";
 
+/** Loopback LiteLLM gateway used only by the opt-in metered agent drivers. */
+export const LITELLM_BASE_URL =
+  (process.env.LITELLM_BASE_URL || "http://127.0.0.1:4000/v1").replace(/\/+$/, "");
+
+/**
+ * Local gateway client credential. Provider credentials (including the
+ * chargeback-specific OpenRouter key) remain inside LiteLLM and are never read
+ * by Operator.
+ */
+export const LITELLM_API_KEY =
+  process.env.LITELLM_API_KEY || "sk-litellm-local";
+
+const configuredLiteLLMHome = process.env.LITELLM_CODEX_HOME;
+if (configuredLiteLLMHome && !path.isAbsolute(configuredLiteLLMHome)) {
+  throw new Error("LITELLM_CODEX_HOME must be an absolute path");
+}
+
+/** Separate Codex config/session root for metered LiteLLM-backed turns. */
+export const LITELLM_CODEX_HOME =
+  configuredLiteLLMHome || path.join(os.homedir(), ".operator", "litellm-codex");
+
 /**
  * Opt-in to billing an environment-provided agent API key (ANTHROPIC_API_KEY /
  * ANTHROPIC_AUTH_TOKEN / OPENAI_API_KEY). Off by default: both entrypoints

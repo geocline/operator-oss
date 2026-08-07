@@ -2,9 +2,9 @@
 
 # Operator
 
-### Run many Claude Code sessions in parallel — across every project — from one screen.
+### Run many coding-agent sessions in parallel — across every project — from one screen.
 
-Each **project** carries reusable context. Each **task** is its own agent session — **Claude Code** or **Codex** — in its own git worktree. Drive ten at once, see exactly which one needs you, review every diff before it merges. Runs on your **Max/Pro login** — no API key, no per-token billing.
+Each **project** carries reusable context. Each **task** is its own agent session — native **Claude Code**, native **Codex**, or an approved **LiteLLM model through the Codex harness** — in its own git worktree. Drive ten at once, see exactly which one needs you, review every diff before it merges. Native Claude and Codex continue to use their subscription logins; LiteLLM usage is billed by the provider account configured in the gateway.
 
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Node ≥18.18](https://img.shields.io/badge/node-%E2%89%A518.18-brightgreen.svg)](package.json)
@@ -29,7 +29,7 @@ Each **project** carries reusable context. Each **task** is its own agent sessio
 
 - **Parallel sessions** — every task is an isolated git worktree with its own agent session.
 - **Diff review → one-click merge** — or AI conflict resolution, branch sync, and GitHub PR creation.
-- **Pick your agent per task** — Claude Code or Codex, both on subscription logins.
+- **Pick your route per task** — Claude Code or Codex on their native subscription logins, plus an independently managed LiteLLM route for approved models.
 - **Write-once project context** — auto-injected into every task; **Refresh with AI** redrafts it from the repo.
 - **Session lineage** — `/clear` hands a summary to a fresh context window; the task lives on.
 - **Reconnect-safe turns** — turns run server-side; reload or sleep the laptop and the transcript catches up. Queue follow-ups mid-turn.
@@ -57,6 +57,7 @@ Each **project** carries reusable context. Each **task** is its own agent sessio
 |-|-|
 | **Claude Code** | Fully supported — the reference driver; every feature lands here first. |
 | **OpenAI Codex** | Fully supported — parallel tasks, diff review/merge, `/clear` lineage, interactive questions (via the orchestrator's `ask_user` bridge), and cost tracking. Two caveats from the upstream CLI being non-interactive: dollar figures are **estimated** from token counts × published API prices (ChatGPT-plan auth reports tokens only — shown with a `~`), and there are no mid-turn *command approval* prompts, so the permission modes offered are Auto-run and Plan. [Issues welcome](https://github.com/iishyfishyy/operator-oss/issues). |
+| **LiteLLM · Codex harness** | Dynamically discovers only coding models tagged for Operator in LiteLLM. Provider routing and keys remain in LiteLLM; Operator uses an isolated Codex home and a loopback credential relay. |
 
 Want another agent? The driver seam is small — see [adding a new agent](docs/ARCHITECTURE.md).
 
@@ -132,6 +133,32 @@ boot (with a warning) so turns bill your subscription, not the API — set
 `ORCH_ALLOW_API_KEY_ENV=1` if you really do want to run on an env-provided key.
 
 Every setting is an env var with a sane default — see [`.env.example`](.env.example).
+
+### LiteLLM model discovery
+
+Operator does not hardcode provider models. **Refresh models** reads LiteLLM's
+`/model/info` endpoint and includes only entries with this safe metadata:
+
+```yaml
+model_info:
+  operator:
+    enabled: true
+    label: "Operator Frontier"
+    description: "Quality-first coding model"
+    kind: coding
+    harnesses: ["codex"]
+    context_window: 1000000
+    reasoning_options: ["medium", "high"]
+    sort_order: 10
+```
+
+The LiteLLM `model_name` is the stable alias shown to the harness. Its underlying
+provider model can change at any time without an Operator code change. Configure
+the gateway address and its local client token with `LITELLM_BASE_URL` and
+`LITELLM_API_KEY`. A dedicated provider credential such as
+`OPENROUTER_OPERATOR_API_KEY` belongs only in LiteLLM's environment; Operator
+must never receive it. Native Claude Code and native Codex do not pass through
+this route and retain their existing subscription authentication.
 
 ## Self-host
 

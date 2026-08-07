@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { listDrivers, DEFAULT_AGENT } from "@/lib/agents/registry";
 import { getSetting } from "@/lib/store";
 import { getAgentConnection, getAgentAuthBroken } from "@/lib/agents/connections";
+import { hydrateLiteLLMCatalog } from "@/lib/agents/litellm/catalog-store";
 
 export const dynamic = "force-dynamic";
 
@@ -14,12 +15,15 @@ export const dynamic = "force-dynamic";
 // verify / api-key save, rather than shelling out to every agent's CLI on each
 // page load. `authenticated` mirrors `connected` for the run-control pickers.
 export async function GET() {
+  hydrateLiteLLMCatalog();
   return NextResponse.json({
     // The app-level default agent (Settings → Run defaults) is the client's
     // ultimate fallback when a project hasn't set its own; unset → the built-in.
     default: getSetting("default_agent") || DEFAULT_AGENT,
     agents: listDrivers().map((d) => {
       const conn = getAgentConnection(d.id);
+      const managed = d.capabilities.connectionStyle === "managed_endpoint";
+      const managedConnected = managed && d.capabilities.models.length > 0;
       // Effective-credential overlay (issue #4): the settings record says how
       // the user CONNECTED, but a live API key (persisted 0600 file, or env via
       // the ORCH_ALLOW_API_KEY_ENV opt-in) is what turns actually bill — it
@@ -29,9 +33,11 @@ export async function GET() {
         id: d.id,
         label: d.label,
         capabilities: d.capabilities,
-        connected: keyed || !!conn,
-        authenticated: keyed || !!conn,
-        account: keyed
+        connected: managedConnected || keyed || !!conn,
+        authenticated: managedConnected || keyed || !!conn,
+        account: managedConnected
+          ? { email: null, plan: "LiteLLM", method: "managed_endpoint" as const }
+          : keyed
           ? { email: null, plan: "API", method: "api_key" as const }
           : conn
             ? { email: conn.email, plan: conn.plan, method: conn.method }

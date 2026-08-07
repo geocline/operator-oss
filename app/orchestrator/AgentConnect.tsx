@@ -102,6 +102,9 @@ export function AgentConnect({
   onConnected?: () => void;
   compact?: boolean;
 }) {
+  if (agent.capabilities.connectionStyle === "managed_endpoint") {
+    return <ManagedEndpointConnect agent={agent} onConnected={onConnected} />;
+  }
   const canApiKey = !!agent.capabilities.apiKeyHint;
   const [mode, setMode] = useState<"subscription" | "api_key">(agent.account?.method === "api_key" ? "api_key" : "subscription");
   const [reconnect, setReconnect] = useState(false);
@@ -163,6 +166,48 @@ export function AgentConnect({
       ) : (
         <ApiKeyConnect agent={agent} onConnected={onConnected} />
       )}
+    </div>
+  );
+}
+
+function ManagedEndpointConnect({
+  agent,
+  onConnected,
+}: {
+  agent: AgentInfoT;
+  onConnected?: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const refresh = async () => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const result = await jsend<{ models: unknown[]; errors: unknown[] }>(
+        "/api/agents/litellm-codex/models/refresh",
+        "POST",
+      );
+      setMessage(`${result.models.length} Operator model${result.models.length === 1 ? "" : "s"} available`);
+      onConnected?.();
+    } catch (error) {
+      setMessage((error instanceof Error ? error.message : String(error)).replace(/^\d+\s*/, ""));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="field" style={{ maxWidth: 560 }}>
+      <div className="hlp" style={{ marginTop: 0 }}>
+        Managed by your loopback LiteLLM gateway. Provider keys and model routing stay in LiteLLM.
+      </div>
+      <button className="btn btn-accent btn-sm" disabled={busy} onClick={refresh} style={{ alignSelf: "flex-start" }}>
+        {Icon.restore()} {busy ? "Refreshing…" : "Refresh models"}
+      </button>
+      <div className="hlp" style={{ marginTop: 8 }}>
+        {message ?? (agent.connected
+          ? `${agent.capabilities.models?.length ?? 0} tagged model${agent.capabilities.models?.length === 1 ? "" : "s"} loaded`
+          : "No tagged models loaded yet")}
+      </div>
     </div>
   );
 }

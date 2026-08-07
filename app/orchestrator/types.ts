@@ -181,14 +181,16 @@ export type ClaudeVerifyT = {
 // aren't wired up. Only the fields the client reads are typed here.
 export type AgentCapabilitiesT = {
   apiKeyHint: string | null;
-  loginStyle: "paste_code" | "device_code";
+  loginStyle: "paste_code" | "device_code" | "managed_endpoint";
+  connectionStyle?: "paste_code" | "device_code" | "managed_endpoint";
+  models?: AgentModelOption[];
 };
 export type AgentInfoT = {
   id: string;
   label: string;
   capabilities: AgentCapabilitiesT;
   connected: boolean;
-  account: { email: string | null; plan: string | null; method: "subscription" | "api_key" } | null;
+  account: { email: string | null; plan: string | null; method: "subscription" | "api_key" | "managed_endpoint" } | null;
   authBroken?: AgentAuthBrokenT | null;
 };
 // Connected, but its login stopped working mid-flight (see lib/authFailure.ts).
@@ -211,7 +213,7 @@ export const PRIORITIES: Priority[] = ["hi", "med", "lo"];
 // capability descriptor (models / reasoning / permission modes it supports, plus
 // feature flags) served by GET /api/agents. The client renders every picker from
 // this data, so a task's controls always match the agent it runs under.
-export interface AgentModelOption { value: string; label: string; sub: string; contextWindow: number; group?: string }
+export interface AgentModelOption { value: string; label: string; sub: string; contextWindow: number; contextWindowKnown?: boolean; group?: string }
 export interface AgentPickerOption { value: string; label: string; sub: string }
 export interface AgentCapabilities {
   models: AgentModelOption[];
@@ -227,7 +229,7 @@ export interface AgentCapabilities {
 // turns draw on plan quota and cost no marginal money, so a dollar figure is an
 // API-PRICE EQUIVALENT rather than a charge; "api_key" means it really is billed.
 // Mirrors lib/agents/connections.ts AgentConnection; null when not connected.
-export interface AgentAccount { email: string | null; plan: string | null; method: "subscription" | "api_key" }
+export interface AgentAccount { email: string | null; plan: string | null; method: "subscription" | "api_key" | "managed_endpoint" }
 export interface AgentInfo { id: string; label: string; capabilities: AgentCapabilities; authenticated: boolean; account?: AgentAccount | null; authBroken?: AgentAuthBrokenT | null }
 export interface AgentsBundle { default: string; agents: AgentInfo[] }
 export const EMPTY_AGENTS: AgentsBundle = { default: "claude", agents: [] };

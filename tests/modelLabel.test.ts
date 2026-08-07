@@ -63,3 +63,19 @@ describe("claude model list", () => {
     expect(contextWindowOf("fable", claude)).toBe(1_000_000);
   });
 });
+
+describe("codex model list", () => {
+  it("offers the current GPT-5.6 family first", () => {
+    expect(CODEX_CAPABILITIES.models.slice(0, 3).map((m) => m.value)).toEqual([
+      "gpt-5.6-sol",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna",
+    ]);
+  });
+
+  it("uses the 1.05M GPT-5.6 context window", () => {
+    for (const model of CODEX_CAPABILITIES.models.filter((m) => m.value.startsWith("gpt-5.6-"))) {
+      expect(model.contextWindow).toBe(1_050_000);
+    }
+  });
+});

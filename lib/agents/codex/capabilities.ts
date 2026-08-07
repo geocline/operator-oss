@@ -7,10 +7,8 @@
 import type { AgentCapabilities } from "../types";
 import { codexApiKey } from "./auth";
 
-// Every current preset runs the same 272k window, so unlike Claude there's no
-// per-model variation here — but keep it per-entry anyway: this descriptor is
-// what drives the context gauge, and a future preset may differ.
-const CTX = 272_000;
+const CTX_56 = 1_050_000;
+const CTX_PREVIOUS = 272_000;
 
 export const CODEX_CAPABILITIES: AgentCapabilities = {
   // Mirrors the codex CLI's own model preset table (what its `/model` menu
@@ -23,11 +21,14 @@ export const CODEX_CAPABILITIES: AgentCapabilities = {
   // @openai/codex — the codex model line moves faster than Claude's, and a
   // stale entry here is a model the CLI no longer accepts.
   models: [
-    { value: "gpt-5.5", label: "GPT-5.5", sub: "frontier coding, research, and real-world work", contextWindow: CTX, group: "Latest" },
-    { value: "gpt-5.4", label: "GPT-5.4", sub: "strong model for everyday coding", contextWindow: CTX, group: "Latest" },
-    { value: "gpt-5.4-mini", label: "GPT-5.4 Mini", sub: "small, fast, and cost-efficient", contextWindow: CTX, group: "Latest" },
-    { value: "gpt-5.3-codex", label: "GPT-5.3 Codex", sub: "previous coding-optimized model", contextWindow: CTX, group: "Previous versions" },
-    { value: "gpt-5.2", label: "GPT-5.2", sub: "previous model for long-running agents", contextWindow: CTX, group: "Previous versions" },
+    { value: "gpt-5.6-sol", label: "GPT-5.6 Sol", sub: "frontier capability for complex professional work", contextWindow: CTX_56, group: "Latest" },
+    { value: "gpt-5.6-terra", label: "GPT-5.6 Terra", sub: "balanced intelligence and cost", contextWindow: CTX_56, group: "Latest" },
+    { value: "gpt-5.6-luna", label: "GPT-5.6 Luna", sub: "efficient high-volume work", contextWindow: CTX_56, group: "Latest" },
+    { value: "gpt-5.5", label: "GPT-5.5", sub: "previous frontier model", contextWindow: CTX_PREVIOUS, group: "Previous versions" },
+    { value: "gpt-5.4", label: "GPT-5.4", sub: "previous everyday coding model", contextWindow: CTX_PREVIOUS, group: "Previous versions" },
+    { value: "gpt-5.4-mini", label: "GPT-5.4 Mini", sub: "previous fast, cost-efficient model", contextWindow: CTX_PREVIOUS, group: "Previous versions" },
+    { value: "gpt-5.3-codex", label: "GPT-5.3 Codex", sub: "previous coding-optimized model", contextWindow: CTX_PREVIOUS, group: "Previous versions" },
+    { value: "gpt-5.2", label: "GPT-5.2", sub: "previous model for long-running agents", contextWindow: CTX_PREVIOUS, group: "Previous versions" },
   ],
   // Off/Think/Think hard/Ultrathink → codex's model_reasoning_effort scale
   // (low/medium/high/xhigh — see EFFORT in ./driver.ts). Codex can't disable
