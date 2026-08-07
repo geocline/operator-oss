@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Operator × LiteLLM — Production Repair</title>
+  <style>
+    :root {
+      --paper: #f4f0e8;
+      --ink: #171714;
+      --muted: #69655d;
+      --line: #d7d0c4;
+      --card: #fbf9f4;
+      --green: #1f7250;
+      --green-soft: #dfeee6;
+      --red: #9d3f30;
+      --red-soft: #f3dfda;
+      --blue: #315b8a;
+      --blue-soft: #e2eaf3;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font: 16px/1.55 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main { width: min(1040px, calc(100% - 40px)); margin: 0 auto; padding: 68px 0 84px; }
+    .eyebrow {
+      margin: 0 0 14px;
+      color: var(--red);
+      font: 700 12px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    h1 { max-width: 780px; margin: 0; font-size: clamp(42px, 7vw, 76px); line-height: .98; letter-spacing: -.055em; }
+    .lede { max-width: 720px; margin: 28px 0 42px; color: var(--muted); font-size: 20px; }
+    .status {
+      display: inline-flex;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 14px;
+      border: 1px solid #b9d3c4;
+      border-radius: 999px;
+      background: var(--green-soft);
+      color: var(--green);
+      font-weight: 700;
+    }
+    .status::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--green); }
+    h2 { margin: 60px 0 18px; font-size: 28px; letter-spacing: -.025em; }
+    h3 { margin: 0 0 8px; font-size: 18px; }
+    p { margin: 0; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .card { padding: 22px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); }
+    .card p, .note { color: var(--muted); }
+    .bad { border-color: #dfb7ae; background: var(--red-soft); }
+    .good { border-color: #b9d3c4; background: var(--green-soft); }
+    .flow {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr;
+      align-items: center;
+      gap: 12px;
+    }
+    .flow .node { min-height: 112px; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+    .arrow { color: var(--muted); font-size: 24px; }
+    table { width: 100%; border-collapse: collapse; border: 1px solid var(--line); background: var(--card); }
+    th, td { padding: 15px 16px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { color: var(--muted); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+    .ok { color: var(--green); font-weight: 750; }
+    code { font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .commit { margin-top: 18px; padding: 16px 18px; border-left: 3px solid var(--blue); background: var(--blue-soft); color: var(--blue); }
+    ul { margin: 12px 0 0; padding-left: 20px; }
+    li + li { margin-top: 7px; }
+    footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+    @media (max-width: 760px) {
+      main { width: min(100% - 24px, 1040px); padding-top: 40px; }
+      .grid { grid-template-columns: 1fr; }
+      .flow { grid-template-columns: 1fr; }
+      .arrow { transform: rotate(90deg); justify-self: center; }
+      table { font-size: 14px; }
+      th, td { padding: 12px 10px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Incident report · August 7, 2026</p>
+    <h1>Operator × LiteLLM production repair</h1>
+    <p class="lede">The screenshot was a real production failure, and the prior testing did not exercise the transport Operator uses in a normal Codex-harness task. This repair was validated through the running app with all three paid model routes.</p>
+    <div class="status">Repaired and live-tested</div>
+
+    <h2>What failed</h2>
+    <div class="grid">
+      <section class="card bad">
+        <h3>502 Bad Gateway</h3>
+        <p>Codex opened <code>/v1/responses</code> as a WebSocket. Operator’s credential-hiding relay handled ordinary HTTP only, so the upgrade request failed.</p>
+      </section>
+      <section class="card bad">
+        <h3>Missing metadata</h3>
+        <p>Aliases such as <code>operator.deepseek-v4-pro</code> are intentionally dynamic, so they are not present in Codex’s built-in model catalog.</p>
+      </section>
+      <section class="card bad">
+        <h3>Testing gap</h3>
+        <p>The earlier smoke path used HTTP and did not reproduce a normal/default Codex turn. It therefore missed the exact route visible in the screenshot.</p>
+      </section>
+    </div>
+
+    <h2>The production path now</h2>
+    <div class="flow" aria-label="Operator LiteLLM request flow">
+      <div class="node">
+        <h3>Operator</h3>
+        <p class="note">Loads only models currently tagged for Operator in LiteLLM.</p>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node">
+        <h3>Codex harness</h3>
+        <p class="note">Uses a dedicated custom provider with WebSockets disabled for this route only.</p>
+      </div>
+      <div class="arrow">→</div>
+      <div class="node">
+        <h3>Local relay → LiteLLM</h3>
+        <p class="note">HTTPS streaming; the child sees only a loopback credential. The real gateway key remains hidden.</p>
+      </div>
+    </div>
+
+    <h2>What changed</h2>
+    <div class="grid">
+      <section class="card good">
+        <h3>Clean HTTPS transport</h3>
+        <p>LiteLLM’s Codex provider now advertises <code>supports_websockets = false</code>. Codex uses streaming HTTPS immediately instead of retrying a WebSocket five times.</p>
+      </section>
+      <section class="card good">
+        <h3>Dynamic model metadata</h3>
+        <p>Operator generates a private Codex catalog from the refreshed LiteLLM catalog. New tagged aliases appear without an Operator code change.</p>
+      </section>
+      <section class="card good">
+        <h3>Credential boundary preserved</h3>
+        <p>OpenRouter credentials remain in LiteLLM. Operator’s Codex child receives only the short-lived loopback relay credential.</p>
+      </section>
+    </div>
+
+    <h2>Live verification through the running app</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Selected alias</th>
+          <th>Actual reply</th>
+          <th>Reconnects / 502</th>
+          <th>Metadata warning</th>
+          <th>Session indexed</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>operator.deepseek-v4-pro</code></td>
+          <td><code>DEEPSEEK HTTPS OK</code></td>
+          <td class="ok">None</td>
+          <td class="ok">None</td>
+          <td class="ok">Yes</td>
+        </tr>
+        <tr>
+          <td><code>operator.kimi-k2.7-code</code></td>
+          <td><code>KIMI K2.7 LIVE OK</code></td>
+          <td class="ok">None</td>
+          <td class="ok">None</td>
+          <td class="ok">Yes</td>
+        </tr>
+        <tr>
+          <td><code>operator.kimi-k3</code></td>
+          <td><code>KIMI K3 LIVE OK</code></td>
+          <td class="ok">None</td>
+          <td class="ok">None</td>
+          <td class="ok">Yes</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>Regression evidence</h2>
+    <section class="card">
+      <ul>
+        <li>58 test files passed; 443 tests passed.</li>
+        <li>TypeScript type-check passed.</li>
+        <li>Production Next.js build passed.</li>
+        <li>The generated model catalog is owner-readable only (<code>0600</code>).</li>
+        <li>All three real sessions were written to <code>~/.operator/litellm-codex/operator-session-index.jsonl</code>.</li>
+        <li>The temporary live-verification project was deleted after the checks.</li>
+      </ul>
+      <p class="commit">Repair commits: <code>563f7a0</code> (relay + dynamic metadata) and <code>7accef7</code> (direct HTTPS provider).</p>
+    </section>
+
+    <h2>Unchanged by design</h2>
+    <section class="card">
+      <p>Your existing Claude subscription harness and normal Codex subscription harness were not rerouted through LiteLLM. This transport configuration applies only when <strong>LiteLLM · Codex harness</strong> is selected.</p>
+    </section>
+
+    <footer>Static, shareable report · Operator repository · generated August 7, 2026</footer>
+  </main>
+</body>
+</html>
