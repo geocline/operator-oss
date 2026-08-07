@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Operator Model Expansion — Live Verification</title>
+  <style>
+    :root {
+      --paper: #f4f0e8;
+      --card: #fbf9f4;
+      --ink: #171714;
+      --muted: #6d685f;
+      --line: #d8d1c4;
+      --green: #1e7652;
+      --green-soft: #deeee5;
+      --orange: #a34d2f;
+      --orange-soft: #f2e2d9;
+      --blue: #315f8b;
+      --blue-soft: #e0e9f2;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font: 16px/1.55 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main { width: min(1080px, calc(100% - 40px)); margin: 0 auto; padding: 68px 0 84px; }
+    .eyebrow {
+      margin: 0 0 14px;
+      color: var(--orange);
+      font: 700 12px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    h1 { max-width: 900px; margin: 0; font-size: clamp(42px, 7vw, 76px); line-height: .98; letter-spacing: -.055em; }
+    .lede { max-width: 760px; margin: 28px 0 36px; color: var(--muted); font-size: 20px; }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 15px;
+      border: 1px solid #b7d2c3;
+      border-radius: 999px;
+      color: var(--green);
+      background: var(--green-soft);
+      font-weight: 750;
+    }
+    .status::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--green); }
+    h2 { margin: 58px 0 18px; font-size: 28px; letter-spacing: -.025em; }
+    h3 { margin: 0 0 8px; font-size: 19px; }
+    p { margin: 0; }
+    .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .card { padding: 22px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); }
+    .card p { color: var(--muted); }
+    .price { margin-top: 17px; color: var(--ink) !important; font-weight: 700; }
+    .result { margin-top: 13px; padding: 10px 12px; border-radius: 10px; background: var(--green-soft); color: var(--green) !important; font: 700 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .choice { padding: 22px; border: 1px solid #dfbcae; border-radius: 16px; background: var(--orange-soft); }
+    .choice strong { color: var(--orange); }
+    table { width: 100%; border-collapse: collapse; border: 1px solid var(--line); background: var(--card); }
+    th, td { padding: 15px 16px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { color: var(--muted); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+    .ok { color: var(--green); font-weight: 750; }
+    code { font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    ul { margin: 12px 0 0; padding-left: 20px; }
+    li + li { margin-top: 7px; }
+    .evidence { border-left: 3px solid var(--blue); background: var(--blue-soft); }
+    .links a { color: var(--blue); }
+    footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+    @media (max-width: 760px) {
+      main { width: min(100% - 24px, 1080px); padding-top: 40px; }
+      .cards { grid-template-columns: 1fr; }
+      table { font-size: 14px; }
+      th, td { padding: 12px 10px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Live verification · August 7, 2026</p>
+    <h1>Three new Operator models are live</h1>
+    <p class="lede">GLM 5.2, final Tencent Hy3, and MiniMax M3 are now company-billable LiteLLM routes, dynamically discoverable in Operator, and verified through real default-mode Codex-harness sessions.</p>
+    <div class="status">Added, reloaded, and live-tested</div>
+
+    <h2>New curated routes</h2>
+    <div class="cards">
+      <section class="card">
+        <h3>GLM 5.2</h3>
+        <p><code>operator.glm-5.2</code><br>1,048,576-token context<br>High and xHigh reasoning</p>
+        <p class="price">$0.4746 input / $1.4916 output per 1M tokens</p>
+        <p class="result">GLM 5.2 LIVE OK</p>
+      </section>
+      <section class="card">
+        <h3>Tencent Hy3</h3>
+        <p><code>operator.hy3</code><br>262,144-token context<br>Low and High reasoning</p>
+        <p class="price">$0.132 input / $0.528 output per 1M tokens</p>
+        <p class="result">HY3 LIVE OK</p>
+      </section>
+      <section class="card">
+        <h3>MiniMax M3</h3>
+        <p><code>operator.minimax-m3</code><br>1,048,576-token context<br>Default reasoning control</p>
+        <p class="price">$0.30 input / $1.20 output per 1M tokens</p>
+        <p class="result">MINIMAX M3 LIVE OK</p>
+      </section>
+    </div>
+
+    <h2>Why final Hy3</h2>
+    <section class="choice">
+      <p><strong>Final Hy3 was selected instead of Hy3 preview.</strong> It is the newer July 2026 production release and advertises the broader tool-calling, structured-output, and sampling parameter set. The preview is cheaper—about $0.063 input / $0.21 output per 1M—but it would duplicate the same selector role with an older model. No newer same-vendor replacement for GLM 5.2 or MiniMax M3 was present in OpenRouter’s live catalog at implementation time.</p>
+    </section>
+
+    <h2>Harness evidence</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Alias selected in Operator</th>
+          <th>Resolved alias</th>
+          <th>502 / reconnect</th>
+          <th>Metadata warning</th>
+          <th>Session indexed</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>operator.glm-5.2</code></td>
+          <td><code>operator.glm-5.2</code></td>
+          <td class="ok">None</td>
+          <td class="ok">None</td>
+          <td class="ok">Yes</td>
+        </tr>
+        <tr>
+          <td><code>operator.hy3</code></td>
+          <td><code>operator.hy3</code></td>
+          <td class="ok">None</td>
+          <td class="ok">None</td>
+          <td class="ok">Yes</td>
+        </tr>
+        <tr>
+          <td><code>operator.minimax-m3</code></td>
+          <td><code>operator.minimax-m3</code></td>
+          <td class="ok">None</td>
+          <td class="ok">None</td>
+          <td class="ok">Yes</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>Verification and boundaries</h2>
+    <section class="card evidence">
+      <ul>
+        <li>LiteLLM configuration validated: 14 physical model groups and 40 task aliases.</li>
+        <li>Full offline suite: 486 tests collected; 482 passed and 4 pre-existing live tests skipped.</li>
+        <li>Live LiteLLM reload completed and exposed all three tagged routes through <code>/model/info</code>.</li>
+        <li>Operator refreshed to six curated models with no parsing errors.</li>
+        <li>All three new models passed natively; no Responses-to-Chat compatibility adapter was required.</li>
+        <li>All three sessions were appended to <code>~/.operator/litellm-codex/operator-session-index.jsonl</code>.</li>
+        <li>The temporary verification project was deleted after testing.</li>
+        <li>Existing Claude, normal Codex, task aliases, and the first three Operator models were not rerouted.</li>
+      </ul>
+    </section>
+
+    <h2>Model pages</h2>
+    <section class="card links">
+      <p><a href="https://openrouter.ai/z-ai/glm-5.2">Z.ai: GLM 5.2</a> · <a href="https://openrouter.ai/tencent/hy3">Tencent: Hy3</a> · <a href="https://openrouter.ai/minimax/minimax-m3">MiniMax: MiniMax M3</a></p>
+    </section>
+
+    <footer>Static, shareable report · Operator × LiteLLM · generated August 7, 2026</footer>
+  </main>
+</body>
+</html>
