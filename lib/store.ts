@@ -6,7 +6,7 @@ import { getDb } from "./db";
 // break sync route entries at runtime (see the note in that file).
 import { modelContextWindow } from "./agents/capabilities";
 import { SERVICE_PORT_BASE } from "./config";
-import type { Project, Task, Message, PendingMessage, Summary, Session, Priority, Status, MsgRole, TurnUsage, UsageTotals } from "./types";
+import type { Project, Task, Message, PendingMessage, Summary, TaskNote, Session, Priority, Status, MsgRole, TurnUsage, UsageTotals } from "./types";
 
 // ---------- projects ----------
 
@@ -408,6 +408,7 @@ export type TaskWithUsage = Task & {
   context_tokens: number;
   context_pct: number;
   depends_on: string[];
+  note_count: number;
 };
 
 export function listTasks(projectId: string): TaskWithUsage[] {
@@ -422,7 +423,8 @@ export function listTasks(projectId: string): TaskWithUsage[] {
          COALESCE((SELECT SUM(u.cache_creation_tokens) FROM task_usage u WHERE u.task_id = t.id), 0) AS cache_creation_tokens,
          COALESCE((SELECT u.input_tokens + u.cache_read_tokens + u.cache_creation_tokens
                    FROM task_usage u WHERE u.task_id = t.id
-                   ORDER BY u.created_at DESC, u.rowid DESC LIMIT 1), 0) AS context_tokens
+                   ORDER BY u.created_at DESC, u.rowid DESC LIMIT 1), 0) AS context_tokens,
+         (SELECT COUNT(*) FROM task_notes n WHERE n.task_id = t.id) AS note_count
        FROM tasks t WHERE t.project_id = ?
        ORDER BY t.suggested ASC, t.position ASC, t.created_at ASC`
     )
@@ -432,6 +434,7 @@ export function listTasks(projectId: string): TaskWithUsage[] {
     cache_read_tokens: number;
     cache_creation_tokens: number;
     context_tokens: number;
+    note_count: number;
   })[];
   // Attach each task's dependency edges in one query (project-scoped via join).
   const edges = db
@@ -711,6 +714,29 @@ export function listSummaries(taskId: string): Summary[] {
   return getDb()
     .prepare("SELECT * FROM summaries WHERE task_id = ? ORDER BY generation ASC")
     .all(taskId) as Summary[];
+}
+
+// ---------- task notes ----------
+
+// Newest first — the UI is a "where did I leave off" log read top-down.
+export function listTaskNotes(taskId: string): TaskNote[] {
+  return getDb()
+    .prepare("SELECT * FROM task_notes WHERE task_id = ? ORDER BY created_at DESC, rowid DESC")
+    .all(taskId) as TaskNote[];
+}
+
+export function addTaskNote(taskId: string, generation: number, content: string): TaskNote {
+  const id = nanoid();
+  const now = Date.now();
+  getDb()
+    .prepare("INSERT INTO task_notes (id, task_id, generation, content, created_at) VALUES (?, ?, ?, ?, ?)")
+    .run(id, taskId, generation, content, now);
+  return { id, task_id: taskId, generation, content, created_at: now };
+}
+
+export function deleteTaskNote(taskId: string, noteId: string): boolean {
+  const res = getDb().prepare("DELETE FROM task_notes WHERE id = ? AND task_id = ?").run(noteId, taskId);
+  return res.changes > 0;
 }
 
 export function addSummary(taskId: string, generation: number, summary: string): Summary {

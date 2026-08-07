@@ -50,6 +50,7 @@ export interface TaskRow {
   cache_creation_tokens: number; // of that total, context written INTO the cache (fresh work)
   depends_on: string[]; // task ids this task is blocked by until they're done
   context_tokens: number; // latest turn's input-side tokens ≈ current context-window occupancy
+  note_count: number; // human breadcrumbs left on this task (task_notes)
   context_pct: number; // context_tokens as a percent (0–100) of the model's window
 }
 export interface WorkstreamLinkT {
@@ -76,6 +77,15 @@ export interface NeedsYouRow {
 // A row in the ⌘K palette's session search: any real task across the active
 // projects plus enough of its project to label it. Mirrors lib/store.ts
 // listAllTasksLite().
+// A human breadcrumb on a task (NOTES tab / done-prompt). Newest first.
+export interface TaskNoteRow {
+  id: string;
+  task_id: string;
+  generation: number;
+  content: string;
+  created_at: number;
+}
+
 export interface PaletteTaskRow {
   id: string;
   project_id: string;

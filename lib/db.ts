@@ -94,6 +94,19 @@ export function init(db: Database.Database) {
       created_at  INTEGER NOT NULL
     );
 
+    -- Human-written breadcrumbs on a task ("why I marked it done", "where I
+    -- left off", "next step"). The human counterpart of summaries: notes
+    -- belong to the task lineage, not one session, but each records the
+    -- generation it was written during so an old note still says which era of
+    -- the conversation it refers to. Append-only log, newest shown first.
+    CREATE TABLE IF NOT EXISTS task_notes (
+      id          TEXT PRIMARY KEY,
+      task_id     TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      generation  INTEGER NOT NULL,
+      content     TEXT NOT NULL,
+      created_at  INTEGER NOT NULL
+    );
+
     -- Follow-up messages the user typed while a turn was still running, parked
     -- FIFO per task. The runner pops the oldest one as the next turn when the
     -- current turn ends (see lib/runner.ts). Cleared on startup — a turn that

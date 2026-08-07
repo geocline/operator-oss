@@ -5,7 +5,7 @@
 // StreamEvent contract (see lib/agents/types.ts).
 
 import type { Project, Task, AskQuestion, AskAnswers, ToolPeek, DiffLine } from "../types";
-import { listSummaries } from "../store";
+import { listSummaries, listTaskNotes } from "../store";
 import { getWorkstreamByTask } from "../workstreams/store";
 
 export function buildHarnessEnv(
@@ -62,6 +62,17 @@ export function buildProjectContext(project: Project, task: Task): string {
       lines.push(`\n[Session ${s.generation} summary]\n${s.summary}`);
     }
     lines.push(`\nContinue this task from where the previous session left off.`);
+  }
+
+  // The user's own breadcrumbs (why done, where they left off, next step) —
+  // the human counterpart of the summaries above. Oldest first so they read
+  // as a story; the newest note is the freshest statement of intent.
+  const notes = listTaskNotes(task.id);
+  if (notes.length > 0) {
+    lines.push(`\n--- Notes the user left on this task (oldest first) ---`);
+    for (const n of [...notes].reverse()) {
+      lines.push(`\n[${new Date(n.created_at).toISOString()} · session ${n.generation}]\n${n.content}`);
+    }
   }
 
   lines.push(

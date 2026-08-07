@@ -1553,3 +1553,17 @@ button.tpeek-more:hover{color:var(--accent-ink);}
 .quota-strip-seg{position:relative;flex:1;height:100%;background:var(--bg);border-radius:3px;overflow:hidden;border:1px solid var(--line-2);display:flex;align-items:center;justify-content:center;}
 .quota-strip-fill{position:absolute;left:0;top:0;height:100%;width:0%;transition:width .2s ease-out;}
 .quota-strip-label{position:relative;z-index:1;font-size:8px;font-weight:700;letter-spacing:.05em;color:var(--ink-2);text-transform:uppercase;}
+
+/* ---------- task notes (NOTES tab + done-prompt) ---------- */
+.notes-pane{display:flex;flex-direction:column;gap:10px;padding:14px;overflow-y:auto;}
+.notes-input{width:100%;resize:vertical;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 10px;font:inherit;font-size:13px;line-height:1.5;}
+.notes-input:focus{outline:none;border-color:var(--line-strong);}
+.notes-actions{display:flex;align-items:center;gap:8px;}
+.notes-hint{font-family:var(--mono);font-size:10px;color:var(--ink-4);}
+.notes-err{font-size:12px;color:var(--red,#e5484d);}
+.notes-empty{font-size:12px;color:var(--ink-4);padding:6px 0;}
+.note-item{border:1px solid var(--line);border-radius:var(--r-sm);padding:8px 10px;background:var(--bg);}
+.note-meta{display:flex;align-items:center;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--ink-4);margin-bottom:4px;}
+.note-del{background:none;border:none;color:var(--ink-4);cursor:pointer;padding:0 2px;line-height:1;font-size:12px;}
+.note-del:hover{color:var(--red,#e5484d);}
+.note-body{font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-word;}

@@ -38,6 +38,7 @@ function TaskCard({ task, agents, selected, running, blockedBy, onSelect }: { ta
       <div className="task-foot">
         <span className="activity">{awaiting ? <span style={{ color: "var(--blue)" }}>●</span> : running ? <span style={{ color: "var(--amber)" }}>●</span> : null}{activity}</span>
         <span className="spacer" />
+        {task.note_count > 0 && <span className="activity" title={`${task.note_count} note${task.note_count !== 1 ? "s" : ""} on this task (NOTES tab)`}>{Icon.edit()} {task.note_count}</span>}
         {sessionCount > 0 && <span className="activity">{sessionCount} session{sessionCount !== 1 ? "s" : ""}</span>}
       </div>
     </button>

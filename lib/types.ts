@@ -77,6 +77,17 @@ export interface Summary {
   created_at: number;
 }
 
+// A human-written breadcrumb on a task: why it was marked done, where the
+// user left off, what the next step was. Lives on the task lineage (survives
+// /clear); generation records which session era it was written during.
+export interface TaskNote {
+  id: string;
+  task_id: string;
+  generation: number;
+  content: string;
+  created_at: number;
+}
+
 // A follow-up the user typed while a turn was still running. Parked in the
 // pending_messages table (FIFO per task) and shown as "queued" in the
 // transcript; the runner dequeues the oldest one as the next turn when the

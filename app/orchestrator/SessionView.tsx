@@ -13,10 +13,56 @@ import {
 } from "./types";
 import { capsFor, agentLabel, findAgent } from "./agents";
 import { StatusDot, Avatar, Popover, Skel } from "./shared";
+import { Modal } from "./Modal";
+import { jsend } from "./api";
 import { MessageView, SessionBreak } from "./Transcript";
 import { Composer } from "./Composer";
 import { SessionRail } from "./SessionRail";
 import { ColResize, ColRail } from "./Layout";
+
+// Optional "why is this done?" prompt shown on the not-done → done transition.
+// The answer lands in the task's notes log (NOTES tab) — the freshest possible
+// record of why the task closed. Skippable: done doesn't require a note.
+function DoneNoteModal({ onClose, onDone }: {
+  onClose: () => void; onDone: (note: string) => Promise<void>;
+}) {
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const finish = async (text: string) => {
+    if (busy) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await onDone(text);
+    } catch {
+      setErr("Couldn't save — try again.");
+      setBusy(false);
+    }
+  };
+  return (
+    <Modal title="Mark done" sub="Leave a note about why - future you will ask." onClose={onClose} width={440}
+      footer={<>
+        <button className="btn btn-line" onClick={() => finish("")} disabled={busy}>Skip note</button>
+        <span style={{ flex: 1 }} />
+        <button className="btn btn-accent" onClick={() => finish(note.trim())} disabled={busy}>
+          {busy ? "Saving…" : note.trim() ? "Save note & mark done" : "Mark done"}
+        </button>
+      </>}
+    >
+      <textarea
+        className="notes-input"
+        autoFocus
+        rows={4}
+        placeholder="Why is this done? Anything left for later?"
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") finish(note.trim()); }}
+      />
+      {err && <div className="notes-err">{err}</div>}
+    </Modal>
+  );
+}
 
 // Non-blocking banner shown when a reopened task's worktree is behind its base
 // branch. Computed (read-only) on open; the actual git op fires only when the user
@@ -277,6 +323,7 @@ export function SessionView({ project, task, agents, messages, running, blockedB
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [statusOpen, setStatusOpen] = useState(false);
+  const [doneNoteOpen, setDoneNoteOpen] = useState(false);
   const [priOpen, setPriOpen] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -608,13 +655,33 @@ export function SessionView({ project, task, agents, messages, running, blockedB
               {statusOpen && (
                 <Popover onClose={() => setStatusOpen(false)}>
                   {STATUSES.map((s) => (
-                    <div key={s} className="pop-item" onClick={() => { onSetStatus(s); setStatusOpen(false); }}>
+                    <div key={s} className="pop-item" onClick={() => {
+                      // Marking done is the moment the "why" is freshest —
+                      // detour through the optional note prompt first.
+                      if (s === "done" && task.status !== "done") setDoneNoteOpen(true);
+                      else onSetStatus(s);
+                      setStatusOpen(false);
+                    }}>
                       <StatusDot status={s} />
                       <div><div>{SLABEL[s]}</div><div className="pi-sub">{SSUB[s]}</div></div>
                       {task.status === s && <span className="pi-check">{Icon.check()}</span>}
                     </div>
                   ))}
                 </Popover>
+              )}
+              {doneNoteOpen && (
+                <DoneNoteModal
+                  onClose={() => setDoneNoteOpen(false)}
+                  onDone={async (note) => {
+                    if (note) {
+                      // Note first, then the status flip: if the save fails the
+                      // modal stays up and nothing was half-applied.
+                      await jsend(`/api/tasks/${task.id}/notes`, "POST", { content: note });
+                    }
+                    await onSetStatus("done");
+                    setDoneNoteOpen(false);
+                  }}
+                />
               )}
             </div>
             {!mobile && onToggleFocus && (

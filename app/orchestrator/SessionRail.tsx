@@ -3,12 +3,13 @@
 import { useEffect, useState } from "react";
 import { Icon } from "../icons";
 import TaskChanges, { type ResolveResult } from "../TaskChanges";
-import { fmtTokens } from "./format";
+import { fmtTokens, relTime } from "./format";
+import { jget, jsend } from "./api";
 import { clientFeatures } from "@/lib/features";
 import type { ServiceInfo } from "@/lib/types";
-import type { ProjectRow, TaskRow } from "./types";
+import type { ProjectRow, TaskRow, TaskNoteRow } from "./types";
 
-type Tab = "diff" | "preview" | "context";
+type Tab = "diff" | "preview" | "context" | "notes";
 type Session = { n: number; summaryBefore: string | null };
 
 // The live URL a project's dev server is reachable at when no registered
@@ -103,6 +104,81 @@ function ContextPane({ task, sessions, running, onClear }: { task: TaskRow; sess
   );
 }
 
+// The user's breadcrumb log for this task: why it was marked done, where they
+// left off, the next step. Append-only, newest first, timestamped, stamped
+// with the session generation it was written during. The same notes are fed
+// into the next generation's seed (lib/agents/shared.ts) so the agent resumes
+// knowing what the user last intended.
+export function NotesPane({ task, onCountChange }: { task: TaskRow; onCountChange?: (n: number) => void }) {
+  const [notes, setNotes] = useState<TaskNoteRow[] | null>(null);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    let dead = false;
+    setNotes(null);
+    setErr(null);
+    jget<{ notes: TaskNoteRow[] }>(`/api/tasks/${task.id}/notes`)
+      .then((j) => { if (!dead) setNotes(j.notes); })
+      .catch(() => { if (!dead) setErr("Couldn't load notes."); });
+    return () => { dead = true; };
+  }, [task.id]);
+  const sync = (next: TaskNoteRow[]) => { setNotes(next); onCountChange?.(next.length); };
+  const add = async () => {
+    const content = draft.trim();
+    if (!content || saving) return;
+    setSaving(true);
+    setErr(null);
+    try {
+      const note = await jsend<TaskNoteRow>(`/api/tasks/${task.id}/notes`, "POST", { content });
+      sync([note, ...(notes ?? [])]);
+      setDraft("");
+    } catch {
+      setErr("Couldn't save the note. Try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+  const remove = async (noteId: string) => {
+    try {
+      await jsend(`/api/tasks/${task.id}/notes/${noteId}`, "DELETE");
+      sync((notes ?? []).filter((n) => n.id !== noteId));
+    } catch {
+      setErr("Couldn't delete the note.");
+    }
+  };
+  return (
+    <div className="notes-pane">
+      <textarea
+        className="notes-input"
+        placeholder="Where did you leave off? What's the next step?"
+        value={draft}
+        rows={3}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") add(); }}
+      />
+      <div className="notes-actions">
+        <button className="btn btn-line btn-sm" onClick={add} disabled={!draft.trim() || saving}>
+          {saving ? "Saving…" : "Add note"}
+        </button>
+        <span className="notes-hint">⌘⏎</span>
+      </div>
+      {err && <div className="notes-err">{err}</div>}
+      {notes === null && !err && <div className="notes-empty">Loading…</div>}
+      {notes?.length === 0 && <div className="notes-empty">No notes yet. Leave yourself a breadcrumb.</div>}
+      {notes?.map((n) => (
+        <div key={n.id} className="note-item">
+          <div className="note-meta">
+            <span>{relTime(n.created_at)} · session {n.generation}</span>
+            <button className="note-del" title="Delete note" onClick={() => remove(n.id)}>{Icon.x()}</button>
+          </div>
+          <div className="note-body">{n.content}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function SessionRail({ project, task, sessions, running, onResolveWithAI, onMerged, onPrCreated, onClear, onCollapse, onSwitchToChat }: {
   project: ProjectRow; task: TaskRow; sessions: Session[]; running: boolean;
   onResolveWithAI: (taskId: string) => Promise<ResolveResult>;
@@ -123,6 +199,7 @@ export function SessionRail({ project, task, sessions, running, onResolveWithAI,
       <div className="rail-tabs">
         <Tab id="diff" label="DIFF" />
         {showPreview && <Tab id="preview" label="PREVIEW" />}
+        <Tab id="notes" label="NOTES" />
         <Tab id="context" label="CONTEXT" />
         <span style={{ flex: 1 }} />
         <button className="rail-collapse" onClick={onCollapse} title="Hide panel">{Icon.chevRight()}</button>
@@ -136,6 +213,7 @@ export function SessionRail({ project, task, sessions, running, onResolveWithAI,
           }} />
         )}
         {tab === "preview" && showPreview && <PreviewPane project={project} />}
+        {tab === "notes" && <NotesPane task={task} />}
         {tab === "context" && <ContextPane task={task} sessions={sessions} running={running} onClear={onClear} />}
       </div>
     </aside>

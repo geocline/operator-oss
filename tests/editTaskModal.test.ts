@@ -36,6 +36,7 @@ const task: TaskRow = {
   depends_on: [],
   context_tokens: 0,
   context_pct: 0,
+  note_count: 0,
 };
 
 function textOf(node: ReactTestInstance): string {
