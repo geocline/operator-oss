@@ -104,6 +104,14 @@ describe("LiteLLM Codex harness driver", () => {
       env: expect.objectContaining({ CODEX_HOME: expect.stringContaining("/litellm-codex") }),
       config: expect.objectContaining({
         model_catalog_json: expect.stringMatching(/operator-model-catalog\.json$/),
+        model_provider: "operator_litellm",
+        model_providers: {
+          operator_litellm: expect.objectContaining({
+            base_url: "http://127.0.0.1:43210/v1",
+            env_key: "CODEX_API_KEY",
+            supports_websockets: false,
+          }),
+        },
       }),
     });
     expect(captures.threadOptions).toMatchObject({

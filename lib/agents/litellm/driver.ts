@@ -43,9 +43,20 @@ function orchestratorMcpConfig(
   project: Project,
   task: Task,
   modelCatalogPath: string,
+  relayBaseUrl: string,
 ): CodexOptions["config"] {
   return {
     model_catalog_json: modelCatalogPath,
+    model_provider: "operator_litellm",
+    model_providers: {
+      operator_litellm: {
+        name: "Operator LiteLLM",
+        base_url: relayBaseUrl,
+        env_key: "CODEX_API_KEY",
+        wire_api: "responses",
+        supports_websockets: false,
+      },
+    },
     mcp_servers: {
       orchestrator: {
         command: process.execPath,
@@ -115,7 +126,7 @@ async function* runTurn(
     codexPathOverride: CODEX_CLI_PATH || undefined,
     baseUrl: relay.baseUrl,
     apiKey: relay.childApiKey,
-    config: orchestratorMcpConfig(project, task, modelCatalogPath),
+    config: orchestratorMcpConfig(project, task, modelCatalogPath, relay.baseUrl),
     env: buildLiteLLMHarnessEnv(task.id),
   });
   const thread = task.session_id

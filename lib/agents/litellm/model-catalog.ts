@@ -32,7 +32,7 @@ export function writeLiteLLMModelCatalog(home: string, models: LiteLLMModel[]): 
         display_name: model.label,
         name: model.value,
         model: model.value,
-        provider: "openai",
+        provider: "operator_litellm",
         context_window: contextWindow,
         truncation_policy: { mode: "tokens", limit: contextWindow },
         shell_type: "shell_command",

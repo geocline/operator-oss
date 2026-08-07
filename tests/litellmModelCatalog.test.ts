@@ -40,6 +40,7 @@ describe("LiteLLM Codex model catalog", () => {
       slug: "operator.frontier",
       display_name: "Operator Frontier",
       model: "operator.frontier",
+      provider: "operator_litellm",
       context_window: 200_000,
       truncation_policy: { mode: "tokens", limit: 200_000 },
       supports_tools: true,
