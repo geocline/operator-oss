@@ -33,7 +33,7 @@ describe("LiteLLM configuration", () => {
   it("defaults to the loopback gateway and an isolated absolute Codex home", () => {
     expect(LITELLM_BASE_URL).toBe("http://127.0.0.1:4000/v1");
     expect(path.isAbsolute(LITELLM_CODEX_HOME)).toBe(true);
-    expect(LITELLM_CODEX_HOME.endsWith("/.operator/litellm-codex")).toBe(true);
+    expect(LITELLM_CODEX_HOME.endsWith("/litellm-codex")).toBe(true);
   });
 });
 

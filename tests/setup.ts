@@ -15,6 +15,9 @@ process.env.ORCH_WORKTREES_DIR = path.join(root, "worktrees");
 // isolated orchestrator.db instead of the user's real one. Read at import time
 // by lib/config.ts, so it must be set here (before the module graph loads).
 process.env.ORCH_DB_DIR = path.join(root, "db");
+process.env.LITELLM_BASE_URL = "http://127.0.0.1:4000/v1";
+process.env.LITELLM_API_KEY = "test-litellm-local";
+process.env.LITELLM_CODEX_HOME = path.join(root, "litellm-codex");
 
 // Control plane v2: isolate its SQLite db and pin the seams to their in-process
 // mocks. Set here (before the module graph loads) so lib/control-plane/config.ts

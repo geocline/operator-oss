@@ -95,6 +95,29 @@ bounded by an item cap — the codex analog of the Claude helpers' `maxTurns` �
 runaway helper turn is cut off rather than looping unbounded.
 Binary via `CODEX_CLI_PATH` (else the SDK auto-resolves its bundled binary / PATH).
 
+### The LiteLLM Codex-harness driver (`lib/agents/litellm/`)
+
+`litellm-codex` is a third, additive route; it does not replace or proxy native
+Claude Code or native Codex. Its catalog is refreshed from LiteLLM's
+`/model/info`, sanitized, cached as the last-known-good snapshot, and exposed as
+capabilities only when `model_info.operator` explicitly enables a coding model
+for the Codex harness. Unknown, removed, malformed, or untagged models fail
+closed.
+
+The driver uses the existing Codex SDK and event normalization but gives it a
+separate `CODEX_HOME`. A loopback-only relay injects Operator's LiteLLM client
+token into gateway requests; the child harness sees only a harmless relay token.
+Provider credentials—including a dedicated
+`OPENROUTER_OPERATOR_API_KEY` used for company chargeback—remain entirely in
+LiteLLM. The selected LiteLLM alias is exact: Operator never silently substitutes
+another gateway model.
+
+Successful sessions append content-free metadata to
+`$LITELLM_CODEX_HOME/operator-session-index.jsonl` with mode `0600`. This gives
+Conversation Dashboard and Card Tracker a stable future discovery seam without
+copying prompts or responses into Operator's database. The full Codex transcript
+continues to live under the isolated LiteLLM Codex home.
+
 ### Internal one-shots (`lib/agents/oneshots.ts`)
 
 Routing for the internal jobs that run a turn **outside the main chat**: `/clear` handoff
