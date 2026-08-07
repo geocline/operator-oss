@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Operator LiteLLM Activation To-do</title>
+  <style>
+    body{margin:0;background:#0b0e13;color:#f5f7fb;font:16px/1.55 Inter,system-ui,sans-serif}
+    main{max-width:860px;margin:auto;padding:56px 28px}h1{font-size:44px;line-height:1.08;letter-spacing:-.04em}
+    p,li{color:#abb5c5}.box{background:#121822;border:1px solid #2a3445;border-radius:18px;padding:24px;margin:20px 0}
+    li{margin:12px 0}.done{color:#69d7a7}.need{color:#f2c46d}code{color:#d8e5ff;background:#0a0f17;padding:2px 6px;border-radius:5px}
+  </style>
+</head>
+<body><main>
+  <div class="done">SOFTWARE BUILD COMPLETE</div>
+  <h1>What is still needed to activate paid Operator models</h1>
+  <p>The code is installed and verified. These operational steps require Geo's provider credential/model choices and were intentionally not guessed or performed.</p>
+  <section class="box">
+    <ol>
+      <li>Create a separate OpenRouter API key for company-billable Operator usage.</li>
+      <li>Add it to <code>~/.litellm/.env</code> as <code>OPENROUTER_OPERATOR_API_KEY</code>.</li>
+      <li>Add one or more <code>model_list</code> deployments in LiteLLM with <code>model_info.operator.enabled: true</code>, <code>kind: coding</code>, and <code>harnesses: ["codex"]</code>. Point each deployment at the dedicated key.</li>
+      <li>Run <code>scripts/validate-config.sh</code> and <code>scripts/reload.sh</code> in the LiteLLM server folder.</li>
+      <li>Restart Operator if its currently running process predates the build, then open <strong>Settings → Agents → LiteLLM · Codex harness → Refresh models</strong>.</li>
+      <li>Select a model on a low-risk test task. This is the first step that may incur provider charges.</li>
+    </ol>
+  </section>
+  <p class="need">Not part of this activation: native Claude Code and native Codex remain on their existing subscription routes.</p>
+</main></body>
+</html>
