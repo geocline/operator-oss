@@ -16,6 +16,9 @@ import type { TurnUsage } from "../../types";
 // Retired models keep their rows: historical turns still price against the
 // model they actually ran on, even once the picker stops offering it.
 const PRICES: { prefix: string; input: number; cachedInput: number; output: number }[] = [
+  { prefix: "gpt-5.6-sol", input: 5.0, cachedInput: 0.5, output: 30.0 },
+  { prefix: "gpt-5.6-terra", input: 2.0, cachedInput: 0.2, output: 12.0 },
+  { prefix: "gpt-5.6-luna", input: 0.2, cachedInput: 0.02, output: 1.2 },
   { prefix: "gpt-5.5", input: 5.0, cachedInput: 0.5, output: 30.0 },
   { prefix: "gpt-5.4-mini", input: 0.75, cachedInput: 0.075, output: 4.5 },
   { prefix: "gpt-5.4", input: 2.5, cachedInput: 0.25, output: 15.0 },
@@ -36,7 +39,7 @@ const PRICES: { prefix: string; input: number; cachedInput: number; output: numb
 // upstream changes its default. Verify against the CLI's preset table rather
 // than guessing: the default is the preset the `/model` menu marks "(default)"
 // — equivalently, `priority: 0`.
-export const DEFAULT_CODEX_MODEL = "gpt-5.5";
+export const DEFAULT_CODEX_MODEL = "gpt-5.6-sol";
 
 /** The model a codex turn effectively runs: the task's choice, else the CLI default. */
 export function resolveCodexModel(taskModel: string | null | undefined): string {
