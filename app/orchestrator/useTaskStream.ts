@@ -164,19 +164,38 @@ export function useTaskStream({ selTask, selProjRef, agentsRef, setTaskRunning, 
   const handleStreamEventRef = useRef(handleStreamEvent);
   useEffect(() => { handleStreamEventRef.current = handleStreamEvent; });
 
+  // Chrome's six-connection HTTP/1.1 budget is per origin across ALL tabs, and
+  // transcript streams can't be deduplicated cross-tab (each tab may view a
+  // different task) — so a hidden tab lets go of its stream instead. A short
+  // grace period avoids churn on quick tab flips, and the snapshot-then-tail
+  // design makes reopening free: coming back re-snapshots the authoritative
+  // transcript. Badges/spinners stay live meanwhile via the shared global
+  // events stream (sharedEvents.ts).
+  const [parked, setParked] = useState(false);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const onVis = () => {
+      if (document.hidden) timer = setTimeout(() => setParked(true), 15_000);
+      else { clearTimeout(timer); setParked(false); }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => { clearTimeout(timer); document.removeEventListener("visibilitychange", onVis); };
+  }, []);
+
   // One live stream per selected task: the server replays a snapshot of the
   // persisted transcript, then tails live turn events. Opening a task,
-  // reloading mid-turn, and waking from laptop sleep all converge on the same
-  // catch-up-then-tail path — EventSource reconnects re-snapshot automatically.
+  // reloading mid-turn, waking from laptop sleep, and returning to a parked
+  // tab all converge on the same catch-up-then-tail path — EventSource
+  // reconnects re-snapshot automatically.
   useEffect(() => {
-    if (!selTask) return;
+    if (!selTask || parked) return;
     const id = selTask;
     const es = new EventSource(`/api/tasks/${id}/messages`);
     es.onmessage = (e) => {
       try { handleStreamEventRef.current(id, JSON.parse(e.data) as TaskStreamEvent); } catch {}
     };
     return () => es.close();
-  }, [selTask]);
+  }, [selTask, parked]);
 
   return { msgsByTask, appendMsg, setAnswerOnMsg };
 }

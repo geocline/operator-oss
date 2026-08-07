@@ -3,6 +3,7 @@
 import { useEffect, useRef, type MutableRefObject } from "react";
 import type { GlobalWireEvent } from "@/lib/events";
 import { jget } from "./api";
+import { subscribeGlobalEvents } from "./sharedEvents";
 import type { ProjectRow, TaskRow } from "./types";
 
 // One always-open EventSource on GET /api/events: coarse lifecycle events for
@@ -63,31 +64,29 @@ export function useGlobalEvents({ selProjRef, setTaskRunning, setTasks, setProje
   useEffect(() => { handleRef.current = handle; });
 
   useEffect(() => {
-    const es = new EventSource("/api/events");
-    let opens = 0;
-    es.onopen = () => {
-      // This stream is a live tail with no snapshot: anything published while
-      // we were disconnected (laptop sleep, tunnel drop) is gone. On every
-      // REconnect, refetch the authoritative lists once to catch up. The first
-      // open is skipped — boot() and the project-selection effect already load
-      // them. reconcileRunning drains the running set fleet-wide: a turn_end
-      // missed while dark, on a task in a project we've navigated away from,
-      // is invisible to the two refetches below (they only cover the selected
-      // project's rows) and would leave that spinner stuck forever.
-      opens += 1;
-      if (opens === 1) return;
-      jget<ProjectRow[]>("/api/projects").then(setProjects).catch(() => {});
-      if (selProjRef.current) void loadTasks(selProjRef.current, false);
-      void reconcileRunning();
-      // An agent_auth event fired while we were dark would be lost (this stream
-      // is a live tail), leaving a stale banner — or none when the login is in
-      // fact dead. The bundle carries the persisted flag, so refetch it too.
-      void refreshAgents();
-    };
-    es.onmessage = (e) => {
-      try { handleRef.current(JSON.parse(e.data) as GlobalWireEvent); } catch {}
-    };
-    return () => es.close();
+    // The stream itself is shared across tabs (sharedEvents.ts): one tab holds
+    // the real EventSource, the rest listen over a BroadcastChannel — Chrome's
+    // six-connection HTTP/1.1 budget is per origin across ALL tabs, and a tab
+    // fleet each holding its own streams starved every mutation request.
+    return subscribeGlobalEvents({
+      onEvent: (ev) => handleRef.current(ev),
+      onCatchUp: () => {
+        // The stream is a live tail with no snapshot: anything published while
+        // no tab held a connection (laptop sleep, tunnel drop, leader-tab
+        // death) is gone — refetch the authoritative lists once to catch up.
+        // reconcileRunning drains the running set fleet-wide: a turn_end
+        // missed while dark, on a task in a project we've navigated away from,
+        // is invisible to the two refetches below (they only cover the selected
+        // project's rows) and would leave that spinner stuck forever.
+        jget<ProjectRow[]>("/api/projects").then(setProjects).catch(() => {});
+        if (selProjRef.current) void loadTasks(selProjRef.current, false);
+        void reconcileRunning();
+        // An agent_auth event fired while we were dark would be lost, leaving a
+        // stale banner — or none when the login is in fact dead. The bundle
+        // carries the persisted flag, so refetch it too.
+        void refreshAgents();
+      },
+    });
     // All deps are stable (a ref, a setState, []-memoized callbacks).
   }, [selProjRef, setProjects, loadTasks, reconcileRunning, refreshAgents]);
 }
