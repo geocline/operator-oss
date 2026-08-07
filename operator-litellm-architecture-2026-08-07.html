@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Operator + LiteLLM Architecture</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172033;
+      --muted: #667085;
+      --line: #d9e0ea;
+      --panel: #f7f9fc;
+      --blue: #3867d6;
+      --blue-soft: #edf3ff;
+      --green: #278553;
+      --green-soft: #edf9f2;
+      --amber: #9a6500;
+      --amber-soft: #fff7e6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #edf1f7;
+      color: var(--ink);
+      font: 16px/1.55 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main {
+      width: min(1120px, calc(100% - 32px));
+      margin: 32px auto;
+      padding: clamp(24px, 5vw, 56px);
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: 0 20px 55px rgba(35, 48, 76, .09);
+    }
+    h1 { margin: 0 0 10px; font-size: clamp(30px, 4vw, 48px); letter-spacing: -.035em; line-height: 1.08; }
+    h2 { margin: 0 0 18px; font-size: 23px; letter-spacing: -.015em; }
+    h3 { margin: 0 0 7px; font-size: 17px; }
+    p { margin: 0; }
+    code {
+      padding: 2px 6px;
+      border: 1px solid #dbe3ef;
+      border-radius: 6px;
+      background: #f5f7fb;
+      font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    .lede { max-width: 790px; color: var(--muted); font-size: 18px; }
+    .section { margin-top: 42px; }
+    .label {
+      margin-bottom: 10px;
+      color: var(--blue);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+    }
+    .source, .picker {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: stretch;
+      gap: 18px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--panel);
+    }
+    .box {
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: white;
+    }
+    .box.tagged { border: 2px solid var(--blue); background: var(--blue-soft); }
+    .arrow { display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 28px; }
+    .flow { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 12px; }
+    .step {
+      min-height: 145px;
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: white;
+    }
+    .step.done { border: 2px solid var(--green); background: var(--green-soft); }
+    .step p, .box p { margin-top: 7px; color: var(--muted); }
+    .picker { grid-template-columns: 1fr 1fr; }
+    .menu {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: white;
+    }
+    .menu-head { padding: 13px 15px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 13px; font-weight: 750; }
+    .menu-row { padding: 13px 15px; border-bottom: 1px solid var(--line); }
+    .menu-row:last-child { border-bottom: 0; }
+    .menu-row.selected { background: var(--blue-soft); color: #234da8; font-weight: 750; }
+    .menu-row small { display: block; margin-top: 2px; color: var(--muted); font-weight: 450; }
+    .refresh { float: right; color: var(--blue); }
+    .two { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .note {
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--panel);
+    }
+    .note.good { border-color: #b5dfc8; background: var(--green-soft); }
+    .note.guard { border-color: #ecd7a7; background: var(--amber-soft); }
+    ul { margin: 10px 0 0; padding-left: 20px; }
+    li + li { margin-top: 7px; }
+    pre {
+      overflow-x: auto;
+      margin: 14px 0 0;
+      padding: 18px;
+      border: 1px solid #26344c;
+      border-radius: 12px;
+      background: #101828;
+      color: #e9eef8;
+      font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    table { width: 100%; border-collapse: collapse; border: 1px solid var(--line); background: white; }
+    th, td { padding: 13px 15px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: var(--panel); color: var(--muted); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+    .yes { color: var(--green); font-weight: 800; }
+    .conditional { color: var(--amber); font-weight: 800; }
+    footer { margin-top: 42px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+    @media (max-width: 760px) {
+      .source, .picker, .two, .flow { grid-template-columns: 1fr; }
+      .arrow { transform: rotate(90deg); min-height: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="label">Approved architecture direction · August 7, 2026</div>
+      <h1>Operator + LiteLLM</h1>
+      <p class="lede">Dynamic, tagged model discovery. Operator never carries a vendor-model catalog; LiteLLM remains the source of truth for providers, credentials, routing, and which models Operator is allowed to show.</p>
+    </header>
+
+    <section class="section">
+      <div class="label">Source of truth</div>
+      <div class="source">
+        <div class="box">
+          <h3>Physical models</h3>
+          <p>OpenRouter, Anthropic, OpenAI, local Ollama, or any future provider configured centrally.</p>
+        </div>
+        <div class="arrow">→</div>
+        <div class="box tagged">
+          <h3>Operator visibility metadata</h3>
+          <p><code>model_info.operator.enabled: true</code><br><code>label: Kimi K3</code><br><code>kind: coding</code></p>
+        </div>
+      </div>
+      <pre>model_info:
+  operator:
+    enabled: true
+    label: "Kimi K3"
+    kind: "coding"
+    description: "Frontier agentic coding model"</pre>
+    </section>
+
+    <section class="section">
+      <div class="label">Refresh flow</div>
+      <div class="flow">
+        <div class="step">
+          <h3>1. Add a model</h3>
+          <p>Configure it once in LiteLLM. Operator code does not change.</p>
+        </div>
+        <div class="arrow">→</div>
+        <div class="step">
+          <h3>2. Tag it</h3>
+          <p>Mark only models that should appear in Operator.</p>
+        </div>
+        <div class="arrow">→</div>
+        <div class="step done">
+          <h3>3. Refresh</h3>
+          <p>Operator fetches <code>/model/info</code>, filters the tag, and updates its picker.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="label">What Geo sees</div>
+      <div class="picker">
+        <div class="menu">
+          <div class="menu-head">Choose agent</div>
+          <div class="menu-row">Claude Code</div>
+          <div class="menu-row">Codex</div>
+          <div class="menu-row selected">LiteLLM Coding Agent</div>
+        </div>
+        <div class="menu">
+          <div class="menu-head">Choose LiteLLM model <span class="refresh">↻ Refresh</span></div>
+          <div class="menu-row"><strong>Operator Frontier</strong><small>Stable alias; LiteLLM chooses the current flagship</small></div>
+          <div class="menu-row"><strong>Kimi K3</strong><small>Specific tagged model for evaluation</small></div>
+          <div class="menu-row"><strong>DeepSeek V4 Pro</strong><small>Specific tagged model for evaluation</small></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section two">
+      <div class="note good">
+        <h2>Why this fits the system</h2>
+        <ul>
+          <li>No provider credentials or real-model catalog in Operator.</li>
+          <li>A new model appears after one LiteLLM edit and one refresh.</li>
+          <li>Unrelated or special-purpose models remain invisible.</li>
+          <li>Stable aliases can move to newer models without touching existing tasks.</li>
+        </ul>
+      </div>
+      <div class="note guard">
+        <h2>Required guardrails</h2>
+        <ul>
+          <li>Only enable models that pass a coding-agent compatibility probe.</li>
+          <li>Separate text/coding models from image-generation models.</li>
+          <li>Keep the last-known catalog when LiteLLM is temporarily unavailable.</li>
+          <li>Show the resolved physical model after every turn.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="label">Harness and model are separate choices</div>
+      <h2>Recommended refinement: route × harness × model</h2>
+      <p class="lede" style="font-size:16px">The harness supplies the agent loop and tools. The route determines subscription versus metered API access. The model supplies the intelligence. Operator should model all three explicitly while showing only valid combinations.</p>
+      <div style="overflow-x:auto;margin-top:18px">
+        <table>
+          <thead>
+            <tr>
+              <th>Route</th>
+              <th>Harness</th>
+              <th>Model catalog</th>
+              <th>Billing</th>
+              <th>Existing behavior</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Native Claude</td>
+              <td>Claude Code</td>
+              <td>Claude Code models</td>
+              <td>Existing subscription</td>
+              <td class="yes">Unchanged</td>
+            </tr>
+            <tr>
+              <td>Native Codex</td>
+              <td>Codex</td>
+              <td>Codex models</td>
+              <td>Existing subscription</td>
+              <td class="yes">Unchanged</td>
+            </tr>
+            <tr>
+              <td>LiteLLM</td>
+              <td>Codex</td>
+              <td>Tagged models compatible with Codex’s tool loop</td>
+              <td>Dedicated API key</td>
+              <td class="yes">Recommended default</td>
+            </tr>
+            <tr>
+              <td>LiteLLM</td>
+              <td>Claude Code</td>
+              <td>Tagged models compatible with Claude Code’s tool protocol</td>
+              <td>Dedicated API key</td>
+              <td class="conditional">Optional, compatibility-tested</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <pre>model_info:
+  operator:
+    enabled: true
+    label: "Example frontier model"
+    kind: "coding"
+    harnesses: ["codex", "claude"]</pre>
+    </section>
+
+    <section class="section">
+      <div class="label">Picker behavior</div>
+      <div class="picker" style="grid-template-columns:repeat(3,1fr)">
+        <div class="menu">
+          <div class="menu-head">1 · Route</div>
+          <div class="menu-row">Claude subscription</div>
+          <div class="menu-row">Codex subscription</div>
+          <div class="menu-row selected">LiteLLM</div>
+        </div>
+        <div class="menu">
+          <div class="menu-head">2 · Harness</div>
+          <div class="menu-row selected">Codex harness<small>Recommended default</small></div>
+          <div class="menu-row">Claude Code harness<small>Only for compatible tagged models</small></div>
+        </div>
+        <div class="menu">
+          <div class="menu-head">3 · Model <span class="refresh">↻ Refresh</span></div>
+          <div class="menu-row"><strong>Operator Frontier</strong><small>Supports both harnesses</small></div>
+          <div class="menu-row"><strong>Example coding model</strong><small>Codex harness only</small></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section two">
+      <div class="note good">
+        <h2>Switching before a task starts</h2>
+        <p>Route, harness, and model can be changed freely. Operator resets incompatible reasoning and permission settings exactly as it already does when switching between Claude and Codex.</p>
+      </div>
+      <div class="note guard">
+        <h2>Switching after a session starts</h2>
+        <p>A Claude session ID cannot be resumed by Codex, and the reverse is also true. Operator must use its existing handoff flow: summarize the current generation, open a fresh native session in the same worktree, and seed it with the carried context.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="label">Three isolated agent lanes</div>
+      <h2>Claude Code and Codex remain unchanged</h2>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+        <div class="box">
+          <h3>Claude Code</h3>
+          <p>Existing driver<br>Existing subscription<br><code>~/.claude/projects</code></p>
+        </div>
+        <div class="box">
+          <h3>Codex</h3>
+          <p>Existing driver<br>Existing subscription<br><code>~/.codex/sessions</code></p>
+        </div>
+        <div class="box tagged">
+          <h3>LiteLLM</h3>
+          <p>New third driver<br>Company-chargeable API key<br><code>~/.operator/litellm/sessions</code></p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="label">What “reuse the Codex harness” means</div>
+      <div class="source" style="grid-template-columns:1fr auto 1.2fr auto 1fr">
+        <div class="box">
+          <h3>Tagged LiteLLM model</h3>
+          <p>Kimi, DeepSeek, or a future model.</p>
+        </div>
+        <div class="arrow">↔</div>
+        <div class="box" style="border:2px solid var(--green);background:var(--green-soft)">
+          <h3>Codex coding loop</h3>
+          <p>Plans, calls tools, runs commands, edits files, and continues until done.</p>
+        </div>
+        <div class="arrow">↔</div>
+        <div class="box">
+          <h3>Operator tools</h3>
+          <p>Worktrees, MCP, questions, task suggestions, and services.</p>
+        </div>
+      </div>
+      <div class="note" style="margin-top:16px">
+        <strong>No custom agent loop is required.</strong> Building one would mean replacing the green middle box ourselves. The selected design reuses that proven machinery through a separate client, endpoint, credential set, and session directory.
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="label">Separate company accounting</div>
+      <div class="flow">
+        <div class="step">
+          <h3>Dedicated key</h3>
+          <p><code>OPENROUTER_OPERATOR_API_KEY</code> lives only in LiteLLM’s secret environment.</p>
+        </div>
+        <div class="arrow">→</div>
+        <div class="step">
+          <h3>Tagged deployments</h3>
+          <p>Only Operator-enabled model entries reference the company-chargeable key.</p>
+        </div>
+        <div class="arrow">→</div>
+        <div class="step done">
+          <h3>Clean reporting</h3>
+          <p>OpenRouter usage and limits remain attributable to the dedicated key.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="label">Durable conversation flow</div>
+      <div class="source" style="grid-template-columns:1fr auto 1fr auto 1fr">
+        <div class="box tagged">
+          <h3>Isolated Operator JSONL</h3>
+          <p>Complete LiteLLM-backed coding sessions, kept separate from subscription Codex.</p>
+        </div>
+        <div class="arrow">→</div>
+        <div class="box">
+          <h3>Conversation Dashboard</h3>
+          <p>Reuses the Codex-format parser, labels the source “Operator,” indexes it, and archives it nightly.</p>
+        </div>
+        <div class="arrow">→</div>
+        <div class="box">
+          <h3>Card Tracker</h3>
+          <p>Searches Claude, Codex, and Operator conversations and attaches a durable metadata snapshot.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section two">
+      <div class="note good">
+        <h2>Preserved behavior</h2>
+        <ul>
+          <li>Claude Code continues using Geo’s existing subscription and native transcript store.</li>
+          <li>Codex continues using Geo’s existing subscription and native transcript store.</li>
+          <li>The new driver does not modify either existing driver’s endpoint, authentication, models, or sessions.</li>
+          <li>Operator still exposes its worktree, tools, streaming events, and task controls consistently.</li>
+        </ul>
+      </div>
+      <div class="note guard">
+        <h2>Cross-project additions</h2>
+        <ul>
+          <li>Conversation Dashboard gains an <code>operator</code> source and archive folder.</li>
+          <li>Card Tracker’s database constraint, API validation, badges, search, and links gain “Operator.”</li>
+          <li>Operator deep links replace a misleading CLI resume command for gateway-backed sessions.</li>
+          <li>Compatibility checks prevent an unsuitable tagged model from starting a coding session.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="label">Approved implementation order</div>
+      <h2>Codex harness first, Claude Code harness second</h2>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Phase</th>
+              <th>Outcome</th>
+              <th>Primary systems</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>0</td>
+              <td>Correct the native Codex picker to include GPT-5.6 Sol, Terra, and Luna without changing its authentication or runtime.</td>
+              <td>Operator</td>
+            </tr>
+            <tr>
+              <td>1A</td>
+              <td>Discover, validate, cache, and refresh only LiteLLM models tagged for Operator.</td>
+              <td>LiteLLM + Operator</td>
+            </tr>
+            <tr>
+              <td>1B</td>
+              <td>Run tagged models as full agents through an isolated Codex harness with tools, worktrees, resume, asks, and handoff.</td>
+              <td>Operator</td>
+            </tr>
+            <tr>
+              <td>1C</td>
+              <td>Index and archive gateway-backed sessions as a distinct Operator conversation source.</td>
+              <td>Conversations Dashboard</td>
+            </tr>
+            <tr>
+              <td>1D</td>
+              <td>Search, attach, label, and deep-link Operator conversations alongside Claude and Codex.</td>
+              <td>Card Tracker</td>
+            </tr>
+            <tr>
+              <td>2</td>
+              <td>Add the Claude Code harness for explicitly compatible tagged LiteLLM models.</td>
+              <td>Operator + LiteLLM</td>
+            </tr>
+            <tr>
+              <td>3</td>
+              <td>Add image generation through a separate image-model catalog and endpoint.</td>
+              <td>Operator + LiteLLM</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section two">
+      <div class="note good">
+        <h2>Catalog guarantees</h2>
+        <ul>
+          <li>Refresh is server-side and never exposes LiteLLM’s raw deployment configuration.</li>
+          <li>A failed refresh keeps the last-known-good catalog.</li>
+          <li>A removed selected model is marked unavailable and never silently replaced.</li>
+          <li>Compatibility tests are explicit and paid inference never runs merely because Geo clicked Refresh.</li>
+        </ul>
+      </div>
+      <div class="note guard">
+        <h2>Security and billing guarantees</h2>
+        <ul>
+          <li>The OpenRouter Operator key lives only inside LiteLLM.</li>
+          <li>Operator receives only a loopback gateway client credential.</li>
+          <li>The implementation must prove that shell tools cannot read the gateway credential.</li>
+          <li>OpenRouter’s dedicated key is the authoritative chargeback record; Operator labels exact cost only when the response path provides it reliably.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="label">End-to-end acceptance</div>
+      <div class="note">
+        <ol style="margin:0;padding-left:22px">
+          <li>Add and tag a model in LiteLLM using the dedicated Operator provider key.</li>
+          <li>Refresh Operator and see only valid Operator-tagged choices.</li>
+          <li>Verify a chosen model/harness combination with an explicit read-only test.</li>
+          <li>Run a real task with files, terminal tools, worktree edits, Stop/resume, and handoff.</li>
+          <li>Find the session under the Operator source in Conversations Dashboard.</li>
+          <li>Archive it, search it from Card Tracker, attach it, and open the exact Operator task.</li>
+          <li>Confirm native Claude Code and Codex still use their original subscriptions and session stores.</li>
+        </ol>
+      </div>
+    </section>
+
+    <footer>Standalone architecture visual for the Operator + LiteLLM build-out discussion. It is a normal self-contained HTML file and does not depend on the temporary brainstorming server.</footer>
+  </main>
+</body>
+</html>
