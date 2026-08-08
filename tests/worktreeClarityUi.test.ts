@@ -22,5 +22,23 @@ describe("Changes workspace clarity", () => {
     expect(component).toContain("Project checkout");
     expect(component).toContain("Merge blocked");
     expect(component).toContain("data.projectDirty");
+    expect(component).toContain("disabled={merging || resolving || loading || data.projectDirty}");
+    expect(component).toContain("disabled={merging || prBusy || loading || data.projectDirty}");
+  });
+
+  it("enforces the dirty-project preflight in every landing endpoint", () => {
+    for (const [file, mutation] of [
+      ["app/api/tasks/[id]/merge/route.ts", "mergeTask({"],
+      ["app/api/tasks/[id]/merge/prepare/route.ts", "prepareWorktreeMerge({"],
+      ["app/api/tasks/[id]/merge/complete/route.ts", "completeWorktreeMerge({"],
+    ]) {
+      const route = source(file);
+
+      expect(route).toContain("projectCheckoutDirty");
+      expect(route).toContain("project checkout has uncommitted files");
+      expect(route.indexOf("projectCheckoutDirty(project.repo_path)")).toBeLessThan(
+        route.indexOf(mutation)
+      );
+    }
   });
 });

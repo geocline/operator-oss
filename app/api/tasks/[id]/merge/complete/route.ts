@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getTask, getProject, updateTask, recordTaskMerge } from "@/lib/store";
-import { completeWorktreeMerge } from "@/lib/git";
+import { completeWorktreeMerge, projectCheckoutDirty } from "@/lib/git";
 import { hasTurn } from "@/lib/abort";
 import { withTaskLock } from "@/lib/taskLock";
 import { jsonGuard } from "@/lib/apiGuard";
@@ -23,6 +23,11 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ error: "this task has no isolated branch to merge" }, { status: 400 });
     const project = getProject(task.project_id);
     if (!project) return NextResponse.json({ error: "no project" }, { status: 400 });
+    if (await projectCheckoutDirty(project.repo_path))
+      return NextResponse.json(
+        { error: "project checkout has uncommitted files — commit or stash them before merging" },
+        { status: 409 },
+      );
 
     const result = await completeWorktreeMerge({
       repoPath: project.repo_path,

@@ -411,7 +411,7 @@ export default function TaskChanges({
             <button className="tc-btn" onClick={doAbort} disabled={merging || resolving}>
               Discard
             </button>
-              <button className="tc-btn primary" onClick={doComplete} disabled={merging || resolving || data.projectDirty}>
+              <button className="tc-btn primary" onClick={doComplete} disabled={merging || resolving || loading || data.projectDirty}>
               {merging ? "Merging…" : "Accept & merge"}
             </button>
           </>
@@ -439,7 +439,7 @@ export default function TaskChanges({
               <button
                 className="tc-btn primary"
                 onClick={doMerge}
-                disabled={merging || prBusy || data.projectDirty}
+                disabled={merging || prBusy || loading || data.projectDirty}
                 title={data.projectDirty ? "Commit or stash the project checkout's local changes before merging" : undefined}
               >
                 {merging ? "Merging…" : merged ? "Merge new changes" : `Merge to ${data.baseLabel}`}
