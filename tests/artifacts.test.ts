@@ -10,6 +10,10 @@ import {
   publishArtifact,
 } from "@/lib/artifacts";
 import { tmpDir, writeFile } from "./helpers";
+import { GET as listRoute } from "@/app/api/artifacts/route";
+import { GET as metadataRoute } from "@/app/api/artifacts/[id]/route";
+import { GET as contentRoute } from "@/app/api/artifacts/[id]/content/route";
+import { GET as downloadRoute } from "@/app/api/artifacts/[id]/download/route";
 
 describe("artifact storage", () => {
   beforeEach(() => {
@@ -73,5 +77,47 @@ describe("artifact storage", () => {
     expect(() =>
       publishArtifact({ project, task, sourcePath: "escape.html" }),
     ).toThrow(/inside the current task workspace/i);
+  });
+
+  it("serves safe metadata, sandboxed HTML, and an explicit download", async () => {
+    const { repo, project, task } = fixture();
+    writeFile(
+      repo,
+      "report.html",
+      "<!doctype html><script>top.location='https://bad.example'</script><h1>Safe</h1>",
+    );
+    const artifact = publishArtifact({
+      project,
+      task,
+      sourcePath: "report.html",
+      title: "Safe Report",
+    });
+
+    const list = await listRoute(
+      new Request("http://operator.test/api/artifacts?q=Safe"),
+    );
+    expect(list.status).toBe(200);
+    const listJson = (await list.json()) as { artifacts: Record<string, unknown>[] };
+    expect(listJson.artifacts[0]).toMatchObject({
+      id: artifact.id,
+      project_name: project.name,
+      task_title: task.title,
+    });
+    expect(JSON.stringify(listJson)).not.toContain("storage_name");
+    expect(JSON.stringify(listJson)).not.toContain(process.env.ORCH_DB_DIR);
+
+    const params = { params: Promise.resolve({ id: artifact.id }) };
+    const metadata = await metadataRoute(new Request("http://operator.test"), params);
+    expect(await metadata.json()).toMatchObject({ id: artifact.id, title: "Safe Report" });
+
+    const content = await contentRoute(new Request("http://operator.test"), params);
+    expect(content.status).toBe(200);
+    expect(content.headers.get("content-security-policy")).toContain("sandbox");
+    expect(content.headers.get("content-security-policy")).toContain("script-src 'none'");
+    expect(content.headers.get("x-content-type-options")).toBe("nosniff");
+
+    const download = await downloadRoute(new Request("http://operator.test"), params);
+    expect(download.headers.get("content-disposition")).toContain("attachment");
+    expect(download.headers.get("content-disposition")).toContain("report.html");
   });
 });
