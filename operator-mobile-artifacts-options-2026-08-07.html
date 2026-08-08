@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Operator Mobile Artifacts and Transcript Options</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f5f2eb;
+      --panel: #fffdf8;
+      --ink: #24211d;
+      --muted: #6f685e;
+      --line: #d9d1c5;
+      --accent: #b65332;
+      --soft: #f4e4da;
+      --good: #477452;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #171613;
+        --panel: #211f1b;
+        --ink: #f1ece3;
+        --muted: #b8afa3;
+        --line: #3d3932;
+        --accent: #e08a67;
+        --soft: #3b2921;
+        --good: #82b58c;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 16px/1.55 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main { max-width: 920px; margin: 0 auto; padding: 32px 18px 64px; }
+    h1 { font-size: clamp(30px, 7vw, 52px); line-height: 1.02; letter-spacing: -.04em; margin: 0 0 14px; }
+    h2 { margin: 34px 0 12px; font-size: 22px; }
+    h3 { margin: 0 0 8px; font-size: 18px; }
+    p { margin: 0 0 12px; }
+    .lede { color: var(--muted); font-size: 18px; max-width: 700px; }
+    .recommendation {
+      margin: 26px 0;
+      padding: 20px;
+      border: 2px solid var(--accent);
+      border-radius: 14px;
+      background: var(--soft);
+    }
+    .tag {
+      display: inline-block;
+      margin-bottom: 9px;
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .card { padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+    .card.recommended { border-color: var(--accent); }
+    ul { margin: 8px 0 0; padding-left: 20px; }
+    li { margin: 7px 0; }
+    code { padding: 2px 6px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel); }
+    .flow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 16px 0; }
+    .flow span { padding: 9px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); }
+    .flow b { color: var(--accent); }
+    .known { color: var(--good); font-weight: 700; }
+    footer { margin-top: 40px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+    @media (max-width: 760px) {
+      main { padding-top: 22px; }
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <span class="tag">Design options · August 7, 2026</span>
+  <h1>One Operator URL for every useful artifact</h1>
+  <p class="lede">The cleanest solution is to make artifact delivery a native Operator capability and improve the transcript in the same release. A second repository and server would duplicate authentication, navigation, storage, and uptime work that Operator already handles.</p>
+
+  <section class="recommendation">
+    <span class="tag">Recommended</span>
+    <h3>Build a private, global Artifacts area inside Operator</h3>
+    <p>Agents explicitly publish a finished file through a built-in tool. Operator snapshots it into durable storage, records its project and task, and immediately returns a stable phone-friendly URL. The Artifacts page lists everything newest-first and links each item back to its originating task.</p>
+  </section>
+
+  <h2>Three approaches</h2>
+  <div class="grid">
+    <article class="card recommended">
+      <span class="tag">A · Recommended</span>
+      <h3>Native artifact registry</h3>
+      <ul>
+        <li>One existing Operator URL and login.</li>
+        <li>Explicit publishing prevents noisy app HTML from appearing.</li>
+        <li>Durable snapshot survives worktree cleanup.</li>
+        <li>Project and task provenance is automatic.</li>
+      </ul>
+    </article>
+    <article class="card">
+      <span class="tag">B</span>
+      <h3>Separate artifact repository and server</h3>
+      <ul>
+        <li>Clear separation from Operator.</li>
+        <li>Adds another service, URL, authentication boundary, deployment, and failure point.</li>
+        <li>Must recreate task linking and metadata.</li>
+      </ul>
+    </article>
+    <article class="card">
+      <span class="tag">C</span>
+      <h3>Automatic filesystem scanner</h3>
+      <ul>
+        <li>Requires no publish action.</li>
+        <li>Would collect build output, fixtures, dependencies, and unrelated HTML.</li>
+        <li>Files can disappear with worktrees and their intent is ambiguous.</li>
+      </ul>
+    </article>
+  </div>
+
+  <h2>Proposed publishing experience</h2>
+  <div class="flow" aria-label="Artifact publishing flow">
+    <span>Geo: “Publish that report”</span><b>→</b>
+    <span>Agent calls <code>publish_artifact</code></span><b>→</b>
+    <span>Operator saves a durable copy</span><b>→</b>
+    <span>Transcript shows Open + Copy link</span>
+  </div>
+  <p>The tool is automatically available to agents, so the remembered command is ordinary language: <strong>“Publish that artifact”</strong> or <strong>“Publish report.html.”</strong> When Geo explicitly asks for a deliverable to be published, the agent should not merely return a local filesystem link.</p>
+
+  <h2>Global phone-first library</h2>
+  <ul>
+    <li>A memorable route such as <code>/artifacts</code>, accessible through the same private Operator hostname used on the phone.</li>
+    <li>Newest-first cards showing title, file type, publish time, project, task, and publisher.</li>
+    <li>Tap the title to open the artifact; tap the task tag to return to the exact Operator task.</li>
+    <li>Search by title, project, or task; simple type filters can be added without creating folders.</li>
+    <li>HTML opens in a constrained preview so an agent-generated document cannot control the Operator application itself.</li>
+  </ul>
+
+  <h2>Transcript improvements in the same release</h2>
+  <ul>
+    <li><strong>No disappearing replies:</strong> every main-composer submission and every question-card answer becomes a permanent chronological “You” entry. Reloading must reproduce it exactly.</li>
+    <li><strong>Timestamps:</strong> every user entry and assistant prose section shows its local time; older dates include the date as well.</li>
+    <li><strong>Copy controls:</strong> every user or assistant message gets a Copy button, and every fenced code block gets its own Copy button. This covers links and prose even when the agent did not format them as code.</li>
+    <li><strong>Mobile behavior:</strong> controls remain visible and finger-sized on touch devices; desktop can use quieter hover styling without hiding keyboard access.</li>
+  </ul>
+
+  <h2>Evidence from the current code</h2>
+  <p><span class="known">Already available:</span> Operator is remotely reachable through its private hostname, runs persistent managed services, stores message timestamps in SQLite, and already recognizes HTML as a deliverable type.</p>
+  <p><span class="known">Actual gaps:</span> the transcript client currently drops stored message timestamps, question-card answers are rendered differently from normal user messages, Markdown has no copy controls, and there is no durable global artifact registry or browsing route.</p>
+
+  <h2>Scope boundary</h2>
+  <p>This first release should support explicitly published files, a global recent-first library, secure HTML viewing, task provenance, copying, durable user replies, and timestamps. Sharing artifacts publicly, editing them in-browser, automatic repository scanning, folders, and version comparison should wait until real use demonstrates a need.</p>
+
+  <footer>Prepared for Geo as a design-options analysis. This document proposes architecture only; it does not change Operator behavior.</footer>
+</main>
+</body>
+</html>

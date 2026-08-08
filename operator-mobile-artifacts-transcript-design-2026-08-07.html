@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Operator Mobile Artifacts and Durable Transcript Design</title>
+  <style>
+    :root{color-scheme:light dark;--bg:#f4f0e8;--paper:#fffdf8;--ink:#24211d;--muted:#6d665d;--line:#d9d0c3;--accent:#b65332;--soft:#f3e2d8;--green:#477452}
+    @media(prefers-color-scheme:dark){:root{--bg:#171613;--paper:#211f1b;--ink:#f2ede4;--muted:#bbb2a6;--line:#403b34;--accent:#e08a67;--soft:#3a2921;--green:#87b991}}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.58 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    main{max-width:920px;margin:auto;padding:30px 18px 70px} h1{font-size:clamp(32px,7vw,54px);line-height:1.02;letter-spacing:-.045em;margin:6px 0 14px}
+    h2{font-size:23px;margin:38px 0 12px} h3{font-size:17px;margin:0 0 7px} p{margin:0 0 12px}.lede{font-size:18px;color:var(--muted);max-width:760px}
+    .eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.09em;font-weight:800;color:var(--accent)}
+    .approved{margin:26px 0;padding:18px 20px;border:2px solid var(--accent);border-radius:14px;background:var(--soft)}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.card{padding:18px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+    ul,ol{padding-left:22px;margin:9px 0}li{margin:7px 0}code{padding:2px 6px;border:1px solid var(--line);border-radius:5px;background:var(--paper);word-break:break-word}
+    table{border-collapse:collapse;width:100%;background:var(--paper);font-size:14px}th,td{padding:9px;border:1px solid var(--line);text-align:left;vertical-align:top}th{background:var(--soft)}
+    .flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.flow span{padding:9px 11px;background:var(--paper);border:1px solid var(--line);border-radius:8px}.flow b{color:var(--accent)}
+    .yes{color:var(--green);font-weight:750}.no{color:var(--muted)}footer{margin-top:42px;padding-top:18px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+    @media(max-width:680px){main{padding-top:22px}.grid{grid-template-columns:1fr}table{font-size:12px}th,td{padding:7px}}
+  </style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">Approved design · August 7, 2026</div>
+  <h1>Operator Mobile Artifacts and Durable Transcript</h1>
+  <p class="lede">One private Operator URL for every deliberately published deliverable, plus a transcript where Geo can always find, timestamp, and copy both sides of the conversation.</p>
+
+  <section class="approved">
+    <div class="eyebrow">Core decision</div>
+    <h3>Build this into Operator, not a second repository or server.</h3>
+    <p>Operator already supplies the authenticated phone-accessible origin, persistent server, project and task identities, and conversation context. The new capability adds a global artifact registry and repairs the missing transcript affordances in the same release.</p>
+  </section>
+
+  <h2>The finished experience</h2>
+  <div class="grid">
+    <article class="card"><h3>Publish in ordinary language</h3><p>Geo says “Publish that artifact” or “Publish report.html.” The agent calls the built-in <code>publish_artifact</code> tool and returns a stable Open button and copyable link.</p></article>
+    <article class="card"><h3>Find everything globally</h3><p><code>/artifacts</code> lists every deliberately published artifact newest-first, with search, file type, local time, project tag, and task tag.</p></article>
+    <article class="card"><h3>Return to the source task</h3><p>The task tag deep-links to <code>/?project=&lt;id&gt;&amp;task=&lt;id&gt;</code>. Browser Back returns to the artifact library.</p></article>
+    <article class="card"><h3>Trust the transcript</h3><p>Main-box submissions and question-card answers both become permanent “You” entries. Every human and assistant prose section shows time and a Copy button.</p></article>
+  </div>
+
+  <h2>Publishing flow</h2>
+  <div class="flow"><span>Geo asks for publication</span><b>→</b><span>Agent calls tool</span><b>→</b><span>Operator validates and snapshots</span><b>→</b><span>Artifact card appears</span><b>→</b><span>Phone opens stable URL</span></div>
+  <p>Publishing is explicit. Operator will not scan repositories or automatically collect every HTML file, which would pull in app shells, generated output, dependencies, and fixtures.</p>
+
+  <h2>Durable artifact storage</h2>
+  <p>Published bytes are copied outside repositories and worktrees to <code>&lt;DB_DIR&gt;/artifacts/&lt;artifact-id&gt;/&lt;server-name&gt;</code>. The source can later be deleted or its worktree pruned without breaking the published URL.</p>
+  <table>
+    <thead><tr><th>Stored metadata</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td>Artifact, project, task, and generation ids</td><td>Stable identity and exact provenance</td></tr>
+      <tr><td>Title, filename, MIME type, and byte size</td><td>Library display and safe serving</td></tr>
+      <tr><td>SHA-256 checksum</td><td>Integrity and future deduplication</td></tr>
+      <tr><td>Creation timestamp</td><td>Reliable newest-first ordering and local-time display</td></tr>
+    </tbody>
+  </table>
+  <p>The first release accepts one file per tool call, up to 10 MB, using Operator’s existing deliverable allowlist: HTML, PDF, Office files, images, text/data formats, SVG, and ZIP.</p>
+
+  <h2>Safety boundary for HTML</h2>
+  <p>HTML opens inside a sandboxed iframe on an artifact detail page. The content response disables scripts and top navigation, isolates the document from Operator cookies and storage, allows inline styles and ordinary images, and always offers Download original. Script-enabled interactive HTML is intentionally outside the first release.</p>
+
+  <h2>Transcript changes</h2>
+  <ul>
+    <li><strong>Existing timestamps are preserved:</strong> SQLite already stores <code>created_at</code>; snapshots and live events will stop dropping it.</li>
+    <li><strong>Question answers become first-class entries:</strong> after a live answer is accepted, Operator stores a readable user message tagged <code>ask_answer</code> and keyed by ask id so retry cannot duplicate it.</li>
+    <li><strong>No double-send:</strong> a visible live-answer entry is transcript metadata because the structured answer already reached the waiting agent. If the live ask is gone, the fallback normal resume remains the only agent input.</li>
+    <li><strong>No user collapse:</strong> user entries are never condensed. Assistant tool machinery may remain condensed, but every assistant prose section retains its own timestamp and Copy control.</li>
+  </ul>
+
+  <h2>Copy behavior</h2>
+  <ul>
+    <li>Every user and assistant message has a Copy button.</li>
+    <li>Whole-message copy returns readable source text and Markdown URLs, without speaker names, timestamps, or UI labels.</li>
+    <li>Every fenced code block has a separate Copy button that copies code only.</li>
+    <li>Touch controls remain visible and finger-sized; desktop controls may be visually quiet until hover or focus.</li>
+    <li>Success briefly reports “Copied.” Failure is visible and leaves the text selectable.</li>
+  </ul>
+
+  <h2>Routes and navigation</h2>
+  <table>
+    <thead><tr><th>Route</th><th>Responsibility</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET /api/artifacts</code></td><td>Recent-first metadata feed with bounded search, type filter, and pagination</td></tr>
+      <tr><td><code>GET /api/artifacts/&lt;id&gt;</code></td><td>Single artifact metadata</td></tr>
+      <tr><td><code>GET /api/artifacts/&lt;id&gt;/content</code></td><td>Authenticated, constrained inline preview</td></tr>
+      <tr><td><code>GET /api/artifacts/&lt;id&gt;/download</code></td><td>Original bytes with safe attachment filename</td></tr>
+      <tr><td><code>POST /api/internal/agent-tools/publish-artifact</code></td><td>Authenticated bridge used by Codex-style harnesses</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Failure behavior</h2>
+  <ul>
+    <li>A failed publication never modifies the source file.</li>
+    <li>File-copy and database-insert failures are rolled back best-effort so no false library entry remains.</li>
+    <li>Missing stored bytes show an unavailable state without exposing a filesystem path.</li>
+    <li>A question answer is not shown as saved unless persistence succeeds; populated controls remain available for retry.</li>
+    <li>Artifact-feed errors show Retry without breaking the rest of Operator.</li>
+  </ul>
+
+  <h2>Verification required</h2>
+  <p class="yes">The release is not complete until the following are verified:</p>
+  <ul>
+    <li>Traversal and symlink escapes are rejected; worktree removal does not break published files.</li>
+    <li>HTML cannot run a script, navigate Operator, or access its authenticated origin state.</li>
+    <li>Main-box messages and question-card answers survive reload with exact timestamps.</li>
+    <li>Live answers reach the agent exactly once and retries do not duplicate transcript entries.</li>
+    <li>Message and code copy work with mouse, keyboard, and touch.</li>
+    <li>Claude, native Codex, and LiteLLM Codex all receive the publish tool.</li>
+    <li>The full Operator verification suite and production build pass.</li>
+  </ul>
+
+  <h2>Not in this release</h2>
+  <p class="no">No separate artifact server, automatic filesystem scanning, public sharing, folders, custom tags, in-browser editing, version comparison, script-enabled HTML, or automatic import of old files.</p>
+
+  <h2>Implementation slices</h2>
+  <ol>
+    <li>Artifact schema, storage, and publish-domain function.</li>
+    <li>Agent tool and portable bridge.</li>
+    <li>Authenticated routes and safe preview.</li>
+    <li>Global mobile artifact library and deep links.</li>
+    <li>Timestamp propagation and rendering.</li>
+    <li>Durable, idempotent question-answer transcript entries.</li>
+    <li>Message-level and code-block copy controls.</li>
+    <li>Integrated mobile, security, and regression verification.</li>
+  </ol>
+
+  <footer>This is the easy-reading HTML companion to the repository specification at <code>docs/superpowers/specs/2026-08-07-operator-mobile-artifacts-transcript-design.md</code>.</footer>
+</main>
+</body>
+</html>
