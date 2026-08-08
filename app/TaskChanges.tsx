@@ -503,7 +503,11 @@ export default function TaskChanges({
                   Resolve manually
                 </button>
                 {onResolveWithAI && (
-                  <button className="tc-btn primary" onClick={doResolveWithAI} disabled={resolving || merging}>
+                  <button
+                    className="tc-btn primary"
+                    onClick={doResolveWithAI}
+                    disabled={resolving || merging || loading || data.projectDirty}
+                  >
                     {resolving ? "Resolving…" : "Fix with AI"}
                   </button>
                 )}

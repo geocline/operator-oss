@@ -24,6 +24,7 @@ describe("Changes workspace clarity", () => {
     expect(component).toContain("data.projectDirty");
     expect(component).toContain("disabled={merging || resolving || loading || data.projectDirty}");
     expect(component).toContain("disabled={merging || prBusy || loading || data.projectDirty}");
+    expect(component).toContain("disabled={resolving || merging || loading || data.projectDirty}");
   });
 
   it("enforces the dirty-project preflight in every landing endpoint", () => {
