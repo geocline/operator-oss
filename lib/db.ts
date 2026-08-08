@@ -86,6 +86,24 @@ export function init(db: Database.Database) {
       created_at  INTEGER NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS artifacts (
+      id           TEXT PRIMARY KEY,
+      project_id   TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      task_id      TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      generation   INTEGER NOT NULL,
+      title        TEXT NOT NULL,
+      filename     TEXT NOT NULL,
+      content_type TEXT NOT NULL,
+      byte_size    INTEGER NOT NULL,
+      sha256       TEXT NOT NULL,
+      storage_name TEXT NOT NULL,
+      created_at   INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_artifacts_created
+      ON artifacts(created_at DESC, id DESC);
+    CREATE INDEX IF NOT EXISTS idx_artifacts_task
+      ON artifacts(task_id, created_at DESC);
+
     CREATE TABLE IF NOT EXISTS summaries (
       id          TEXT PRIMARY KEY,
       task_id     TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,

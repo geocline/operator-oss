@@ -69,6 +69,26 @@ export interface Message {
   created_at: number;
 }
 
+export interface Artifact {
+  id: string;
+  project_id: string;
+  task_id: string;
+  generation: number;
+  title: string;
+  filename: string;
+  content_type: string;
+  byte_size: number;
+  sha256: string;
+  storage_name: string;
+  created_at: number;
+}
+
+export interface ArtifactListItem extends Artifact {
+  project_name: string;
+  project_color: string;
+  task_title: string;
+}
+
 export interface Summary {
   id: string;
   task_id: string;
