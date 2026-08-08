@@ -15,7 +15,7 @@ import { capsFor, agentLabel, findAgent } from "./agents";
 import { StatusDot, Avatar, Popover, Skel } from "./shared";
 import { Modal } from "./Modal";
 import { jsend } from "./api";
-import { MessageView, SessionBreak } from "./Transcript";
+import { isFirstAssistantReply, MessageView, SessionBreak } from "./Transcript";
 import { Composer } from "./Composer";
 import { SessionRail } from "./SessionRail";
 import { ColResize, ColRail } from "./Layout";
@@ -468,9 +468,11 @@ export function SessionView({ project, task, agents, messages, running, blockedB
               {si > 0 && s.summaryBefore && <SessionBreak summary={s.summaryBefore} />}
               <div className="session-label"><span className="ln" />Session {s.n}{si === sessions.length - 1 ? " · current" : ""}<span className="ln" /></div>
               {s.messages.map((m, mi) => {
-                const prev = s.messages[mi - 1];
-                // collapse the repeated "Claude Code" header across an assistant run (text → tool → text)
-                const hideWho = m.role === "assistant" && !!prev && (prev.role === "assistant" || prev.role === "tool");
+                // Tool activity can precede the first prose reply. Show one
+                // response header there, then collapse later assistant chunks.
+                const hideWho =
+                  m.role === "assistant" &&
+                  !isFirstAssistantReply(s.messages, mi);
                 // Tool noise control: every tool call renders as its one-line
                 // header only, Claude Code style - the conversation is prose,
                 // the machinery is opt-in via the twirl. Errors still surface

@@ -789,7 +789,7 @@ a.tc-btn{display:inline-flex;align-items:center;text-decoration:none;line-height
 .msg .who .badge{font-size:9px;padding:1px 5px;border-radius:4px;background:var(--surface-2);color:var(--ink-3);letter-spacing:.04em;}
 .msg .who.continued{margin-top:-7px;}
 .msg-meta-spacer{flex:1;}
-.msg-time{font-weight:500;letter-spacing:0;text-transform:none;color:var(--ink-4);white-space:nowrap;}
+.msg-time{flex:0 0 auto;padding:3px 7px;border:1px solid var(--line-strong);border-radius:6px;background:var(--surface-2);color:var(--ink-2);font-size:10.5px;font-weight:750;letter-spacing:.01em;text-transform:none;white-space:nowrap;}
 .answer-badge{color:var(--accent-ink)!important;background:var(--accent-soft)!important;}
 .msg-copy{min-height:24px;padding:2px 7px;border:1px solid var(--line-2);border-radius:6px;background:var(--surface-2);color:var(--ink-3);font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.02em;text-transform:none;}
 .msg-copy:hover,.msg-copy:focus-visible{border-color:var(--line-strong);color:var(--ink);}
@@ -991,6 +991,7 @@ button.tpeek-more:hover{color:var(--accent-ink);}
   .artifact-detail-actions{margin-top:18px;}
   .artifact-preview iframe{height:calc(100dvh - 250px);min-height:440px;}
   .msg-copy,.code-copy{min-height:44px;min-width:44px;padding-inline:10px;}
+  .msg-time{padding:4px 8px;font-size:11px;}
   .artifact-msg-actions a,.artifact-msg-actions button{min-height:44px;}
   .md pre{padding-top:54px;}
 }

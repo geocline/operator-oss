@@ -36,13 +36,7 @@ function MessageTime({ value }: { value?: number }) {
   );
 }
 
-function ArtifactNoticeView({
-  notice,
-  createdAt,
-}: {
-  notice: ArtifactNotice;
-  createdAt?: number;
-}) {
+function ArtifactNoticeView({ notice }: { notice: ArtifactNotice }) {
   const absoluteUrl =
     typeof window === "undefined"
       ? notice.url
@@ -51,8 +45,6 @@ function ArtifactNoticeView({
     <div className="msg artifact-msg">
       <div className="artifact-msg-head">
         <span className="artifact-type">Published artifact</span>
-        <span className="msg-meta-spacer" />
-        <MessageTime value={createdAt} />
       </div>
       <div className="artifact-msg-title">{notice.title}</div>
       <div className="artifact-msg-file">{notice.filename}</div>
@@ -63,6 +55,18 @@ function ArtifactNoticeView({
       </div>
     </div>
   );
+}
+
+// A response can begin with tool activity before the agent produces prose.
+// Treat the first assistant prose after a user prompt as the response header,
+// then keep later prose chunks grouped without repeating timestamps.
+export function isFirstAssistantReply(messages: Msg[], index: number): boolean {
+  if (messages[index]?.role !== "assistant") return false;
+  for (let i = index - 1; i >= 0; i -= 1) {
+    if (messages[i].role === "assistant") return false;
+    if (messages[i].role === "user") return true;
+  }
+  return true;
 }
 
 // The always-visible "peek" tier — Claude Code's `⎿` line. Counts show no
@@ -255,10 +259,10 @@ export const MessageView = memo(function MessageView({ m, initial, hideWho, runn
     return (
       <div className="msg user queued">
         <div className="who">
+          <MessageTime value={m.createdAt} />
           <Avatar who="user" /> You
           <span className="badge queued-badge">queued</span>
           <span className="msg-meta-spacer" />
-          <MessageTime value={m.createdAt} />
           {text && <CopyButton text={text} label="Copy message" className="msg-copy" />}
         </div>
         <div className="msg-body">
@@ -281,7 +285,7 @@ export const MessageView = memo(function MessageView({ m, initial, hideWho, runn
     if (m.content.startsWith(ARTIFACT_NOTICE_PREFIX)) {
       const notice = decodeArtifactNotice(m.content);
       if (notice) {
-        return <ArtifactNoticeView notice={notice} createdAt={m.createdAt} />;
+        return <ArtifactNoticeView notice={notice} />;
       }
     }
     // A context-overflow failure: render the warning line plus a one-click path
@@ -349,12 +353,12 @@ export const MessageView = memo(function MessageView({ m, initial, hideWho, runn
   return (
     <div className={`msg ${isUser ? "user" : "assistant"} ${initial ? "initial" : ""}`}>
       <div className={`who${hideWho ? " continued" : ""}`}>
+        {!hideWho && <MessageTime value={m.createdAt} />}
         {!hideWho && <Avatar who={isUser ? "user" : "cc"} agent={agent} />}
         {!hideWho ? (isUser ? "You" : "Agent") : <span className="sr-only">Agent continuation</span>}
         {initial && <span className="badge">initial prompt</span>}
         {m.source === "ask_answer" && <span className="badge answer-badge">answer</span>}
         <span className="msg-meta-spacer" />
-        <MessageTime value={m.createdAt} />
         {text && <CopyButton text={text} label="Copy message" className="msg-copy" />}
       </div>
       <div className="msg-body">
