@@ -153,7 +153,7 @@ export function useOrchestrator() {
   const brokenAgents = useMemo(() => agents.agents.filter((a) => !!a.authBroken), [agents]);
 
   // ---------- live task event stream + transcript state ----------
-  const { msgsByTask, appendMsg, setAnswerOnMsg } = useTaskStream({
+  const { msgsByTask, appendMsg } = useTaskStream({
     selTask, selProjRef, agentsRef, setTaskRunning, setTasks, setProjects, loadTasks,
   });
   // Always-open global lifecycle stream (GET /api/events): keeps spinners,
@@ -320,7 +320,6 @@ export function useOrchestrator() {
   // If nothing was waiting (e.g. the turn was torn down by a page reload), resume
   // the session with the answer as a normal reply.
   const answerQuestion = useCallback(async (taskId: string, askId: string, questions: AskQuestion[], answers: AskAnswers) => {
-    setAnswerOnMsg(taskId, askId, answers); // optimistic — the stream echoes ask_answered
     try {
       // No tool_use id to resolve against — e.g. a question persisted before
       // ask-id tracking was added, or one whose turn was already torn down. The
@@ -331,8 +330,9 @@ export function useOrchestrator() {
       if (!resolved) await runTurn(taskId, formatAnswersText(questions, answers), false);
     } catch (err) {
       appendMsg(taskId, { id: `e-${Date.now()}`, role: "system", content: err instanceof Error ? err.message : String(err), generation: tasks.find((t) => t.id === taskId)?.generation ?? 1 });
+      throw err;
     }
-  }, [runTurn, tasks, appendMsg, setAnswerOnMsg]);
+  }, [runTurn, tasks, appendMsg]);
 
   // Interrupt a running turn — the ONLY way one stops early now that turns are
   // detached from connections. The server aborts the SDK query, persists the

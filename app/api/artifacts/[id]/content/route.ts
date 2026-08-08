@@ -37,9 +37,11 @@ export async function GET(
     "Cache-Control": "private, max-age=3600",
     "X-Content-Type-Options": "nosniff",
   });
-  if (artifact.content_type.startsWith("text/html")) {
+  if (
+    artifact.content_type.startsWith("text/html") ||
+    artifact.content_type === "image/svg+xml"
+  ) {
     headers.set("Content-Security-Policy", HTML_CSP);
   }
   return new Response(new Uint8Array(bytes), { headers });
 }
-

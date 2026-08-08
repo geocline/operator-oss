@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
 import { publishTaskArtifact } from "@/lib/artifactTool";
 import { createProject, createTask } from "@/lib/store";
+import { listMessages } from "@/lib/store";
 import { POST } from "@/app/api/internal/agent-tools/publish-artifact/route";
 
 function fixture(label: string) {
@@ -30,6 +31,11 @@ describe("publish_artifact agent tool", () => {
     expect(result.url).toMatch(/\/artifacts\/[^/]+$/);
     expect(result.libraryUrl).toMatch(/\/artifacts$/);
     expect(result.text).toContain(result.url);
+    expect(listMessages(task.id).at(-1)).toMatchObject({
+      role: "system",
+      source: "chat",
+    });
+    expect(listMessages(task.id).at(-1)?.content).toContain("__ORCH_ARTIFACT__:");
   });
 
   it("routes portable harness calls through task and project scope", async () => {
@@ -75,5 +81,11 @@ describe("publish_artifact agent tool", () => {
     expect(claude).toContain("PUBLISH_ARTIFACT");
     expect(bridge).toContain("PUBLISH_ARTIFACT");
     expect(bridge).toContain('callInternal("publish-artifact"');
+    const transcript = fs.readFileSync(
+      path.join(process.cwd(), "app/orchestrator/Transcript.tsx"),
+      "utf8",
+    );
+    expect(transcript).toContain("ARTIFACT_NOTICE_PREFIX");
+    expect(transcript).toContain("View all artifacts");
   });
 });

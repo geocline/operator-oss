@@ -1,4 +1,8 @@
-import { addAskAnswerMessage, getTask } from "@/lib/store";
+import {
+  addAskAnswerMessage,
+  getAskAnswerMessage,
+  getTask,
+} from "@/lib/store";
 import { submitAnswer } from "@/lib/asks";
 import { publish } from "@/lib/events";
 import type { AskAnswers, AskQuestion } from "@/lib/types";
@@ -19,10 +23,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   const task = getTask(id)!;
+  // A successful response can be lost on the network and retried. The durable
+  // user row is the receipt: report the original success instead of falling
+  // through to resolved:false, which would send the same answer as a new turn.
+  if (getAskAnswerMessage(id, askId)) {
+    return Response.json({ resolved: true, replayed: true });
+  }
   const resolved = submitAnswer(id, askId, answers, (questions: AskQuestion[]) => {
     const lines = questions.map((question, index) => {
       const picked = (answers[index] ?? []).filter((value) => value?.trim());
-      return `- ${question.header || question.question}: ${picked.length ? picked.join(", ") : "(no selection)"}`;
+      const label = question.header
+        ? `${question.question} (${question.header})`
+        : question.question;
+      return `- ${label}: ${picked.length ? picked.join(", ") : "(no selection)"}`;
     });
     const content =
       `Answering your question${questions.length > 1 ? "s" : ""}:\n${lines.join("\n")}`;

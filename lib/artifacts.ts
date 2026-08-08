@@ -223,3 +223,15 @@ export function removeArtifactFilesForTask(taskId: string): void {
   }
 }
 
+export function removeArtifactFilesForProject(projectId: string): void {
+  const rows = getDb()
+    .prepare("SELECT * FROM artifacts WHERE project_id = ?")
+    .all(projectId) as Artifact[];
+  for (const row of rows) {
+    try {
+      fs.rmSync(path.dirname(artifactPath(row)), { recursive: true, force: true });
+    } catch {
+      // Best-effort cleanup; metadata cascade remains authoritative.
+    }
+  }
+}

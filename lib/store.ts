@@ -6,6 +6,10 @@ import { getDb } from "./db";
 // break sync route entries at runtime (see the note in that file).
 import { modelContextWindow } from "./agents/capabilities";
 import { SERVICE_PORT_BASE } from "./config";
+import {
+  removeArtifactFilesForProject,
+  removeArtifactFilesForTask,
+} from "./artifacts";
 import type { Project, Task, Message, PendingMessage, Summary, TaskNote, Session, Priority, Status, MsgRole, TurnUsage, UsageTotals } from "./types";
 
 // ---------- projects ----------
@@ -355,6 +359,7 @@ export function reorderProjects(ids: string[]) {
 
 export function deleteProject(id: string) {
   // Cascades to the project's tasks, messages and summaries (FK ON DELETE CASCADE).
+  removeArtifactFilesForProject(id);
   getDb().prepare("DELETE FROM projects WHERE id = ?").run(id);
 }
 
@@ -559,6 +564,7 @@ export function updateTask(id: string, patch: Partial<Task>): Task | undefined {
 }
 
 export function deleteTask(id: string) {
+  removeArtifactFilesForTask(id);
   getDb().prepare("DELETE FROM tasks WHERE id = ?").run(id);
 }
 
@@ -665,6 +671,17 @@ export function addAskAnswerMessage(
       "SELECT * FROM messages WHERE task_id = ? AND source = 'ask_answer' AND source_id = ?",
     )
     .get(taskId, askId) as Message;
+}
+
+export function getAskAnswerMessage(
+  taskId: string,
+  askId: string,
+): Message | undefined {
+  return getDb()
+    .prepare(
+      "SELECT * FROM messages WHERE task_id = ? AND source = 'ask_answer' AND source_id = ?",
+    )
+    .get(taskId, askId) as Message | undefined;
 }
 
 export function updateMessage(id: string, content: string) {

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { getDb } from "@/lib/db";
-import { createProject, createTask } from "@/lib/store";
+import { createProject, createTask, deleteProject, deleteTask } from "@/lib/store";
 import {
   artifactPath,
   getArtifact,
@@ -119,5 +119,41 @@ describe("artifact storage", () => {
     const download = await downloadRoute(new Request("http://operator.test"), params);
     expect(download.headers.get("content-disposition")).toContain("attachment");
     expect(download.headers.get("content-disposition")).toContain("report.html");
+  });
+
+  it("removes durable bytes when the source task or project is deleted", () => {
+    const first = fixture();
+    writeFile(first.repo, "task.html", "<h1>Task</h1>");
+    const taskArtifact = publishArtifact({
+      project: first.project,
+      task: first.task,
+      sourcePath: "task.html",
+    });
+    const taskPath = artifactPath(taskArtifact);
+    deleteTask(first.task.id);
+    expect(fs.existsSync(taskPath)).toBe(false);
+
+    const second = fixture();
+    writeFile(second.repo, "project.html", "<h1>Project</h1>");
+    const projectArtifact = publishArtifact({
+      project: second.project,
+      task: second.task,
+      sourcePath: "project.html",
+    });
+    const projectPath = artifactPath(projectArtifact);
+    deleteProject(second.project.id);
+    expect(fs.existsSync(projectPath)).toBe(false);
+  });
+
+  it("applies the active-content sandbox to SVG served inline", async () => {
+    const { repo, project, task } = fixture();
+    writeFile(repo, "active.svg", '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
+    const artifact = publishArtifact({ project, task, sourcePath: "active.svg" });
+    const content = await contentRoute(
+      new Request("http://operator.test"),
+      { params: Promise.resolve({ id: artifact.id }) },
+    );
+    expect(content.headers.get("content-security-policy")).toContain("sandbox");
+    expect(content.headers.get("content-security-policy")).toContain("script-src 'none'");
   });
 });

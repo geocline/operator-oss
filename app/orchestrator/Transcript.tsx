@@ -11,6 +11,11 @@ import { USAGE_LIMIT_NOTICE } from "@/lib/usageLimit";
 import type { Msg } from "./types";
 import { Avatar } from "./shared";
 import { CopyButton } from "../CopyButton";
+import {
+  ARTIFACT_NOTICE_PREFIX,
+  decodeArtifactNotice,
+  type ArtifactNotice,
+} from "@/lib/artifactNotice";
 
 function MessageTime({ value }: { value?: number }) {
   if (!value) return null;
@@ -28,6 +33,35 @@ function MessageTime({ value }: { value?: number }) {
         minute: "2-digit",
       })}
     </time>
+  );
+}
+
+function ArtifactNoticeView({
+  notice,
+  createdAt,
+}: {
+  notice: ArtifactNotice;
+  createdAt?: number;
+}) {
+  const absoluteUrl =
+    typeof window === "undefined"
+      ? notice.url
+      : new URL(notice.url, window.location.origin).toString();
+  return (
+    <div className="msg artifact-msg">
+      <div className="artifact-msg-head">
+        <span className="artifact-type">Published artifact</span>
+        <span className="msg-meta-spacer" />
+        <MessageTime value={createdAt} />
+      </div>
+      <div className="artifact-msg-title">{notice.title}</div>
+      <div className="artifact-msg-file">{notice.filename}</div>
+      <div className="artifact-msg-actions">
+        <a href={notice.url} target="_blank" rel="noreferrer">Open artifact</a>
+        <CopyButton text={absoluteUrl} label="Copy link" />
+        <a href={notice.libraryUrl}>View all artifacts</a>
+      </div>
+    </div>
   );
 }
 
@@ -113,11 +147,12 @@ function ToolView({ data, condensed }: { data: ToolData; condensed?: boolean }) 
 
 // Interactive AskUserQuestion card: option pickers (+ an "Other" free-text per
 // question) while pending; a read-only summary once answered.
-function AskView({ data, agentLabel, onAnswer }: { data: ToolData; agentLabel: string; onAnswer: (answers: AskAnswers) => void }) {
+function AskView({ data, agentLabel, onAnswer }: { data: ToolData; agentLabel: string; onAnswer: (answers: AskAnswers) => Promise<void> }) {
   const questions = data.ask?.questions ?? [];
   const existing = data.ask?.answers;
   const [state, setState] = useState(() => questions.map(() => ({ picked: [] as string[], other: "" })));
   const [submitted, setSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   if (existing) {
     return (
@@ -147,7 +182,17 @@ function AskView({ data, agentLabel, onAnswer }: { data: ToolData; agentLabel: s
 
   const answers: AskAnswers = state.map((st) => [...st.picked, ...(st.other.trim() ? [st.other.trim()] : [])]);
   const complete = answers.every((a) => a.length > 0);
-  const submit = () => { if (complete && !submitted) { setSubmitted(true); onAnswer(answers); } };
+  const submit = async () => {
+    if (!complete || submitted) return;
+    setSubmitted(true);
+    setSubmitError("");
+    try {
+      await onAnswer(answers);
+    } catch {
+      setSubmitted(false);
+      setSubmitError("Your answer was not saved. Try again.");
+    }
+  };
 
   return (
     <div className="ask">
@@ -167,7 +212,8 @@ function AskView({ data, agentLabel, onAnswer }: { data: ToolData; agentLabel: s
         </div>
       ))}
       <div className="ask-foot">
-        <button className="btn btn-accent btn-sm" onClick={submit} disabled={!complete || submitted}>{submitted ? "Sending…" : "Send answer"}</button>
+        {submitError && <span className="ask-submit-error" role="alert">{submitError}</span>}
+        <button className="btn btn-accent btn-sm" onClick={() => void submit()} disabled={!complete || submitted}>{submitted ? "Sending…" : submitError ? "Retry answer" : "Send answer"}</button>
       </div>
     </div>
   );
@@ -201,7 +247,7 @@ function AttachmentStrip({ items }: { items: MsgAttachment[] }) {
 // changes), so unchanged messages skip re-rendering — and re-parsing their
 // markdown — entirely. Callers must pass identity-stable handlers or the memo
 // is defeated (SessionView wraps its handlers for exactly this reason).
-export const MessageView = memo(function MessageView({ m, initial, hideWho, running, agent, agentLabel = "The agent", condensed, onAnswer, onCancelQueued, onClear, onReconnect }: { m: Msg; initial: boolean; hideWho: boolean; running?: boolean; agent?: string | null; agentLabel?: string; condensed?: boolean; onAnswer?: (askId: string, questions: AskQuestion[], answers: AskAnswers) => void; onCancelQueued?: (pendingId: string) => void; onClear?: () => void; onReconnect?: () => void }) {
+export const MessageView = memo(function MessageView({ m, initial, hideWho, running, agent, agentLabel = "The agent", condensed, onAnswer, onCancelQueued, onClear, onReconnect }: { m: Msg; initial: boolean; hideWho: boolean; running?: boolean; agent?: string | null; agentLabel?: string; condensed?: boolean; onAnswer?: (askId: string, questions: AskQuestion[], answers: AskAnswers) => Promise<void> | undefined; onCancelQueued?: (pendingId: string) => void; onClear?: () => void; onReconnect?: () => void }) {
   if (m.role === "queued") {
     // A follow-up the user typed mid-turn, waiting its turn. Reads like a user
     // bubble but dimmed, tagged "Queued", with an × to drop it before it runs.
@@ -227,11 +273,17 @@ export const MessageView = memo(function MessageView({ m, initial, hideWho, runn
     let data: ToolData;
     try { data = JSON.parse(m.content) as ToolData; } catch { data = { title: m.content }; }
     if (data.ask) {
-      return <div className="msg msg-tool"><AskView data={data} agentLabel={agentLabel} onAnswer={(answers) => onAnswer?.(data.ask?.id || m.toolId || "", data.ask?.questions ?? [], answers)} /></div>;
+      return <div className="msg msg-tool"><AskView data={data} agentLabel={agentLabel} onAnswer={async (answers) => { await onAnswer?.(data.ask?.id || m.toolId || "", data.ask?.questions ?? [], answers); }} /></div>;
     }
     return <div className="msg msg-tool"><ToolView data={data} condensed={condensed} /></div>;
   }
   if (m.role === "system") {
+    if (m.content.startsWith(ARTIFACT_NOTICE_PREFIX)) {
+      const notice = decodeArtifactNotice(m.content);
+      if (notice) {
+        return <ArtifactNoticeView notice={notice} createdAt={m.createdAt} />;
+      }
+    }
     // A context-overflow failure: render the warning line plus a one-click path
     // to /clear, which resets the poisoned session and starts a fresh window
     // (carrying a summary over). The notice string is matched verbatim — it's

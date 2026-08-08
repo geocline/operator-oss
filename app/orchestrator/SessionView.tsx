@@ -289,10 +289,12 @@ function TaskHero({ task, project, onStart, onEdit, running, blockedBy }: { task
 // on every render, which would defeat MessageView's memo — the wrapper keeps one
 // function identity for the component's lifetime while always invoking the
 // latest handler.
-function useStableHandler<A extends unknown[]>(fn?: (...args: A) => void): (...args: A) => void {
+function useStableHandler<A extends unknown[], R>(
+  fn?: (...args: A) => R,
+): (...args: A) => R | undefined {
   const ref = useRef(fn);
   ref.current = fn;
-  return useCallback((...args: A) => { ref.current?.(...args); }, []);
+  return useCallback((...args: A) => ref.current?.(...args), []);
 }
 
 export function SessionView({ project, task, agents, messages, running, blockedBy, transcriptLoading, onSend, onStart, onStop, onClear, onHandoff, onSetAgent, focused, onToggleFocus, onEdit, onReconnect, onSetStatus, onSetPriority, onSetModel, onSetReasoning, onSetPermission, onResolveWithAI, onMerged, onPrCreated, onAnswer, onCancelQueued, onBack, mobile, railW, onRailWidth, onRailReset, railCollapsed, onRailCollapse, onRailExpand }: {
@@ -315,7 +317,7 @@ export function SessionView({ project, task, agents, messages, running, blockedB
   onResolveWithAI: (taskId: string) => Promise<ResolveResult>;
   onMerged?: () => void;
   onPrCreated?: (url: string) => void;
-  onAnswer: (askId: string, questions: AskQuestion[], answers: AskAnswers) => void;
+  onAnswer: (askId: string, questions: AskQuestion[], answers: AskAnswers) => Promise<void>;
   onCancelQueued: (pendingId: string) => void;
   onBack?: () => void; mobile?: boolean;
   railW: number; onRailWidth: (w: number) => void; onRailReset: () => void;

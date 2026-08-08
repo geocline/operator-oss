@@ -793,6 +793,13 @@ a.tc-btn{display:inline-flex;align-items:center;text-decoration:none;line-height
 .answer-badge{color:var(--accent-ink)!important;background:var(--accent-soft)!important;}
 .msg-copy{min-height:24px;padding:2px 7px;border:1px solid var(--line-2);border-radius:6px;background:var(--surface-2);color:var(--ink-3);font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.02em;text-transform:none;}
 .msg-copy:hover,.msg-copy:focus-visible{border-color:var(--line-strong);color:var(--ink);}
+.artifact-msg{padding:15px 16px;border:1px solid var(--accent);border-radius:var(--r-lg);background:var(--accent-soft);}
+.artifact-msg-head{display:flex;align-items:center;gap:9px;}
+.artifact-msg-title{margin-top:10px;font-size:15px;font-weight:750;color:var(--ink);}
+.artifact-msg-file{margin-top:2px;font-family:var(--mono);font-size:10px;color:var(--ink-3);overflow-wrap:anywhere;}
+.artifact-msg-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px;}
+.artifact-msg-actions a,.artifact-msg-actions button{min-height:36px;display:inline-flex;align-items:center;padding:0 11px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);color:var(--ink-2);font-size:11px;text-decoration:none;}
+.artifact-msg-actions a:first-child{background:var(--accent);border-color:var(--accent);color:#fff;}
 .msg .who .av{width:18px;height:18px;border-radius:5px;display:grid;place-items:center;color:#fff;font-size:10px;}
 .msg .who .av.you{background:linear-gradient(135deg,#C2603C,#D89A3A);}
 /* Assistant side: the agent's brand mark, drawn bare (no chip) in brand colour
@@ -892,6 +899,7 @@ button.tpeek-more:hover{color:var(--accent-ink);}
 .ask-other{padding:8px 11px;border:1px solid var(--line-2);border-radius:9px;background:var(--panel);font-size:12.5px;color:var(--ink-1);font-family:inherit;}
 .ask-other:focus{outline:none;border-color:var(--accent);}
 .ask-foot{display:flex;justify-content:flex-end;padding:11px 13px;border-top:1px solid var(--line-2);}
+.ask-submit-error{margin-right:auto;align-self:center;font-size:11px;color:var(--red);}
 .ask-picked{font-size:12.5px;color:var(--ink-2);font-weight:500;}
 
 /* ---------------- markdown (assistant / user message bodies) ---------------- */
@@ -983,6 +991,7 @@ button.tpeek-more:hover{color:var(--accent-ink);}
   .artifact-detail-actions{margin-top:18px;}
   .artifact-preview iframe{height:calc(100dvh - 250px);min-height:440px;}
   .msg-copy,.code-copy{min-height:44px;min-width:44px;padding-inline:10px;}
+  .artifact-msg-actions a,.artifact-msg-actions button{min-height:44px;}
   .md pre{padding-top:54px;}
 }
 

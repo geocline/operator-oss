@@ -1,6 +1,9 @@
 import { PUBLIC_BASE_URL } from "./config";
 import { publishArtifact } from "./artifacts";
 import type { Project, Task } from "./types";
+import { addMessage } from "./store";
+import { publish } from "./events";
+import { encodeArtifactNotice } from "./artifactNotice";
 
 export interface PublishTaskArtifactInput {
   path: string;
@@ -36,6 +39,25 @@ export function publishTaskArtifact(
   });
   const url = appUrl(`/artifacts/${artifact.id}`);
   const libraryUrl = appUrl("/artifacts");
+  const notice = addMessage(
+    task.id,
+    task.generation,
+    "system",
+    encodeArtifactNotice({
+      id: artifact.id,
+      title: artifact.title,
+      filename: artifact.filename,
+      url,
+      libraryUrl,
+    }),
+  );
+  publish(task.id, {
+    type: "notice",
+    content: notice.content,
+    msgId: notice.id,
+    generation: notice.generation,
+    createdAt: notice.created_at,
+  });
   return {
     status: "published",
     artifactId: artifact.id,
@@ -48,4 +70,3 @@ export function publishTaskArtifact(
       `All published artifacts: ${libraryUrl}.`,
   };
 }
-
