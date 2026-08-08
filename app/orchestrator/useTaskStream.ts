@@ -74,8 +74,24 @@ export function useTaskStream({ selTask, selProjRef, agentsRef, setTaskRunning, 
       // Authoritative catch-up: the full persisted transcript, then any parked
       // follow-ups as "queued" bubbles (so a reload mid-run re-renders them),
       // plus whether a turn is live right now (true after a reload mid-turn).
-      const committed: Msg[] = ev.messages.map((m) => ({ id: m.id, role: m.role, content: m.content, generation: m.generation }));
-      const queued: Msg[] = ev.pending.map((p) => ({ id: p.id, role: "queued" as const, content: p.content, generation: p.generation }));
+      const committed: Msg[] = ev.messages.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        generation: m.generation,
+        createdAt: m.created_at,
+        source: m.source,
+        sourceId: m.source_id,
+      }));
+      const queued: Msg[] = ev.pending.map((p) => ({
+        id: p.id,
+        role: "queued" as const,
+        content: p.content,
+        generation: p.generation,
+        createdAt: p.created_at,
+        source: "chat",
+        sourceId: null,
+      }));
       setMsgsByTask((prev) => ({ ...prev, [taskId]: [...committed, ...queued] }));
       // Rebuild the open-ask set from the persisted transcript so a reload
       // mid-turn (with asks still parked) counts them correctly.
@@ -92,14 +108,38 @@ export function useTaskStream({ selTask, selProjRef, agentsRef, setTaskRunning, 
       return;
     }
     const gen = ("generation" in ev ? ev.generation : undefined) ?? 1;
-    if (ev.type === "user") upsertMsg(taskId, { id: ev.msgId, role: "user", content: ev.content, generation: gen });
-    else if (ev.type === "queued") upsertMsg(taskId, { id: ev.msgId, role: "queued", content: ev.content, generation: gen });
+    if (ev.type === "user") upsertMsg(taskId, {
+      id: ev.msgId,
+      role: "user",
+      content: ev.content,
+      generation: gen,
+      createdAt: ev.createdAt,
+      source: ev.source,
+      sourceId: ev.sourceId,
+    });
+    else if (ev.type === "queued") upsertMsg(taskId, {
+      id: ev.msgId,
+      role: "queued",
+      content: ev.content,
+      generation: gen,
+      createdAt: ev.createdAt,
+      source: "chat",
+      sourceId: null,
+    });
     else if (ev.type === "dequeued") removeMsg(taskId, ev.msgId);
     else if (ev.type === "model") setTasks((prev) => prev.map((x) => (x.id === taskId ? { ...x, resolved_model: ev.model } : x)));
-    else if (ev.type === "assistant") upsertMsg(taskId, { id: ev.msgId ?? `a-${Date.now()}-${Math.random()}`, role: "assistant", content: ev.content, generation: gen });
+    else if (ev.type === "assistant") upsertMsg(taskId, {
+      id: ev.msgId ?? `a-${Date.now()}-${Math.random()}`,
+      role: "assistant",
+      content: ev.content,
+      generation: gen,
+      createdAt: ev.createdAt,
+      source: ev.source ?? "chat",
+      sourceId: ev.sourceId ?? null,
+    });
     else if (ev.type === "tool") {
       const data: ToolData = { title: ev.title, detail: ev.detail, peek: ev.peek, diff: ev.diff };
-      upsertMsg(taskId, { id: ev.msgId ?? `t-${Date.now()}-${Math.random()}`, role: "tool", content: JSON.stringify(data), generation: gen, toolId: ev.id });
+      upsertMsg(taskId, { id: ev.msgId ?? `t-${Date.now()}-${Math.random()}`, role: "tool", content: JSON.stringify(data), generation: gen, createdAt: ev.createdAt, toolId: ev.id });
     } else if (ev.type === "tool_result") {
       // Match by DB message id (works on snapshot-loaded messages too), falling
       // back to the in-memory tool_use id.
@@ -115,7 +155,7 @@ export function useTaskStream({ selTask, selProjRef, agentsRef, setTaskRunning, 
       });
     } else if (ev.type === "ask") {
       const data: ToolData = { title: "Question for you", ask: { id: ev.id, questions: ev.questions } };
-      upsertMsg(taskId, { id: ev.msgId ?? `ask-${ev.id}`, role: "tool", content: JSON.stringify(data), generation: gen, toolId: ev.id });
+      upsertMsg(taskId, { id: ev.msgId ?? `ask-${ev.id}`, role: "tool", content: JSON.stringify(data), generation: gen, createdAt: ev.createdAt, toolId: ev.id });
       (openAsksRef.current[taskId] ??= new Set()).add(ev.id);
       // Parked on a question: flag the row so it jumps to "Needs your input"
       // (and triggers a notification) while the turn is still live. Mirrors the
@@ -144,8 +184,8 @@ export function useTaskStream({ selTask, selProjRef, agentsRef, setTaskRunning, 
             cache_creation_tokens: (x.cache_creation_tokens ?? 0) + u.cache_creation_tokens,
             context_tokens: ctxTokens, context_pct: contextPct(ctxTokens, x.model, capsFor(agentsRef.current, x.agent)) }
         : x)));
-    } else if (ev.type === "notice") upsertMsg(taskId, { id: ev.msgId ?? `n-${Date.now()}`, role: "system", content: ev.content, generation: gen });
-    else if (ev.type === "error") upsertMsg(taskId, { id: ev.msgId ?? `e-${Date.now()}`, role: "system", content: ev.content, generation: gen });
+    } else if (ev.type === "notice") upsertMsg(taskId, { id: ev.msgId ?? `n-${Date.now()}`, role: "system", content: ev.content, generation: gen, createdAt: ev.createdAt });
+    else if (ev.type === "error") upsertMsg(taskId, { id: ev.msgId ?? `e-${Date.now()}`, role: "system", content: ev.content, generation: gen, createdAt: ev.createdAt });
     else if (ev.type === "suggested") { if (selProjRef.current) loadTasks(selProjRef.current, false); }
     else if (ev.type === "turn_end") {
       setTaskRunning(taskId, false);

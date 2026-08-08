@@ -11,6 +11,25 @@ import { USAGE_LIMIT_NOTICE } from "@/lib/usageLimit";
 import type { Msg } from "./types";
 import { Avatar } from "./shared";
 
+function MessageTime({ value }: { value?: number }) {
+  if (!value) return null;
+  const date = new Date(value);
+  return (
+    <time
+      className="msg-time"
+      dateTime={date.toISOString()}
+      title={date.toLocaleString()}
+    >
+      {date.toLocaleString([], {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })}
+    </time>
+  );
+}
+
 // The always-visible "peek" tier — Claude Code's `⎿` line. Counts show no
 // content; diffs/snippets show a capped hunk with a clickable "+N more" that
 // opens the full body. TodoWrite renders its checklist inline.
@@ -188,7 +207,12 @@ export const MessageView = memo(function MessageView({ m, initial, hideWho, runn
     const { text, attachments } = splitAttachments(m.content);
     return (
       <div className="msg user queued">
-        <div className="who"><Avatar who="user" /> You<span className="badge queued-badge">queued</span></div>
+        <div className="who">
+          <Avatar who="user" /> You
+          <span className="badge queued-badge">queued</span>
+          <span className="msg-meta-spacer" />
+          <MessageTime value={m.createdAt} />
+        </div>
         <div className="msg-body">
           {text && <Markdown>{text}</Markdown>}
           <AttachmentStrip items={attachments} />
@@ -270,13 +294,14 @@ export const MessageView = memo(function MessageView({ m, initial, hideWho, runn
   const { text, attachments } = isUser ? splitAttachments(m.content) : { text: m.content, attachments: [] };
   return (
     <div className={`msg ${isUser ? "user" : "assistant"} ${initial ? "initial" : ""}`}>
-      {!hideWho && (
-        <div className="who">
-          <Avatar who={isUser ? "user" : "cc"} agent={agent} />
-          {isUser ? "You" : "Agent"}
-          {initial && <span className="badge">initial prompt</span>}
-        </div>
-      )}
+      <div className={`who${hideWho ? " continued" : ""}`}>
+        {!hideWho && <Avatar who={isUser ? "user" : "cc"} agent={agent} />}
+        {!hideWho ? (isUser ? "You" : "Agent") : <span className="sr-only">Agent continuation</span>}
+        {initial && <span className="badge">initial prompt</span>}
+        {m.source === "ask_answer" && <span className="badge answer-badge">answer</span>}
+        <span className="msg-meta-spacer" />
+        <MessageTime value={m.createdAt} />
+      </div>
       <div className="msg-body">
         {initial && <div className="initial-tag">{Icon.spark()} sent with project context</div>}
         {text && <Markdown>{text}</Markdown>}

@@ -83,6 +83,8 @@ export function init(db: Database.Database) {
       generation  INTEGER NOT NULL DEFAULT 1,
       role        TEXT NOT NULL,
       content     TEXT NOT NULL,
+      source      TEXT NOT NULL DEFAULT 'chat',
+      source_id   TEXT,
       created_at  INTEGER NOT NULL
     );
 
@@ -477,6 +479,23 @@ export function migrate(db: Database.Database) {
       )
     `);
   }
+
+  // Message provenance makes question-card answers first-class user entries
+  // while keeping retries idempotent by their stable ask id.
+  const messageCols = (
+    db.prepare("PRAGMA table_info(messages)").all() as { name: string }[]
+  ).map((c) => c.name);
+  if (!messageCols.includes("source")) {
+    db.exec("ALTER TABLE messages ADD COLUMN source TEXT NOT NULL DEFAULT 'chat'");
+  }
+  if (!messageCols.includes("source_id")) {
+    db.exec("ALTER TABLE messages ADD COLUMN source_id TEXT");
+  }
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_source
+    ON messages(task_id, source, source_id)
+    WHERE source_id IS NOT NULL
+  `);
 
   // Orphan-reaping pid tracking for managed services (added after the services
   // table shipped; see lib/services.ts restoreServices).

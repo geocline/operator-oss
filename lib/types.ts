@@ -66,6 +66,8 @@ export interface Message {
   generation: number;
   role: MsgRole;
   content: string;
+  source: "chat" | "ask_answer";
+  source_id: string | null;
   created_at: number;
 }
 
@@ -253,9 +255,9 @@ export type StreamEvent =
 // as the next turn, or because it was cancelled. `snapshot` carries the parked
 // queue too, so a reload mid-run re-renders the queued bubbles.
 export type TaskStreamEvent =
-  | (StreamEvent & { msgId?: string; generation?: number })
-  | { type: "user"; content: string; msgId: string; generation: number }
-  | { type: "queued"; msgId: string; content: string; generation: number }
+  | (StreamEvent & { msgId?: string; generation?: number; createdAt?: number; source?: Message["source"]; sourceId?: string | null })
+  | { type: "user"; content: string; msgId: string; generation: number; createdAt: number; source: Message["source"]; sourceId: string | null }
+  | { type: "queued"; msgId: string; content: string; generation: number; createdAt: number }
   | { type: "dequeued"; msgId: string }
   | { type: "snapshot"; messages: Message[]; pending: PendingMessage[]; running: boolean }
   | AgentAuthEvent

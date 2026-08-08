@@ -106,6 +106,9 @@ export interface Msg {
   role: "user" | "assistant" | "tool" | "system" | "session_break" | "queued";
   content: string;
   generation: number;
+  createdAt?: number;
+  source?: "chat" | "ask_answer";
+  sourceId?: string | null;
   toolId?: string; // tool_use id, for merging the tool_result that arrives later
 }
 export interface ProjectSession {

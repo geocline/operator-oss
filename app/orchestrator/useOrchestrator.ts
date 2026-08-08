@@ -327,7 +327,7 @@ export function useOrchestrator() {
       // /answer route requires a non-empty askId, so skip it and just send the
       // choices as a normal reply, which resumes the current session.
       if (!askId) { await runTurn(taskId, formatAnswersText(questions, answers), false); return; }
-      const { resolved } = await jsend<{ resolved: boolean }>(`/api/tasks/${taskId}/answer`, "POST", { askId, answers });
+      const { resolved } = await jsend<{ resolved: boolean }>(`/api/tasks/${taskId}/answer`, "POST", { askId, questions, answers });
       if (!resolved) await runTurn(taskId, formatAnswersText(questions, answers), false);
     } catch (err) {
       appendMsg(taskId, { id: `e-${Date.now()}`, role: "system", content: err instanceof Error ? err.message : String(err), generation: tasks.find((t) => t.id === taskId)?.generation ?? 1 });

@@ -640,9 +640,31 @@ export function addMessage(taskId: string, generation: number, role: MsgRole, co
   const id = nanoid();
   const now = Date.now();
   getDb()
-    .prepare("INSERT INTO messages (id, task_id, generation, role, content, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+    .prepare("INSERT INTO messages (id, task_id, generation, role, content, source, source_id, created_at) VALUES (?, ?, ?, ?, ?, 'chat', NULL, ?)")
     .run(id, taskId, generation, role, content, now);
-  return { id, task_id: taskId, generation, role, content, created_at: now };
+  return { id, task_id: taskId, generation, role, content, source: "chat", source_id: null, created_at: now };
+}
+
+export function addAskAnswerMessage(
+  taskId: string,
+  generation: number,
+  askId: string,
+  content: string,
+): Message {
+  const id = nanoid();
+  const now = Date.now();
+  getDb()
+    .prepare(
+      `INSERT OR IGNORE INTO messages
+        (id, task_id, generation, role, content, source, source_id, created_at)
+       VALUES (?, ?, ?, 'user', ?, 'ask_answer', ?, ?)`,
+    )
+    .run(id, taskId, generation, content, askId, now);
+  return getDb()
+    .prepare(
+      "SELECT * FROM messages WHERE task_id = ? AND source = 'ask_answer' AND source_id = ?",
+    )
+    .get(taskId, askId) as Message;
 }
 
 export function updateMessage(id: string, content: string) {

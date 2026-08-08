@@ -81,9 +81,18 @@ export function waitForAnswer(
  * caller then falls back to resuming the session with the answer as a normal
  * reply.
  */
-export function submitAnswer(taskId: string, id: string, answers: AskAnswers): boolean {
-  const pending = remove(taskId, id);
+export function submitAnswer(
+  taskId: string,
+  id: string,
+  answers: AskAnswers,
+  beforeResolve?: (questions: AskQuestion[]) => void,
+): boolean {
+  const pending = registry().get(taskId)?.get(id);
   if (!pending) return false;
+  // Persist transcript state before consuming the waiter. If persistence throws,
+  // the ask remains answerable and the client can retry safely.
+  beforeResolve?.(pending.questions);
+  remove(taskId, id);
   pending.resolve(answers);
   return true;
 }
