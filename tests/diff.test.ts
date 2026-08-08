@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { ensureWorktree, mergeTask, taskDiff } from "../lib/git";
+import { ensureWorktree, mergeTask, projectCheckoutDirty, taskDiff } from "../lib/git";
 import { commitFile, git, makeRepo, makeRepoWithWorktree, uid, writeFile } from "./helpers";
 
 describe("taskDiff", () => {
@@ -225,5 +225,17 @@ describe("taskDiff", () => {
     const diff = await taskDiff(repo, wt.path, wt.baseSha, "main");
     expect(diff.base).toBe(wt.baseSha); // goalposts stay put
     expect(diff.files.map((f) => f.path)).toEqual(["work.txt"]);
+  });
+});
+
+describe("projectCheckoutDirty", () => {
+  it("reports whether the project checkout has uncommitted files", async () => {
+    const repo = await makeRepo();
+
+    expect(await projectCheckoutDirty(repo)).toBe(false);
+
+    writeFile(repo, "local-wip.txt", "not committed\n");
+    expect(await projectCheckoutDirty(repo)).toBe(true);
+    expect(await projectCheckoutDirty("/missing/project-checkout")).toBe(false);
   });
 });

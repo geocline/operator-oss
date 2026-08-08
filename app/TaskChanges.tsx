@@ -17,6 +17,9 @@ interface DiffResp {
   reason?: string;
   branch?: string;
   baseLabel?: string;
+  workspacePath?: string;
+  projectPath?: string;
+  projectDirty?: boolean;
   merged_at?: number;
   alreadyMerged?: boolean;
   files: DiffFile[];
@@ -408,7 +411,7 @@ export default function TaskChanges({
             <button className="tc-btn" onClick={doAbort} disabled={merging || resolving}>
               Discard
             </button>
-            <button className="tc-btn primary" onClick={doComplete} disabled={merging || resolving}>
+              <button className="tc-btn primary" onClick={doComplete} disabled={merging || resolving || data.projectDirty}>
               {merging ? "Merging…" : "Accept & merge"}
             </button>
           </>
@@ -433,7 +436,12 @@ export default function TaskChanges({
               </button>
             )}
             {pending && (
-              <button className="tc-btn primary" onClick={doMerge} disabled={merging || prBusy}>
+              <button
+                className="tc-btn primary"
+                onClick={doMerge}
+                disabled={merging || prBusy || data.projectDirty}
+                title={data.projectDirty ? "Commit or stash the project checkout's local changes before merging" : undefined}
+              >
                 {merging ? "Merging…" : merged ? "Merge new changes" : `Merge to ${data.baseLabel}`}
               </button>
             )}
@@ -441,6 +449,24 @@ export default function TaskChanges({
           </>
         )}
       </div>
+
+      <div className="tc-workspaces">
+        <div>
+          <span>Task workspace</span>
+          <code title={data.workspacePath}>{data.workspacePath || "Unavailable"}</code>
+        </div>
+        <div>
+          <span>Project checkout</span>
+          <code title={data.projectPath}>{data.projectPath || "Unavailable"}</code>
+        </div>
+      </div>
+
+      {data.projectDirty && pending && (
+        <div className="tc-mergebar bad">
+          <b>Merge blocked:</b> the project checkout has uncommitted files. Your task changes are safe in the
+          isolated workspace; commit or stash the project-checkout work, refresh this panel, then merge.
+        </div>
+      )}
 
       {reviewing && (
         <div className="tc-mergebar review">

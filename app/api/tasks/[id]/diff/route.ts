@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getTask, getProject, updateTask } from "@/lib/store";
-import { taskDiff, worktreeMergeStatus } from "@/lib/git";
+import { projectCheckoutDirty, taskDiff, worktreeMergeStatus } from "@/lib/git";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +14,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   // Tasks without an isolated worktree ran directly in the repo — nothing
   // branch-scoped to diff.
   if (!task.worktree_path) {
+    const projectDirty = await projectCheckoutDirty(project.repo_path);
     return NextResponse.json({
       isolated: false,
+      workspacePath: project.repo_path,
+      projectPath: project.repo_path,
+      projectDirty,
       files: [],
       patch: "",
       isDirty: false,
@@ -29,9 +33,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     // really "already merged" yet — report its state so the UI can show the
     // accept/discard review instead of a done badge. Both are read-only, so
     // they run concurrently.
-    const [diff, mergeState] = await Promise.all([
+    const [diff, mergeState, projectDirty] = await Promise.all([
       taskDiff(project.repo_path, task.worktree_path, task.base_sha, project.branch),
       worktreeMergeStatus(task.worktree_path),
+      projectCheckoutDirty(project.repo_path),
     ]);
     // Self-heal: taskDiff advances the diff base past the recorded snapshot
     // when the worktree was caught up to the base branch outside the app
@@ -60,6 +65,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({
       isolated: true,
       branch: task.work_branch,
+      workspacePath: task.worktree_path,
+      projectPath: project.repo_path,
+      projectDirty,
       merged_at,
       ...diff,
       mergeInProgress: mergeState.mergeInProgress,

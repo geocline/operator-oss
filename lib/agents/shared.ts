@@ -53,6 +53,16 @@ export function buildProjectContext(project: Project, task: Task): string {
   lines.push(`You are working inside the project "${project.name}".`);
   if (ctx) lines.push(`\nWhat we're building (project context):\n${ctx}`);
   if (project.branch) lines.push(`\nGit branch: ${project.branch}`);
+  if (task.worktree_path) {
+    lines.push(
+      `\nWorkspace and merge workflow:\n` +
+        `- Your writable isolated task workspace is \`${task.worktree_path}\`.\n` +
+        `- The project's checkout and merge target is \`${project.repo_path}\`.\n` +
+        `- Make all task edits in the task workspace. Operator keeps it separate so parallel tasks cannot collide.\n` +
+        `- Completed edits reach the project checkout through the task's Changes tab and merge action.\n` +
+        `- Do not describe the task workspace as the wrong folder, claim you are locked out because the project checkout is outside the sandbox, or recommend copying a temporary patch into the project checkout as the normal workflow.`
+    );
+  }
   lines.push(`\n---\nThe current task is: "${task.title}"`);
   if (task.description) lines.push(`Task details: ${task.description}`);
 

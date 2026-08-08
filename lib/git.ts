@@ -276,6 +276,13 @@ export interface TaskDiff {
   alreadyMerged: boolean; // every branch commit is reachable from the base branch
 }
 
+/** Read-only merge preflight: whether the user's project checkout has local work. */
+export async function projectCheckoutDirty(repoPath: string): Promise<boolean> {
+  if (!repoPath || !fs.existsSync(repoPath)) return false;
+  const status = await git(repoPath, ["status", "--porcelain"]).catch(() => "");
+  return status.trim().length > 0;
+}
+
 const MAX_FILE_PATCH = 60_000;
 
 const stdoutOf = (e: unknown): string =>
