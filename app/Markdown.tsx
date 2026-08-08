@@ -1,10 +1,37 @@
 "use client";
 
-import { memo } from "react";
+import { isValidElement, memo, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import type { ComponentProps } from "react";
+import { CopyButton } from "./CopyButton";
+
+function nodeText(node: ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(nodeText).join("");
+  if (isValidElement<{ children?: ReactNode }>(node)) {
+    return nodeText(node.props.children);
+  }
+  return "";
+}
+
+function MarkdownPre(
+  props: ComponentProps<"pre"> & { node?: unknown },
+) {
+  const { node: _node, children, ...preProps } = props;
+  const code = nodeText(children).replace(/\n$/, "");
+  return (
+    <div className="code-block">
+      <CopyButton
+        text={code}
+        label="Copy code"
+        className="code-copy"
+      />
+      <pre {...preProps}>{children}</pre>
+    </div>
+  );
+}
 
 // Renders Claude's markdown output: headings, lists, tables, fenced code blocks
 // (syntax-highlighted), inline code, links. Used for assistant + user messages.
@@ -21,6 +48,7 @@ export const Markdown = memo(function Markdown({ children }: { children: string 
         rehypePlugins={[[rehypeHighlight, { detect: false, ignoreMissing: true }]]}
         components={{
           a: (props: ComponentProps<"a">) => <a {...props} target="_blank" rel="noreferrer" />,
+          pre: MarkdownPre,
         }}
       >
         {children}

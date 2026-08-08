@@ -791,6 +791,8 @@ a.tc-btn{display:inline-flex;align-items:center;text-decoration:none;line-height
 .msg-meta-spacer{flex:1;}
 .msg-time{font-weight:500;letter-spacing:0;text-transform:none;color:var(--ink-4);white-space:nowrap;}
 .answer-badge{color:var(--accent-ink)!important;background:var(--accent-soft)!important;}
+.msg-copy{min-height:24px;padding:2px 7px;border:1px solid var(--line-2);border-radius:6px;background:var(--surface-2);color:var(--ink-3);font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.02em;text-transform:none;}
+.msg-copy:hover,.msg-copy:focus-visible{border-color:var(--line-strong);color:var(--ink);}
 .msg .who .av{width:18px;height:18px;border-radius:5px;display:grid;place-items:center;color:#fff;font-size:10px;}
 .msg .who .av.you{background:linear-gradient(135deg,#C2603C,#D89A3A);}
 /* Assistant side: the agent's brand mark, drawn bare (no chip) in brand colour
@@ -909,8 +911,11 @@ button.tpeek-more:hover{color:var(--accent-ink);}
 .md h4{font-size:13px;}
 .md code{font-family:var(--mono);font-size:12.5px;background:var(--surface-2);border:1px solid var(--line-2);padding:1px 5px;border-radius:5px;color:var(--accent-ink);}
 [data-theme="dark"] .md code{color:#E0A07F;}
-.md pre{margin:0 0 12px;background:var(--panel-2);border:1px solid var(--line-2);border-radius:var(--r);padding:12px 14px;overflow-x:auto;}
+.md .code-block{position:relative;margin:0 0 12px;}
+.md pre{margin:0;background:var(--panel-2);border:1px solid var(--line-2);border-radius:var(--r);padding:34px 14px 12px;overflow-x:auto;}
 .md pre code{display:block;background:none;border:none;padding:0;color:var(--ink);font-size:12.5px;line-height:1.55;}
+.code-copy{position:absolute;z-index:2;top:7px;right:7px;min-height:22px;padding:2px 7px;border:1px solid var(--line-strong);border-radius:6px;background:var(--surface);color:var(--ink-3);font-family:var(--mono);font-size:9px;}
+.code-copy:hover,.code-copy:focus-visible{color:var(--ink);border-color:var(--accent);}
 .md blockquote{margin:8px 0;padding:2px 0 2px 14px;border-left:3px solid var(--line-strong);color:var(--ink-2);}
 .md hr{border:none;border-top:1px solid var(--line);margin:14px 0;}
 .md table{border-collapse:collapse;margin:8px 0;font-size:13px;width:100%;}
@@ -977,6 +982,8 @@ button.tpeek-more:hover{color:var(--accent-ink);}
   .artifact-detail-head{display:block;padding:28px 0 18px;}
   .artifact-detail-actions{margin-top:18px;}
   .artifact-preview iframe{height:calc(100dvh - 250px);min-height:440px;}
+  .msg-copy,.code-copy{min-height:44px;min-width:44px;padding-inline:10px;}
+  .md pre{padding-top:54px;}
 }
 
 /* syntax highlighting (highlight.js token classes — warm palette, dual theme) */

@@ -10,6 +10,7 @@ import { AUTH_EXPIRED_NOTICE } from "@/lib/authFailure";
 import { USAGE_LIMIT_NOTICE } from "@/lib/usageLimit";
 import type { Msg } from "./types";
 import { Avatar } from "./shared";
+import { CopyButton } from "../CopyButton";
 
 function MessageTime({ value }: { value?: number }) {
   if (!value) return null;
@@ -212,6 +213,7 @@ export const MessageView = memo(function MessageView({ m, initial, hideWho, runn
           <span className="badge queued-badge">queued</span>
           <span className="msg-meta-spacer" />
           <MessageTime value={m.createdAt} />
+          {text && <CopyButton text={text} label="Copy message" className="msg-copy" />}
         </div>
         <div className="msg-body">
           {text && <Markdown>{text}</Markdown>}
@@ -301,6 +303,7 @@ export const MessageView = memo(function MessageView({ m, initial, hideWho, runn
         {m.source === "ask_answer" && <span className="badge answer-badge">answer</span>}
         <span className="msg-meta-spacer" />
         <MessageTime value={m.createdAt} />
+        {text && <CopyButton text={text} label="Copy message" className="msg-copy" />}
       </div>
       <div className="msg-body">
         {initial && <div className="initial-tag">{Icon.spark()} sent with project context</div>}
