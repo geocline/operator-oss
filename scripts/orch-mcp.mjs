@@ -27,6 +27,7 @@ import {
   SUGGEST_TASK,
   SUGGEST_TASK_DEPS_ENABLED,
   EXPOSE_SERVICE,
+  PUBLISH_ARTIFACT,
   ASK_USER,
   PUBLISH_WORKSTREAM_UPDATE,
   PROPOSE_CARD_CHANGE,
@@ -106,6 +107,24 @@ server.registerTool(
     if (data.id) createdByTitle.set(title, data.id);
     return { content: [{ type: "text", text: data.text }] };
   }
+);
+
+server.registerTool(
+  PUBLISH_ARTIFACT.name,
+  {
+    description: PUBLISH_ARTIFACT.description,
+    inputSchema: {
+      path: z.string().min(1).describe(PUBLISH_ARTIFACT.params.path),
+      title: z.string().optional().describe(PUBLISH_ARTIFACT.params.title),
+    },
+  },
+  async ({ path, title }) => {
+    const data = await callInternal("publish-artifact", {
+      path,
+      ...(title ? { title } : {}),
+    });
+    return { content: [{ type: "text", text: data.text }] };
+  },
 );
 
 server.registerTool(

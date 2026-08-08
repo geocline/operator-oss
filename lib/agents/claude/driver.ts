@@ -23,9 +23,11 @@ import {
   SUGGEST_TASK,
   SUGGEST_TASK_DEPS_ENABLED,
   EXPOSE_SERVICE,
+  PUBLISH_ARTIFACT,
   PUBLISH_WORKSTREAM_UPDATE,
   PROPOSE_CARD_CHANGE,
 } from "../../agentToolDefs.mjs";
+import { publishTaskArtifact } from "../../artifactTool";
 import { getWorkstreamByTask } from "../../workstreams/store";
 import { waitForAnswer } from "../../asks";
 import { CLAUDE_CLI_PATH as CLAUDE_PATH } from "../../config";
@@ -77,6 +79,18 @@ function orchestratorServer(
           onExpose({ name: info.name, url });
           return { content: [{ type: "text", text }] };
         }
+      ),
+      tool(
+        PUBLISH_ARTIFACT.name,
+        PUBLISH_ARTIFACT.description,
+        {
+          path: z.string().min(1).describe(PUBLISH_ARTIFACT.params.path),
+          title: z.string().optional().describe(PUBLISH_ARTIFACT.params.title),
+        },
+        async (args: { path: string; title?: string }) => {
+          const result = publishTaskArtifact(task, project, args);
+          return { content: [{ type: "text", text: result.text }] };
+        },
       ),
       tool(
         SUGGEST_TASK.name,

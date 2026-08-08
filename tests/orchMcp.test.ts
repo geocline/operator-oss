@@ -80,6 +80,7 @@ describe("orch-mcp stdio bridge", () => {
         "ask_user",
         "expose_service",
         "propose_card_change",
+        "publish_artifact",
         "publish_workstream_update",
         "suggest_task",
       ]);
