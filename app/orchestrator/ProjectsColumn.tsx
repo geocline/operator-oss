@@ -118,6 +118,9 @@ export function ProjectsColumn({ projects, deprecated, agents, selId, running, w
         </div>
       </div>
       <div className="proj-foot">
+        <a className="nav-item" href="/artifacts" title="Published files from every project">
+          {Icon.archive()} Artifacts
+        </a>
         <button className={`nav-item${settingsActive ? " active" : ""}`} onClick={onOpenSettings} title="App settings">
           {Icon.gear()} Settings
         </button>

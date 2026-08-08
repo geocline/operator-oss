@@ -913,6 +913,68 @@ button.tpeek-more:hover{color:var(--accent-ink);}
 .md th,.md td{border:1px solid var(--line-2);padding:6px 10px;text-align:left;}
 .md th{background:var(--surface-2);font-weight:700;}
 
+/* global artifact library — a standalone authenticated route that remains
+   comfortable on a phone while sharing Operator's theme tokens */
+.artifact-shell{height:100dvh;overflow-y:auto;background:var(--panel);color:var(--ink);}
+.artifact-topbar{position:sticky;top:0;z-index:10;min-height:48px;display:flex;align-items:center;gap:9px;padding:0 20px;border-bottom:1px solid var(--line);background:var(--topbar);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);font-size:13px;}
+.artifact-brand{font-weight:800;color:var(--ink);text-decoration:none;}
+.artifact-divider{color:var(--ink-4);}
+.artifact-spacer{flex:1;}
+.artifact-back{color:var(--ink-2);text-decoration:none;}
+.artifact-hero,.artifact-feed,.artifact-detail-head,.artifact-preview{width:min(1080px,calc(100% - 36px));margin-inline:auto;}
+.artifact-hero{display:flex;align-items:end;justify-content:space-between;gap:28px;padding:54px 0 28px;}
+.artifact-hero h1,.artifact-detail-head h1{font-size:clamp(34px,6vw,62px);line-height:1;letter-spacing:-.045em;margin:5px 0 10px;}
+.artifact-hero p{margin:0;color:var(--ink-3);}
+.artifact-eyebrow{font-family:var(--mono);font-size:10px!important;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:var(--accent)!important;}
+.artifact-search{display:flex;flex-direction:column;gap:6px;min-width:min(360px,100%);font-family:var(--mono);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);}
+.artifact-search input{height:42px;padding:0 13px;border:1px solid var(--line-strong);border-radius:10px;background:var(--surface);color:var(--ink);font:14px var(--sans);}
+.artifact-feed{padding:0 0 70px;}
+.artifact-feed-head{display:flex;align-items:baseline;justify-content:space-between;padding:15px 0;border-top:1px solid var(--line);}
+.artifact-feed-head h2{font-size:14px;margin:0;}
+.artifact-feed-head span{font-family:var(--mono);font-size:10px;color:var(--ink-4);}
+.artifact-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;}
+.artifact-card{display:flex;flex-direction:column;min-width:0;padding:18px;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:var(--sh-1);}
+.artifact-card-top{display:flex;align-items:center;justify-content:space-between;gap:12px;font-family:var(--mono);font-size:9.5px;color:var(--ink-4);text-transform:uppercase;letter-spacing:.05em;}
+.artifact-type{padding:2px 6px;border-radius:5px;background:var(--accent-soft);color:var(--accent-ink);font-weight:800;}
+.artifact-title{margin-top:15px;color:var(--ink);font-size:19px;font-weight:750;line-height:1.25;text-decoration:none;overflow-wrap:anywhere;}
+.artifact-title:hover{color:var(--accent-ink);}
+.artifact-filename{margin-top:5px;font-family:var(--mono);font-size:10px;color:var(--ink-4);overflow-wrap:anywhere;}
+.artifact-tags{display:flex;flex-wrap:wrap;gap:7px;margin-top:16px;}
+.artifact-tag{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:5px 9px;border:1px solid var(--line-2);border-radius:999px;color:var(--ink-2);font-size:11px;text-decoration:none;overflow-wrap:anywhere;}
+.artifact-tag i{width:8px;height:8px;border-radius:50%;flex:0 0 auto;}
+.artifact-tag.task{border-style:dashed;}
+.artifact-actions,.artifact-detail-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:18px;}
+.artifact-actions a,.artifact-actions button,.artifact-detail-actions a,.artifact-detail-actions button{min-height:40px;display:inline-flex;align-items:center;padding:0 12px;border:1px solid var(--line-strong);border-radius:9px;background:var(--surface-2);color:var(--ink-2);font-size:12px;text-decoration:none;}
+.artifact-actions .artifact-primary,.artifact-detail-actions .artifact-primary,.artifact-state .artifact-primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+.artifact-state{padding:34px;border:1px dashed var(--line-strong);border-radius:14px;text-align:center;color:var(--ink-3);background:var(--surface);}
+.artifact-state.error{color:var(--red);}
+.artifact-state button{margin-top:8px;padding:8px 12px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface-2);}
+.artifact-detail-head{display:flex;align-items:end;justify-content:space-between;gap:24px;padding:42px 0 22px;}
+.artifact-detail-head h1{font-size:clamp(28px,5vw,48px);}
+.artifact-detail-meta{display:flex;flex-wrap:wrap;gap:7px;color:var(--ink-3);font-size:12px;}
+.artifact-detail-meta a{color:var(--accent-ink);}
+.artifact-preview{min-height:calc(100dvh - 190px);padding-bottom:30px;}
+.artifact-preview iframe{width:100%;height:calc(100dvh - 210px);min-height:520px;border:1px solid var(--line);border-radius:12px;background:#fff;}
+.artifact-preview img{display:block;max-width:100%;max-height:calc(100dvh - 220px);margin:auto;border:1px solid var(--line);border-radius:12px;background:#fff;}
+.copy-btn{cursor:pointer;}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
+
+@media(max-width:680px){
+  .artifact-topbar{min-height:calc(50px + env(safe-area-inset-top));padding-top:env(safe-area-inset-top);padding-inline:14px;}
+  .artifact-topbar strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .artifact-back{font-size:0;}
+  .artifact-back::after{content:"Workspace";font-size:12px;}
+  .artifact-hero,.artifact-feed,.artifact-detail-head,.artifact-preview{width:min(100% - 24px,1080px);}
+  .artifact-hero{display:block;padding:34px 0 22px;}
+  .artifact-search{margin-top:24px;min-width:0;}
+  .artifact-grid{grid-template-columns:1fr;}
+  .artifact-card{padding:16px;}
+  .artifact-actions a,.artifact-actions button,.artifact-detail-actions a,.artifact-detail-actions button{min-height:44px;}
+  .artifact-detail-head{display:block;padding:28px 0 18px;}
+  .artifact-detail-actions{margin-top:18px;}
+  .artifact-preview iframe{height:calc(100dvh - 250px);min-height:440px;}
+}
+
 /* syntax highlighting (highlight.js token classes — warm palette, dual theme) */
 .hljs-comment,.hljs-quote{color:var(--ink-4);font-style:italic;}
 .hljs-keyword,.hljs-selector-tag,.hljs-literal,.hljs-type{color:#9E5BA0;}
