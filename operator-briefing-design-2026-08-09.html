@@ -25,7 +25,7 @@
     <div class="eyebrow">Written specification · 9 August 2026</div>
     <h1>Operator Briefing</h1>
     <p class="lede">One factual, on-demand answer to: what is running, what genuinely needs Geo, what changed, and where should work resume?</p>
-    <div class="verdict"><strong>Scope:</strong> a text-first <em>Brief me</em> page inside Operator, with optional browser read-aloud. No Telegram, scheduled alerts, microphone, new dictation, always-on narration, or AI model calls.</div>
+    <div class="verdict"><strong>Scope:</strong> a text-first <em>Brief me</em> page inside Operator, immutable Briefing History, and optional browser read-aloud. No Telegram, scheduled alerts, microphone, new dictation, always-on narration, or AI model calls.</div>
   </header>
 
   <section>
@@ -53,7 +53,19 @@
       <li><strong>Since your last briefing</strong> — new, active, waiting, changed, merged, or updated tasks proven by snapshot comparison.</li>
       <li><strong>Where to pick up</strong> — up to five recent projects using stored recaps or latest-task fallback.</li>
     </ol>
-    <p>The first visit uses the previous 24 hours for recent activity. Later visits compare with the last successfully rendered briefing.</p>
+    <p>The first briefing uses the previous 24 hours for recent activity. Every later briefing compares with the immediately preceding stored briefing.</p>
+  </section>
+
+  <section>
+    <h2>Never overwrite a briefing</h2>
+    <ul>
+      <li>Every generated briefing is an immutable point-in-time record.</li>
+      <li><code>/brief</code> shows the newest briefing and paginated Briefing History.</li>
+      <li><code>/brief/&lt;id&gt;</code> permanently reopens a specific earlier briefing.</li>
+      <li>Opening or refreshing <code>/brief</code> does not create duplicates; <strong>New briefing</strong> creates the next record.</li>
+      <li>No automatic pruning or delete route exists in the first release.</li>
+      <li>Artifacts gains a <strong>Briefings</strong> collection shortcut, but global briefings are not forced into task-owned artifact rows.</li>
+    </ul>
   </section>
 
   <section>
@@ -73,10 +85,11 @@
       <thead><tr><th>Part</th><th>Responsibility</th></tr></thead>
       <tbody>
         <tr><td><code>lib/briefing.ts</code></td><td>Bounded database reads, safe tool-message parsing, classification, ordering, snapshot diff, sanitization, and deterministic speech text.</td></tr>
-        <tr><td><code>GET /api/briefing</code></td><td>Returns the complete factual briefing without mutation or model use.</td></tr>
-        <tr><td><code>POST /api/briefing/ack</code></td><td>Stores the newest successfully rendered bounded snapshot. Idempotent; old pages cannot overwrite newer state.</td></tr>
-        <tr><td><code>/brief</code></td><td>Responsive, linkable desktop/phone page with Retry, Refresh, deep links, overflow disclosures, and read-aloud controls.</td></tr>
-        <tr><td>Settings storage</td><td>One versioned <code>briefing_last_snapshot</code> JSON value. No database migration and no transcript text in the snapshot.</td></tr>
+        <tr><td><code>POST /api/briefings</code></td><td>Builds and transactionally inserts one immutable briefing; concurrent clicks resolve to one committed successor.</td></tr>
+        <tr><td><code>GET /api/briefings</code></td><td>Returns bounded, newest-first history metadata.</td></tr>
+        <tr><td><code>GET /api/briefings/&lt;id&gt;</code></td><td>Returns stored content without recalculating it.</td></tr>
+        <tr><td><code>/brief</code> and <code>/brief/&lt;id&gt;</code></td><td>Responsive latest/history and permanent detail pages with deep links and read-aloud controls.</td></tr>
+        <tr><td><code>briefings</code> table</td><td>Stores versioned content, factual snapshots, safe speech text, prior-brief link, counts, and generation time. No transcript text in snapshots.</td></tr>
       </tbody>
     </table>
     <div class="note"><strong>No AI call in version one.</strong> Operator already has enough structured facts. Deterministic output is faster, cheaper, easier to test, and cannot invent task state.</div>
@@ -88,7 +101,8 @@
       <li>Corrupt tool JSON is ignored; the page uses the next safe fallback.</li>
       <li>Missing recaps fall back to the most recently touched task.</li>
       <li>An invalid prior snapshot becomes a first briefing instead of an error.</li>
-      <li>A failed acknowledgement leaves the briefing readable and may repeat recent activity next time.</li>
+      <li>A failed insert never presents an unarchived result as permanent.</li>
+      <li>Historical records have no update/delete endpoint.</li>
       <li>A speech error never affects the text page.</li>
       <li>Transcript-derived fields are stripped, bounded, and rendered as React text.</li>
       <li>Deprecated projects and suggested tasks are excluded.</li>
@@ -99,7 +113,7 @@
     <h2>Verification gate</h2>
     <ul>
       <li>Pure unit tests for question, failure, active, ready, stale, ordering, sanitization, and snapshot comparison.</li>
-      <li>Route tests for non-mutating GET, valid/idempotent acknowledgement, stale-write rejection, and exclusions.</li>
+      <li>Route tests for immutable generation, concurrent-click deduplication, history pagination, permanent detail, and no delete/update route.</li>
       <li>Component tests for loading, error, empty, populated, overflow, links, and speech start/stop/unmount.</li>
       <li>Integrated desktop and phone-width checks through the existing Tailscale Operator origin.</li>
       <li>Real-state smoke test proving a structured ask is a decision while an ordinary settled turn is only ready for review.</li>
@@ -108,12 +122,12 @@
 
   <section>
     <h2>Explicitly not included</h2>
-    <p>Telegram, SMS, email, Slack, push delivery, schedules, new browser notifications, microphone input, transcription, always-on narration, a native Mac companion, model-generated prose, personas, custom voices, a briefing archive, sharing, or automatic cleanup of stale tasks.</p>
+    <p>Telegram, SMS, email, Slack, push delivery, schedules, new browser notifications, microphone input, transcription, always-on narration, a native Mac companion, model-generated prose, personas, custom voices, manual briefing deletion/editing/sharing, or automatic cleanup of stale tasks.</p>
   </section>
 
   <section class="approved">
     <h2>Success</h2>
-    <p>Geo can open one page on desktop or phone and, in under a minute, distinguish real decisions from ordinary ready turns, see what is active, understand proven changes since the previous briefing, and jump directly to the right project or task.</p>
+    <p>Geo can open one page on desktop or phone and, in under a minute, distinguish real decisions from ordinary ready turns, see what is active, understand proven changes since the previous briefing, jump directly to the right project or task, and reopen any prior briefing later.</p>
   </section>
 
   <section class="foot">

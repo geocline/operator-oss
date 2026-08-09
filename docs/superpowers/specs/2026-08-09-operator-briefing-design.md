@@ -30,8 +30,12 @@ is synthesis across projects.
   microphone capture, transcription, or always-on narration.
 - Include all non-deprecated projects and all real tasks. Exclude suggested
   tasks until they are accepted.
-- Do not create a briefing archive. Persist only the last successfully viewed
-  snapshot needed to calculate the next "Since your last briefing" section.
+- Every generated briefing is an immutable historical record. Operator never
+  replaces, automatically prunes, or silently deletes prior briefings.
+- Add a `Briefing history` collection inside the briefing experience and a
+  `Briefings` shortcut from the Artifacts area. Briefings remain a native
+  global Operator record rather than being forced into task-owned artifact
+  rows.
 - Every briefing row links to the exact project or task.
 
 ## Why This Adds Value
@@ -68,11 +72,17 @@ same Tailscale URL on desktop and phone.
 
 The briefing page has:
 
-- `Refresh`
+- `New briefing`, which generates and archives a new point-in-time briefing
 - `Read aloud` when speech synthesis is supported
 - `Stop` while speech is playing
 - an "updated just now" timestamp
+- `Briefing history`
 - a return link to the Operator workspace
+
+Opening `/brief` shows the newest stored briefing and does not create a
+duplicate. The top-bar `Brief me` action generates a new briefing and opens its
+permanent detail URL. A direct visit to `/brief` on the phone is therefore safe
+to refresh repeatedly.
 
 ### Sections
 
@@ -149,8 +159,8 @@ long-abandoned sessions from presenting as urgent decisions.
 
 #### 5. Since your last briefing
 
-This section compares the current task snapshot with the most recently
-acknowledged briefing snapshot.
+This section compares the new task snapshot with the immediately preceding
+stored briefing snapshot.
 
 It reports:
 
@@ -161,11 +171,11 @@ It reports:
 - newly merged tasks
 - tasks updated since the prior briefing
 
-The first briefing has no prior snapshot. It labels the section `Recent
-activity` and uses the previous 24 hours as its window.
+The first briefing has no prior record. It labels the section `Recent activity`
+and uses the previous 24 hours as its window.
 
-The comparison describes only facts recoverable from the two snapshots. It
-does not claim a transition that cannot be proven.
+The comparison describes only facts recoverable from the two immutable
+snapshots. It does not claim a transition that cannot be proven.
 
 #### 6. Where to pick up
 
@@ -234,18 +244,29 @@ schema migration.
 
 ## Data Model
 
-### Briefing Snapshot
+### Briefings Table
 
-Use Operator's existing settings table. Add one setting key:
+Add a `briefings` table:
 
-`briefing_last_snapshot`
+| Column | Type | Meaning |
+|-|-|-|
+| `id` | text primary key | Opaque stable briefing id |
+| `generated_at` | integer | Point-in-time generation timestamp |
+| `previous_id` | text nullable | Immediately preceding briefing |
+| `content_json` | text | Versioned classified sections rendered by the UI |
+| `snapshot_json` | text | Bounded factual task snapshot used for comparison |
+| `speech_text` | text | Sanitized deterministic read-aloud text |
+| `decision_count` | integer | Cached history-list count |
+| `problem_count` | integer | Cached history-list count |
+| `active_count` | integer | Cached history-list count |
+| `ready_count` | integer | Cached history-list count |
 
-The value is bounded JSON:
+The snapshot shape inside `snapshot_json` is:
 
 ```json
 {
   "version": 1,
-  "viewedAt": 1786300000000,
+  "generatedAt": 1786300000000,
   "tasks": {
     "<task-id>": {
       "status": "in_progress",
@@ -266,32 +287,28 @@ Rules:
 - Cap the serialized snapshot at a documented maximum. If the cap is exceeded,
   retain the most recently updated tasks.
 - Invalid JSON, unknown versions, impossible timestamps, or missing fields
-  cause a first-brief fallback rather than a server error.
+  in the preceding record cause a first-brief comparison fallback rather than a
+  server error.
 - The snapshot contains no transcript text.
+- Briefing rows are immutable after insertion.
+- There is no automatic retention limit and no delete route in the first
+  release.
+- Generation and insertion happen in one database transaction. If insertion
+  fails, the API reports failure and no partial briefing exists.
 
-No database migration is required.
+This requires one additive database migration.
 
-### Acknowledgement
+### History and Permanent URLs
 
-`GET /api/briefing` reads the prior snapshot and returns:
-
-- the classified sections
-- current snapshot token/data required for acknowledgement
-- `generatedAt`
-- deterministic `speechText`
-
-After the client successfully renders the response, it calls:
-
-`POST /api/briefing/ack`
-
-with the returned snapshot version and generated timestamp. The server writes
-the current bounded snapshot to `briefing_last_snapshot`.
-
-Acknowledgement is idempotent. An older page cannot overwrite a newer
-acknowledged snapshot; the server compares `viewedAt`.
-
-This two-step flow ensures a failed fetch or render does not advance "since last
-briefing."
+- `/brief` shows the newest briefing plus a chronological history list.
+- `/brief/<id>` shows one immutable briefing.
+- History is newest first and paginated.
+- Each history row shows generation time and the four cached section counts.
+- A `Briefings` collection shortcut in `/artifacts` links to `/brief`. It does
+  not duplicate briefing rows into the `artifacts` table, whose records require
+  task/project provenance that a global briefing does not have.
+- Prior briefing URLs remain valid indefinitely unless the whole Operator
+  database is intentionally removed or restored from an older backup.
 
 ## Server Architecture
 
@@ -312,13 +329,19 @@ comparison can be unit-tested without routes or React.
 
 ### Routes
 
-- `GET /api/briefing`
-  - returns the current factual briefing
-  - does not mutate state
+- `POST /api/briefings`
+  - builds and inserts one new immutable factual briefing
+  - compares against the newest existing briefing
+  - returns the new id and full content
+  - serializes concurrent generation so two clicks cannot create two briefings
+    against the same predecessor
   - does not call an agent or model
-- `POST /api/briefing/ack`
-  - validates and stores the newest successfully rendered snapshot
-  - rejects oversized or malformed input
+- `GET /api/briefings`
+  - returns bounded, paginated history metadata
+- `GET /api/briefings/<id>`
+  - returns one stored immutable briefing
+- `GET /api/briefings/latest`
+  - returns the newest briefing or 404 when none exists
 
 Both routes use Operator's existing origin authentication.
 
@@ -334,6 +357,9 @@ Implement as a dedicated responsive page rather than a modal. A page:
 - has enough vertical space for a real workspace briefing
 - keeps the main orchestrator shell from accumulating another complex overlay
 
+`/brief/<id>` uses the same presentation component with immutable stored data.
+The history list stays reachable from both routes.
+
 ### Shared Components
 
 Create focused briefing components:
@@ -342,6 +368,7 @@ Create focused briefing components:
 - `BriefingSection`
 - `BriefingTaskRow`
 - `BriefingProjectRow`
+- `BriefingHistory`
 - `ReadAloudButton`
 
 Do not add briefing logic to `app/Orchestrator.tsx` beyond navigation.
@@ -383,9 +410,13 @@ part of this release.
   build the briefing` with Retry.
 - Corrupt tool JSON: ignore that message and use the next safe fallback.
 - Missing recap: show the most recently touched task instead.
-- Invalid prior snapshot: treat as first briefing.
-- Acknowledgement failure: keep the briefing visible and show a quiet warning;
-  the next visit may repeat the recent-activity window.
+- Invalid preceding snapshot: treat comparison as a first briefing.
+- Insert failure: show `Could not save this briefing`; do not display an
+  unarchived result as if it were permanent.
+- Duplicate concurrent generation: return the single committed result to both
+  callers.
+- Missing historical id: return the normal not-found page without changing
+  history.
 - Unsupported speech synthesis: omit `Read aloud`.
 - Speech error: stop playback and retain the readable briefing.
 - Empty data: show the quiet-state message.
@@ -420,11 +451,13 @@ part of this release.
 
 ### Route Tests
 
-- `GET /api/briefing` returns all sections and does not mutate settings
-- acknowledgement persists a valid snapshot
-- acknowledgement is idempotent
-- an older acknowledgement cannot replace a newer one
-- malformed or oversized acknowledgement is rejected
+- generation inserts one immutable briefing with all sections
+- generation compares against the immediately preceding record
+- concurrent generation produces one committed successor
+- history metadata is newest first and paginated
+- historical detail returns stored content without recalculation
+- an unknown historical id returns 404
+- there is no update or delete route
 - deprecated projects and suggested tasks are excluded
 
 ### Component Tests
@@ -432,10 +465,11 @@ part of this release.
 - loading, error, empty, and populated states
 - exact task/project links
 - overflow disclosures
+- newest briefing and paginated history
+- permanent historical briefing links
+- Artifacts `Briefings` shortcut reaches `/brief`
 - Read aloud hidden when unsupported
 - Read aloud starts, stops, and cancels on unmount
-- acknowledgement happens only after a successful render
-- acknowledgement failure does not remove content
 
 ### Integrated Verification
 
@@ -446,6 +480,7 @@ part of this release.
 - a settled ordinary turn appears under `Ready for review`
 - an old open session is collapsed under `Older open sessions`
 - second visit accurately reports changes since the first
+- the first briefing remains accessible after generating several more
 
 ## Scope Exclusions
 
@@ -460,7 +495,7 @@ Not in this release:
 - native macOS companion
 - AI-generated briefing prose
 - personas, custom voices, or voice settings
-- briefing archive or sharing
+- manual briefing deletion, editing, or sharing
 - automatic cleanup or status changes for stale tasks
 
 ## Success Criteria
@@ -474,6 +509,7 @@ and, in under a minute:
 4. understand what changed since the previous briefing
 5. resume the most relevant project or task with one tap
 6. optionally hear the same safe summary aloud
+7. reopen any earlier briefing from Briefing History
 
 It must accomplish this without a second messaging channel, an additional
 account, scheduled interruptions, or new model usage.
