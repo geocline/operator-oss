@@ -1,8 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { buildProjectContext } from "@/lib/agents/shared";
+import path from "node:path";
+import { buildProjectContext, loadSessionRules } from "@/lib/agents/shared";
 import { createProject, createTask, getTask, updateTask } from "@/lib/store";
+import { tmpDir, writeFile } from "./helpers";
 
 describe("isolated task workspace guidance", () => {
+  it("loads a caller-supplied global session rules file", () => {
+    const dir = tmpDir("session-rules-");
+    const rulesPath = path.join(dir, "RULES.md");
+    writeFile(dir, "RULES.md", "# Test rules\n\nStart with Geo.");
+
+    expect(
+      (loadSessionRules as (filePath: string) => string)(rulesPath),
+    ).toBe("# Test rules\n\nStart with Geo.\n\n---\n");
+  });
+
   it("tells agents which checkout is writable and how changes reach the project", () => {
     const project = createProject({
       name: "Recipes",

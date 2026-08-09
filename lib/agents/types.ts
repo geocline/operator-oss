@@ -23,6 +23,8 @@ export interface AgentModelOption {
   contextWindow: number;
   contextWindowKnown?: boolean;
   group?: string;
+  /** Optional reasoning preset values supported by this exact model. Omitted means every agent-level option. */
+  reasoningValues?: string[];
 }
 
 // A reasoning preset / permission mode a driver supports. `value` is what's

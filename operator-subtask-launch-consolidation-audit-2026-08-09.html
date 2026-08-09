@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Operator Subtask Launch and Consolidation Audit</title>
+  <style>
+    :root{color-scheme:light dark;--bg:#0d1016;--panel:#171b24;--ink:#f3f5f7;--muted:#a9b0bc;--line:#313846;--accent:#e58a61;--green:#61c995;--amber:#e5b761}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    main{width:min(980px,calc(100% - 32px));margin:40px auto 72px}h1{font-size:32px;letter-spacing:-.035em;margin:0 0 5px}h2{font-size:20px;margin:30px 0 10px}
+    h3{font-size:16px;margin:18px 0 6px}p,li,td{color:var(--muted)}strong,th,code{color:var(--ink)}.lede{font-size:17px}
+    .status{display:inline-flex;align-items:center;gap:7px;border:1px solid color-mix(in srgb,var(--green) 45%,var(--line));background:color-mix(in srgb,var(--green) 10%,var(--panel));color:var(--green);border-radius:999px;padding:5px 10px;font-weight:700;font-size:12px}
+    .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.card,.callout{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:15px 17px}.card h3{margin-top:0}
+    .callout{border-left:4px solid var(--amber)}table{width:100%;border-collapse:collapse}th,td{text-align:left;vertical-align:top;border-bottom:1px solid var(--line);padding:10px 8px}
+    code{background:#232936;border-radius:5px;padding:2px 5px}.ok{color:var(--green)}.muted{color:var(--muted)}ul{padding-left:20px}
+    @media(max-width:760px){.grid{grid-template-columns:1fr}main{margin-top:24px}}
+    @media(prefers-color-scheme:light){:root{--bg:#f7f5f2;--panel:#fff;--ink:#1c2026;--muted:#58606b;--line:#d9dde4;--accent:#b95431;--green:#18845b;--amber:#9b6b10}code{background:#f0eee9}}
+  </style>
+</head>
+<body><main>
+  <div class="status">Verified implementation</div>
+  <h1>Operator Subtask Launch and Consolidation Audit</h1>
+  <p class="lede">August 9, 2026 - final state of the requested pre-start model/harness controls and the unfinished work found in the existing dirty checkout.</p>
+
+  <h2>Outcome</h2>
+  <div class="grid">
+    <section class="card">
+      <h3>Required launch review</h3>
+      <p>Every agent-created suggested task now requires explicit confirmation of <strong>Harness</strong>, <strong>Model</strong>, and <strong>Thinking strength</strong> before its first turn.</p>
+    </section>
+    <section class="card">
+      <h3>Suggested, not assumed</h3>
+      <p>The editor proposes valid values using the task, harness capabilities, model-specific reasoning options, and agent-scoped defaults. Geo must select <strong>Confirm setup</strong>.</p>
+    </section>
+    <section class="card">
+      <h3>Durable enforcement</h3>
+      <p>Confirmation is persisted in SQLite and revalidated at the server boundary. List, board, accepted-task hero, stale tabs, catalog changes, and direct requests cannot bypass it.</p>
+    </section>
+  </div>
+
+  <h2>Implemented behavior</h2>
+  <ul>
+    <li>Pending cards show <strong>Review setup</strong> instead of Start.</li>
+    <li>Confirmed cards show <strong>Harness · Model · Thinking strength</strong> and enable Start only when the harness is connected.</li>
+    <li>Changing Harness, Model, or Thinking strength clears confirmation.</li>
+    <li>Changing Harness refreshes the dependent model and reasoning suggestions.</li>
+    <li>Model-specific Thinking strength limits are honored for catalog-backed LiteLLM routes.</li>
+    <li><strong>Add</strong> keeps the confirmation requirement when moving a suggestion into the normal task list.</li>
+    <li>Unavailable or removed models return the task to Review setup.</li>
+    <li>The initial-message API validates before launch and again after waiting for the task lock.</li>
+    <li>A live first-turn claim rejects concurrent launch-configuration edits, closing the final stale-configuration race found in review.</li>
+    <li>Fresh-install tutorial suggestions and existing unstarted rows still in the Suggested tray are also gated.</li>
+    <li>Ordinary user-created tasks keep their existing start flow.</li>
+  </ul>
+
+  <h2>Previous dirty work audited and consolidated</h2>
+  <table>
+    <thead><tr><th>Item found</th><th>State before this pass</th><th>Consolidated result</th></tr></thead>
+    <tbody>
+      <tr><td>Dynamic browser-tab titles</td><td>Implementation existed without a focused test.</td><td class="ok">Covered for workspace changes and reset to Operator.</td></tr>
+      <tr><td>Global Operator session rules</td><td>Loader existed with a hard-coded file and no deterministic test; comments described session-start rather than turn-start behavior.</td><td class="ok">Loader accepts an explicit test path, default behavior is preserved, coverage added, and both code comments and the site-wide RULES file now describe the actual per-turn behavior.</td></tr>
+      <tr><td>Permissive card-workstream posting</td><td>Server filters had been removed, but agent tool instructions and errors still described the old privacy policy.</td><td class="ok">Runtime instructions and errors now match the intended permissive behavior while retaining task scoping, workspace containment, structural filename checks, type allowlisting, count limits, and byte limits.</td></tr>
+      <tr><td>Expanded workstream attachments</td><td>New formats existed with incomplete direct coverage.</td><td class="ok">Markdown, text, CSV, JSON, XLS, DOC, PPT, SVG, and ZIP paths are all pinned by delivery tests.</td></tr>
+      <tr><td>Task-edit save timeout</td><td>The handoff records completed timeout/retry code, passing tests, fresh-browser verification, and a safe service restart, but not confirmation from Geo's exact old browser tab.</td><td>Code evidence is complete. The historical old-tab observation remains unknowable from the repository and is not represented as proven.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Review findings and closure</h2>
+  <p>An independent code review initially found two Important launch gaps: missing gating for the fresh-install seeded suggestion and a stale-configuration race around task-lock waits. Both received regression tests and fixes. A second review found a smaller post-revalidation race; the final first-turn claim guard closed it. The final re-review reported <strong>no Critical or Important issues</strong>.</p>
+
+  <h2>Final verification evidence</h2>
+  <ul>
+    <li><code>git diff --check</code> - passed.</li>
+    <li><code>npm test</code> - <strong>71 files, 492 tests passed</strong>.</li>
+    <li><code>npm run typecheck</code> - passed.</li>
+    <li><code>npm run build</code> - production build compiled and generated successfully.</li>
+    <li><code>npm run check:build-traces</code> - <strong>85 Next server trace manifests validated</strong>.</li>
+  </ul>
+
+  <h2>Workspace and release state</h2>
+  <div class="callout">
+    <p><strong>This audit records the verified code tree before release operations.</strong> Geo subsequently authorized commit, push, and service restart. Git and the service manager are the authoritative sources for that release state. Existing unrelated untracked reports and the pre-existing HANDOFF rewrite were preserved.</p>
+  </div>
+
+  <h2>Related implementation documents</h2>
+  <ul>
+    <li><code>docs/superpowers/specs/2026-08-09-suggested-task-launch-configuration-design.html</code></li>
+    <li><code>docs/superpowers/plans/2026-08-09-suggested-task-launch-configuration.html</code></li>
+  </ul>
+</main></body>
+</html>

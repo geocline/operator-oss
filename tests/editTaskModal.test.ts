@@ -7,7 +7,8 @@ import {
 } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EditTaskModal } from "../app/orchestrator/modals";
-import type { TaskRow } from "../app/orchestrator/types";
+import type { AgentsBundle, TaskRow } from "../app/orchestrator/types";
+import { CLAUDE_CAPABILITIES } from "../lib/agents/claude/capabilities";
 
 const task: TaskRow = {
   id: "task-1",
@@ -22,6 +23,8 @@ const task: TaskRow = {
   resolved_model: null,
   reasoning: null,
   permission_mode: null,
+  launch_config_required: 0,
+  launch_config_confirmed_at: 0,
   session_id: null,
   pr_url: "",
   generation: 1,
@@ -37,6 +40,34 @@ const task: TaskRow = {
   context_tokens: 0,
   context_pct: 0,
   note_count: 0,
+};
+
+const agents: AgentsBundle = {
+  default: "claude",
+  agents: [
+    {
+      id: "claude",
+      label: "Claude Code",
+      authenticated: true,
+      capabilities: CLAUDE_CAPABILITIES,
+    },
+    {
+      id: "codex",
+      label: "Codex",
+      authenticated: true,
+      capabilities: {
+        ...CLAUDE_CAPABILITIES,
+        models: [
+          {
+            value: "gpt-test",
+            label: "GPT Test",
+            sub: "test model",
+            contextWindow: 200_000,
+          },
+        ],
+      },
+    },
+  ],
 };
 
 function textOf(node: ReactTestInstance): string {
@@ -125,6 +156,56 @@ describe("EditTaskModal save feedback", () => {
     });
 
     expect(onSave).toHaveBeenCalledTimes(2);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("suggests and explicitly confirms Harness, Model, and Thinking strength", async () => {
+    const onSave = vi.fn(async () => {});
+    const onClose = vi.fn();
+    let renderer!: ReactTestRenderer;
+    const suggestedTask: TaskRow = {
+      ...task,
+      suggested: 1,
+      launch_config_required: 1,
+    };
+
+    await act(async () => {
+      renderer = create(React.createElement(EditTaskModal, {
+        task: suggestedTask,
+        tasks: [suggestedTask],
+        agents,
+        appDefaults: {},
+        onClose,
+        onSave,
+        onDelete: vi.fn(),
+      }));
+    });
+
+    expect(renderer.root.findByProps({ "aria-label": "Harness" }).props.value).toBe(
+      "claude",
+    );
+    expect(renderer.root.findByProps({ "aria-label": "Model" }).props.value).toBe(
+      "fable",
+    );
+    expect(
+      renderer.root.findByProps({ "aria-label": "Thinking strength" }).props
+        .value,
+    ).toBe("think");
+
+    await act(async () => {
+      button(renderer, "Confirm setup").props.onClick();
+      await Promise.resolve();
+    });
+
+    expect(onSave).toHaveBeenCalledWith(
+      suggestedTask.id,
+      expect.objectContaining({
+        agent: "claude",
+        model: "fable",
+        reasoning: "think",
+        confirm_launch_config: true,
+      }),
+    );
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

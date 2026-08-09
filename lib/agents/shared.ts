@@ -4,9 +4,25 @@
 // knows which agent is running — drivers reuse these to emit the normalized
 // StreamEvent contract (see lib/agents/types.ts).
 
+import { readFileSync } from "node:fs";
 import type { Project, Task, AskQuestion, AskAnswers, ToolPeek, DiffLine } from "../types";
 import { listSummaries, listTaskNotes } from "../store";
 import { getWorkstreamByTask } from "../workstreams/store";
+
+// User-editable rules injected at the top of every turn's system prompt
+// (all drivers). Read fresh per turn so edits apply without a restart while an
+// already-running turn keeps the copy it launched with. Deliberately NOT enforced programmatically: rule 1 is a
+// context-health canary - the model must obey it from instruction alone.
+const SESSION_RULES_PATH = "/Users/geo/Claude Projects/site-wide/RULES.md";
+
+export function loadSessionRules(filePath = SESSION_RULES_PATH): string {
+  try {
+    const text = readFileSync(filePath, "utf8").trim();
+    return text ? `${text}\n\n---\n` : "";
+  } catch {
+    return "";
+  }
+}
 
 export function buildHarnessEnv(
   taskId: string,
@@ -50,6 +66,8 @@ export function buildProjectContext(project: Project, task: Task): string {
   const summaries = listSummaries(task.id);
   const ctx = project.context || [project.building, project.conventions].filter(Boolean).join("\n");
   const lines: string[] = [];
+  const rules = loadSessionRules();
+  if (rules) lines.push(rules);
   lines.push(`You are working inside the project "${project.name}".`);
   if (ctx) lines.push(`\nWhat we're building (project context):\n${ctx}`);
   if (project.branch) lines.push(`\nGit branch: ${project.branch}`);

@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Suggested Task Launch Configuration - Design</title>
+  <style>
+    :root { color-scheme: light dark; --bg:#0f1117; --panel:#171a22; --ink:#f3f4f6; --muted:#a7adba; --line:#303644; --accent:#e58a61; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.6 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    main { width:min(920px,calc(100% - 32px)); margin:40px auto 72px; }
+    h1 { margin:0 0 6px; font-size:32px; letter-spacing:-.03em; }
+    h2 { margin:30px 0 10px; font-size:20px; }
+    h3 { margin:20px 0 6px; font-size:16px; }
+    p,li { color:var(--muted); }
+    strong,code { color:var(--ink); }
+    .meta,.callout { border:1px solid var(--line); background:var(--panel); border-radius:12px; padding:14px 16px; }
+    .meta { display:grid; grid-template-columns:140px 1fr; gap:4px 12px; }
+    .callout { border-left:4px solid var(--accent); }
+    code { background:#232733; padding:2px 5px; border-radius:5px; }
+    table { width:100%; border-collapse:collapse; margin:12px 0; }
+    th,td { text-align:left; vertical-align:top; border-bottom:1px solid var(--line); padding:10px 8px; }
+    th { color:var(--ink); }
+    @media (prefers-color-scheme: light) {
+      :root { --bg:#f7f5f2; --panel:#fff; --ink:#1b1d22; --muted:#555d69; --line:#d9dce2; --accent:#b95431; }
+      code { background:#f0eee9; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Suggested Task Launch Configuration</h1>
+  <p>Approved design for Operator's model-created subtask cards.</p>
+
+  <div class="meta">
+    <strong>Date</strong><span>August 9, 2026</span>
+    <strong>Status</strong><span>Approved for implementation</span>
+    <strong>Scope</strong><span>Agent-created suggested tasks; ordinary user-created tasks retain their current flow.</span>
+  </div>
+
+  <h2>Outcome</h2>
+  <p>
+    A model-created task cannot start until Geo has reviewed and explicitly confirmed
+    its <strong>Harness</strong>, <strong>Model</strong>, and <strong>Thinking strength</strong>.
+    Operator suggests all three values, but suggestion is not confirmation. This removes
+    the current start, interrupt, and handoff workaround.
+  </p>
+
+  <h2>User flow</h2>
+  <ol>
+    <li>An agent creates a suggested task. Operator records that launch confirmation is required.</li>
+    <li>The card shows a <strong>Review setup</strong> action instead of an enabled Start action.</li>
+    <li>Edit opens with suggested Harness, Model, and Thinking strength values already selected.</li>
+    <li>Geo may change any value, then selects <strong>Confirm setup</strong>.</li>
+    <li>The saved card shows the confirmed configuration summary and enables <strong>Start</strong>.</li>
+    <li>Changing Harness, Model, or Thinking strength before the first run clears confirmation and requires it again.</li>
+    <li>Using <strong>Add</strong> moves the suggestion into the normal task list without bypassing the requirement. Its task hero continues to show Review setup until confirmed.</li>
+  </ol>
+
+  <h2>Terminology</h2>
+  <table>
+    <thead><tr><th>UI label</th><th>Internal meaning</th></tr></thead>
+    <tbody>
+      <tr><td>Harness</td><td>The task's registered Operator agent/driver route, such as Claude Code, Codex, or LiteLLM through the Codex harness.</td></tr>
+      <tr><td>Model</td><td>The explicit model alias saved on the task.</td></tr>
+      <tr><td>Thinking strength</td><td>The task's reasoning preset. Supporting text may name the technical term, “reasoning effort.”</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Suggested-value rules</h2>
+  <ul>
+    <li>Harness begins with the task's existing agent, which already inherits the project's default when the agent creates the suggestion.</li>
+    <li>Model begins with the task's explicit model when valid; otherwise Operator uses the first recommended model exposed by that harness.</li>
+    <li>Thinking strength begins with the task's explicit preset, then the agent-scoped app default when valid, then the balanced preset (<code>think</code>) when available, then the first supported option.</li>
+    <li>Changing Harness refreshes the Model and Thinking strength suggestions to valid values for the new harness.</li>
+    <li>Only reasoning choices supported by the selected model are shown when the capability catalog provides model-specific limits.</li>
+  </ul>
+
+  <h2>Durable state and enforcement</h2>
+  <p>
+    Two task fields distinguish launch requirements from confirmation:
+    <code>launch_config_required</code> and <code>launch_config_confirmed_at</code>.
+    Suggested tasks are created with required = 1 and confirmed = 0. Ordinary tasks
+    are created with required = 0. Existing unstarted rows still in the Suggested tray
+    are backfilled as required during schema migration.
+  </p>
+  <p>
+    Confirmation is an explicit API action, not a client-only checkbox. The server
+    validates that the selected harness exists and that explicit Model and Thinking
+    strength values are supported before recording the timestamp. Any pre-start change
+    to those three settings clears the timestamp unless the same request explicitly
+    reconfirms the complete configuration.
+  </p>
+  <div class="callout">
+    <strong>Server boundary:</strong>
+    <span>The initial-message endpoint rejects an unconfirmed required task before creating a worktree, message, or running turn. UI gating therefore cannot be bypassed by stale tabs or direct requests.</span>
+  </div>
+
+  <h2>Error handling</h2>
+  <ul>
+    <li>If a harness is disconnected, confirmation may be saved, but Start remains unavailable until it is connected.</li>
+    <li>If a model disappears from a refreshed catalog, the task becomes unconfirmed and must be reviewed again.</li>
+    <li>If a selected harness exposes no models or no reasoning choices, the modal explains the missing capability instead of offering a false confirmation.</li>
+    <li>Failed saves preserve every edit and leave the modal open, using the existing bounded task-save behavior.</li>
+  </ul>
+
+  <h2>Compatibility</h2>
+  <ul>
+    <li>Already-started sessions and handoffs are unchanged.</li>
+    <li>User-created tasks are not retroactively gated.</li>
+    <li>The direct Add action does not clear launch requirements.</li>
+    <li>The existing task fields <code>agent</code>, <code>model</code>, and <code>reasoning</code> remain the execution source of truth.</li>
+  </ul>
+
+  <h2>Verification</h2>
+  <ul>
+    <li>Store and migration tests for new and existing suggested tasks.</li>
+    <li>API tests for confirmation validation, invalidated confirmation, and blocked initial launch.</li>
+    <li>Modal tests for suggested defaults, harness-dependent options, explicit confirmation, save retry, and preserved edits.</li>
+    <li>List and board tests proving Review setup replaces Start until confirmation.</li>
+    <li>Full test, typecheck, and production-build verification.</li>
+  </ul>
+</main>
+</body>
+</html>

@@ -7,6 +7,7 @@ import { subscribe, publish } from "@/lib/events";
 import { sseOpened, sseClosed } from "@/lib/idle";
 import { ensureWorktree } from "@/lib/git";
 import { MAX_MESSAGE_CHARS } from "@/lib/promptLimits";
+import { validateLaunchConfiguration } from "@/lib/agents/launchConfig";
 import type { TaskStreamEvent } from "@/lib/types";
 
 const TOO_LARGE = `Message too large (over ${Math.floor(MAX_MESSAGE_CHARS / 1024)} KB). Paste big text as an attachment instead — it'll be saved as a file and read on demand, keeping it out of the prompt.`;
@@ -24,6 +25,25 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   const task = getTask(id);
   if (!task) return new Response(JSON.stringify({ error: "not found" }), { status: 404 });
+  if (task.started === 0 && task.launch_config_required === 1) {
+    const configError = validateLaunchConfiguration({
+      agent: task.agent,
+      model: task.model,
+      reasoning: task.reasoning,
+    });
+    if (task.launch_config_confirmed_at === 0 || configError) {
+      if (task.launch_config_confirmed_at !== 0) {
+        updateTask(id, { launch_config_confirmed_at: 0 });
+      }
+      return new Response(
+        JSON.stringify({
+          error:
+            "Review setup and confirm this task's Harness, Model, and Thinking strength before starting.",
+        }),
+        { status: 409, headers: { "Content-Type": "application/json" } },
+      );
+    }
+  }
   const project = getProject(task.project_id);
   if (!project) return new Response(JSON.stringify({ error: "no project" }), { status: 400 });
   if (!project.repo_path.trim()) {
@@ -81,6 +101,25 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       // atomically, so no other turn can have launched in the meantime.
       const fresh = getTask(id);
       if (!fresh) return new Response(JSON.stringify({ error: "not found" }), { status: 404 });
+      if (fresh.started === 0 && fresh.launch_config_required === 1) {
+        const configError = validateLaunchConfiguration({
+          agent: fresh.agent,
+          model: fresh.model,
+          reasoning: fresh.reasoning,
+        });
+        if (fresh.launch_config_confirmed_at === 0 || configError) {
+          if (fresh.launch_config_confirmed_at !== 0) {
+            updateTask(id, { launch_config_confirmed_at: 0 });
+          }
+          return new Response(
+            JSON.stringify({
+              error:
+                "Review setup and confirm this task's Harness, Model, and Thinking strength before starting.",
+            }),
+            { status: 409, headers: { "Content-Type": "application/json" } },
+          );
+        }
+      }
 
       const isInitial = !fresh.started;
       // The very first turn's prompt is the title + description.

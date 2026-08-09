@@ -5,8 +5,9 @@ import type { Priority } from "@/lib/types";
 import { Icon } from "../icons";
 import { jget, jsend } from "./api";
 import { relTime, duration } from "./format";
-import { SLABEL, type ProjectRow, type ProjectSession, type TaskRow, type AgentsBundle } from "./types";
+import { EMPTY_AGENTS, SLABEL, type ProjectRow, type ProjectSession, type TaskRow, type AgentsBundle } from "./types";
 import { agentLabel, defaultAgentFor, findAgent } from "./agents";
+import { reasoningChoicesFor, suggestLaunchConfiguration } from "./launchConfig";
 import { StatusDot, Skel, ErrNote } from "./shared";
 import { Modal, BrowseDirButton, PrioritySeg, DepPicker } from "./Modal";
 import { GitHubClonePicker } from "./github";
@@ -98,29 +99,108 @@ export function NewTaskModal({ project, agents, tasks, onClose, onCreate, onOpen
   );
 }
 
-export function EditTaskModal({ task, tasks, onClose, onSave, onDelete }: { task: TaskRow; tasks: TaskRow[]; onClose: () => void; onSave: (id: string, patch: { title: string; description: string; priority: Priority; depends_on: string[] }) => Promise<void>; onDelete: (id: string) => void }) {
+type TaskEditPatch = {
+  title: string;
+  description: string;
+  priority: Priority;
+  depends_on: string[];
+  agent?: string;
+  model?: string;
+  reasoning?: string;
+  confirm_launch_config?: boolean;
+};
+
+export function EditTaskModal({
+  task,
+  tasks,
+  agents = EMPTY_AGENTS,
+  appDefaults = {},
+  onClose,
+  onSave,
+  onDelete,
+}: {
+  task: TaskRow;
+  tasks: TaskRow[];
+  agents?: AgentsBundle;
+  appDefaults?: Record<string, string>;
+  onClose: () => void;
+  onSave: (id: string, patch: TaskEditPatch) => Promise<void>;
+  onDelete: (id: string) => void;
+}) {
   const [title, setTitle] = useState(task.title);
   const [desc, setDesc] = useState(task.description);
   const [priority, setPriority] = useState<Priority>(task.priority);
   const [deps, setDeps] = useState<string[]>(task.depends_on ?? []);
+  const initialLaunchConfig = useMemo(
+    () => suggestLaunchConfiguration(task, agents, appDefaults),
+    [task, agents, appDefaults],
+  );
+  const [agent, setAgent] = useState(initialLaunchConfig.agent);
+  const [model, setModel] = useState(initialLaunchConfig.model);
+  const [reasoning, setReasoning] = useState(initialLaunchConfig.reasoning);
   const [confirmDel, setConfirmDel] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => { ref.current?.focus(); }, []);
   const can = title.trim().length > 0;
+  const launchConfigVisible =
+    task.launch_config_required === 1 && task.started === 0;
+  const launchConfigChanged =
+    agent !== task.agent ||
+    model !== (task.model ?? "") ||
+    reasoning !== (task.reasoning ?? "");
+  const needsLaunchConfirmation =
+    launchConfigVisible &&
+    (task.launch_config_confirmed_at === 0 || launchConfigChanged);
+  const selectedAgent = findAgent(agents, agent);
+  const modelOptions = selectedAgent?.capabilities.models ?? [];
+  const thinkingOptions = reasoningChoicesFor(agents, agent, model);
+  const launchConfigComplete =
+    Boolean(selectedAgent) &&
+    modelOptions.some((option) => option.value === model) &&
+    thinkingOptions.some((option) => option.value === reasoning);
   const candidates = useMemo(() => tasks.filter((t) => t.id !== task.id), [tasks, task.id]);
-  const save = async () => {
-    if (!can || saving) return;
+  const pickAgent = (nextAgent: string) => {
+    const next = suggestLaunchConfiguration(
+      { ...task, model: null, reasoning: null },
+      agents,
+      appDefaults,
+      nextAgent,
+    );
+    setAgent(next.agent);
+    setModel(next.model);
+    setReasoning(next.reasoning);
+  };
+  const pickModel = (nextModel: string) => {
+    setModel(nextModel);
+    const choices = reasoningChoicesFor(agents, agent, nextModel);
+    if (!choices.some((option) => option.value === reasoning)) {
+      setReasoning(
+        choices.find((option) => option.value === "think")?.value ??
+          choices[0]?.value ??
+          "",
+      );
+    }
+  };
+  const save = async (confirmLaunch = false) => {
+    if (!can || saving || (confirmLaunch && !launchConfigComplete)) return;
     setSaving(true);
     setSaveError(null);
     try {
-      await onSave(task.id, {
+      const patch: TaskEditPatch = {
         title: title.trim(),
         description: desc.trim(),
         priority,
         depends_on: deps,
-      });
+      };
+      if (launchConfigVisible) {
+        patch.agent = agent;
+        patch.model = model;
+        patch.reasoning = reasoning;
+        if (confirmLaunch) patch.confirm_launch_config = true;
+      }
+      await onSave(task.id, patch);
       onClose();
     } catch (cause) {
       setSaveError(
@@ -140,7 +220,13 @@ export function EditTaskModal({ task, tasks, onClose, onSave, onDelete }: { task
         )}
         <span className="spacer" />
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-accent" disabled={!can || saving} onClick={() => void save()}>{Icon.check()} {saving ? "Saving…" : "Save changes"}</button>
+        <button
+          className="btn btn-accent"
+          disabled={!can || saving || (needsLaunchConfirmation && !launchConfigComplete)}
+          onClick={() => void save(needsLaunchConfirmation)}
+        >
+          {Icon.check()} {saving ? "Saving…" : needsLaunchConfirmation ? "Confirm setup" : "Save changes"}
+        </button>
       </>}>
       {saveError && (
         <div role="alert" aria-live="assertive">
@@ -150,13 +236,60 @@ export function EditTaskModal({ task, tasks, onClose, onSave, onDelete }: { task
       <div className="field">
         <div className="lab">Title</div>
         <input ref={ref} type="text" value={title} placeholder="e.g. Add rate-limiting to auth endpoints"
-          onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && can) void save(); }} />
+          onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && can && !needsLaunchConfirmation) void save(); }} />
       </div>
       <div className="field">
         <div className="lab">Description <span className="opt">— what to do</span></div>
         <textarea value={desc} placeholder="Describe the feature or task. This is the body of the prompt the agent starts with." onChange={(e) => setDesc(e.target.value)} />
         <div className="hlp">Project context is prepended automatically — no need to restate the stack or conventions.</div>
       </div>
+      {launchConfigVisible && (
+        <div className="launch-config">
+          <div className="launch-config-head">
+            <div>
+              <strong>Launch setup</strong>
+              <span>Review the suggested execution settings before this task starts.</span>
+            </div>
+            {task.launch_config_confirmed_at > 0 && !launchConfigChanged && (
+              <span className="launch-confirmed">{Icon.check()} Confirmed</span>
+            )}
+          </div>
+          <div className="launch-config-grid">
+            <label className="field">
+              <span className="lab">Harness</span>
+              <select aria-label="Harness" value={agent} onChange={(event) => pickAgent(event.target.value)}>
+                {agents.agents.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}{option.authenticated ? "" : " · not connected"}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span className="lab">Model</span>
+              <select aria-label="Model" value={model} onChange={(event) => pickModel(event.target.value)}>
+                {modelOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span className="lab">Thinking strength</span>
+              <select aria-label="Thinking strength" value={reasoning} onChange={(event) => setReasoning(event.target.value)}>
+                {thinkingOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+              <span className="hlp">Reasoning effort for this task.</span>
+            </label>
+          </div>
+          {!launchConfigComplete && (
+            <div className="hlp" style={{ color: "var(--amber)" }}>
+              This harness needs at least one available model and Thinking strength before setup can be confirmed.
+            </div>
+          )}
+        </div>
+      )}
       <div className="field">
         <div className="lab">Priority</div>
         <PrioritySeg value={priority} onChange={setPriority} />

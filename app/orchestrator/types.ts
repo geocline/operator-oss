@@ -37,6 +37,8 @@ export interface TaskRow {
   resolved_model: string | null;
   reasoning: string | null; // thinking preset; null = inherit default
   permission_mode: string | null; // run permission; null = bypassPermissions (default)
+  launch_config_required: number;
+  launch_config_confirmed_at: number;
   session_id: string | null;
   pr_url: string; // GitHub PR opened from this task's branch ("" = none yet)
   generation: number;
@@ -216,7 +218,7 @@ export const PRIORITIES: Priority[] = ["hi", "med", "lo"];
 // capability descriptor (models / reasoning / permission modes it supports, plus
 // feature flags) served by GET /api/agents. The client renders every picker from
 // this data, so a task's controls always match the agent it runs under.
-export interface AgentModelOption { value: string; label: string; sub: string; contextWindow: number; contextWindowKnown?: boolean; group?: string }
+export interface AgentModelOption { value: string; label: string; sub: string; contextWindow: number; contextWindowKnown?: boolean; group?: string; reasoningValues?: string[] }
 export interface AgentPickerOption { value: string; label: string; sub: string }
 export interface AgentCapabilities {
   models: AgentModelOption[];

@@ -325,7 +325,7 @@ describe("internal agent-tool endpoints", () => {
     expect(outboxRows(link.id)).toEqual([]);
   });
 
-  it("fails closed on private card-facing text before enqueue or delivery", async () => {
+  it("posts text that the removed privacy policy would have blocked", async () => {
     const { project, task, link } = workstreamFixture("privacy");
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
@@ -334,10 +334,8 @@ describe("internal agent-tool endpoints", () => {
       body: "See /Users/example/private/report.pdf from the Codex session.",
     });
 
-    expect(result.status).toBe("rejected");
-    expect(result.text).toMatch(/privacy/i);
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(outboxRows(link.id)).toEqual([]);
+    expect(result.status).not.toBe("rejected");
+    expect(outboxRows(link.id)).toHaveLength(1);
   });
 
   it("reports a permanent tracker policy rejection instead of retrying it", async () => {
@@ -421,6 +419,77 @@ describe("internal agent-tool endpoints", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("delivers the expanded text, data, image, and archive attachment formats", async () => {
+    vi.stubEnv("ARDENT_TRACKER_BASE_URL", "https://tracker.example");
+    vi.stubEnv("ARDENT_WORKSTREAM_BRIDGE_TOKEN", "bridge-secret");
+    const { repoPath, project, task } = workstreamFixture("expanded-files");
+    const files = [
+      ["notes.md", "# Notes", "text/markdown"],
+      ["rows.csv", "name,value\nA,1\n", "text/csv"],
+      ["data.json", '{"ok":true}', "application/json"],
+      ["diagram.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\"/>", "image/svg+xml"],
+      ["bundle.zip", "zip-bytes", "application/zip"],
+    ] as const;
+    for (const [filename, content] of files) {
+      fs.writeFileSync(path.join(repoPath, filename), content);
+    }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(Response.json({ comment_id: "expanded-files" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await publishWorkstreamUpdate(task, project, {
+      body: "The requested source files are attached.",
+      files: files.map(([filename]) => filename),
+    });
+
+    expect(result.status).toBe("delivered");
+    const request = JSON.parse(
+      (fetchMock.mock.calls[0][1] as RequestInit).body as string,
+    ) as { attachments: Array<{ filename: string; content_type: string }> };
+    expect(
+      request.attachments.map(({ filename, content_type }) => [
+        filename,
+        content_type,
+      ]),
+    ).toEqual(files.map(([filename, _content, contentType]) => [filename, contentType]));
+  });
+
+  it("delivers the remaining expanded text and legacy office formats", async () => {
+    vi.stubEnv("ARDENT_TRACKER_BASE_URL", "https://tracker.example");
+    vi.stubEnv("ARDENT_WORKSTREAM_BRIDGE_TOKEN", "bridge-secret");
+    const { repoPath, project, task } = workstreamFixture("legacy-files");
+    const files = [
+      ["notes.txt", "Plain notes", "text/plain"],
+      ["legacy.xls", "xls-bytes", "application/vnd.ms-excel"],
+      ["legacy.doc", "doc-bytes", "application/msword"],
+      ["legacy.ppt", "ppt-bytes", "application/vnd.ms-powerpoint"],
+    ] as const;
+    for (const [filename, content] of files) {
+      fs.writeFileSync(path.join(repoPath, filename), content);
+    }
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(Response.json({ comment_id: "legacy-files" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await publishWorkstreamUpdate(task, project, {
+      body: "The requested legacy files are attached.",
+      files: files.map(([filename]) => filename),
+    });
+
+    expect(result.status).toBe("delivered");
+    const request = JSON.parse(
+      (fetchMock.mock.calls[0][1] as RequestInit).body as string,
+    ) as { attachments: Array<{ filename: string; content_type: string }> };
+    expect(
+      request.attachments.map(({ filename, content_type }) => [
+        filename,
+        content_type,
+      ]),
+    ).toEqual(files.map(([filename, _content, contentType]) => [filename, contentType]));
+  });
+
   it("queues an allowlisted proposal for owner approval and rejects unsafe or unsupported values", async () => {
     vi.stubEnv("ARDENT_TRACKER_BASE_URL", "https://tracker.example");
     vi.stubEnv("ARDENT_WORKSTREAM_BRIDGE_TOKEN", "bridge-secret");
@@ -454,7 +523,9 @@ describe("internal agent-tool endpoints", () => {
     expect(body).not.toHaveProperty("card_id");
     expect(body).not.toHaveProperty("author");
 
-    const unsafe = await proposeCardChange(task, project, {
+    // Local paths in a proposed description are allowed since the card-facing
+    // privacy policy was removed 2026-08-07.
+    const withPath = await proposeCardChange(task, project, {
       kind: "card_update",
       value: { description: "Open file:///Users/example/private.txt" },
     });
@@ -462,10 +533,9 @@ describe("internal agent-tool endpoints", () => {
       kind: "delete_card" as "card_update",
       value: {},
     });
-    expect(unsafe.status).toBe("rejected");
+    expect(withPath.status).not.toBe("rejected");
     expect(unsupported.status).toBe("rejected");
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(outboxRows(link.id)).toHaveLength(1);
+    expect(outboxRows(link.id)).toHaveLength(2);
   });
 
   it("routes both workstream tools through the current task context", async () => {

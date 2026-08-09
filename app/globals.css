@@ -1158,10 +1158,11 @@ button.tpeek-more:hover{color:var(--accent-ink);}
 .field .lab{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3);margin-bottom:8px;}
 .field .lab svg{width:13px;height:13px;}
 .field .lab .opt{font-weight:500;text-transform:none;letter-spacing:0;color:var(--ink-4);}
-.field input[type=text],.field input[type=number],.field textarea{
+.field input[type=text],.field input[type=number],.field textarea,.field select{
   width:100%;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--raise);
   padding:11px 13px;font-family:var(--sans);font-size:14px;color:var(--ink);outline:none;transition:border-color .12s,box-shadow .12s;
 }
+.field select{min-height:42px;cursor:pointer;}
 .field textarea{resize:vertical;min-height:88px;line-height:1.55;}
 /* Context label row: the action buttons (Preview, Refresh with AI) keep their
    size and wrap as a group below the label on narrow widths instead of
@@ -1175,7 +1176,7 @@ button.tpeek-more:hover{color:var(--accent-ink);}
 /* No native spinners — the rest of the app has none, so they read as out of place. */
 .field input[type=number]{-moz-appearance:textfield;appearance:textfield;}
 .field input[type=number]::-webkit-outer-spin-button,.field input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
-.field input:focus,.field textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
 .field .ctx-mono{font-family:var(--mono);font-size:12.5px;}
 .field .hlp{font-size:11.5px;color:var(--ink-3);margin-top:7px;line-height:1.45;}
 
@@ -1186,6 +1187,16 @@ button.tpeek-more:hover{color:var(--accent-ink);}
 .seg button svg{width:14px;height:14px;}
 [data-theme="dark"] .seg button.on{color:#E0A07F;}
 .seg button .pdot{width:9px;height:9px;border-radius:50%;}
+.launch-config{margin:2px 0 18px;padding:14px;border:1px solid var(--accent);border-radius:var(--r-lg);background:var(--accent-soft);}
+.launch-config-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:13px;}
+.launch-config-head>div{display:flex;flex-direction:column;gap:2px;}
+.launch-config-head strong{font-size:13px;}
+.launch-config-head span{font-size:11.5px;color:var(--ink-3);}
+.launch-config-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
+.launch-config-grid .field{margin:0;}
+.launch-confirmed{display:inline-flex!important;align-items:center;gap:5px;color:var(--green)!important;font-family:var(--mono);font-size:10px!important;font-weight:700;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;}
+.launch-confirmed svg{width:13px;height:13px;}
+.launch-summary{font-family:var(--mono);font-size:9.5px;color:var(--accent-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
 .modal-close{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:var(--ink-3);}
 .modal-close:hover{background:var(--surface-2);color:var(--ink);}
@@ -1428,6 +1439,8 @@ button.tpeek-more:hover{color:var(--accent-ink);}
   .app.mobile .field input[type=text],
   .app.mobile .field input[type=number],
   .app.mobile .field textarea{font-size:16px;}
+  .app.mobile .field select{font-size:16px;}
+  .app.mobile .launch-config-grid{grid-template-columns:1fr;}
 
   /* Diff review: let long code lines scroll rather than blow out the layout. */
   .app.mobile .tc-hunks{overflow-x:auto;-webkit-overflow-scrolling:touch;}

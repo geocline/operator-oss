@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { getTask, getProject, updateTask, deleteTask, listMessages, getTaskUsage, getTaskContext, getTaskDeps, setTaskDeps, countAwaiting } from "@/lib/store";
 import { removeWorktree } from "@/lib/git";
 import { removeTaskUploads } from "@/lib/uploads";
-import { abortTurn } from "@/lib/abort";
+import { abortTurn, hasTurn } from "@/lib/abort";
 import { publishGlobal } from "@/lib/events";
 import { queueManualWorkstreamCompletion } from "@/lib/workstreams/worker";
 import { isKnownAgent } from "@/lib/agents/capabilities";
+import { validateLaunchConfiguration } from "@/lib/agents/launchConfig";
 import type { Task } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +39,22 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (!previous) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
+  const touchesLaunchConfig =
+    "agent" in body ||
+    "model" in body ||
+    "reasoning" in body ||
+    (body as { confirm_launch_config?: unknown }).confirm_launch_config === true;
+  // claimTurn() is the initial launch's atomic liveness marker. From this
+  // synchronous check through updateTask below there are no awaits, so a
+  // first-turn claim cannot interleave with a launch-setting write. Changes
+  // made before the claim are seen by POST's validation; changes after it are
+  // rejected until the first session opens and tasks.started becomes 1.
+  if (previous.started === 0 && touchesLaunchConfig && hasTurn(id)) {
+    return NextResponse.json(
+      { error: "This task is starting. Wait for the launch to finish before changing its setup." },
+      { status: 409 },
+    );
+  }
   // Whitelist user-editable fields.
   const allowed: Partial<Task> = {};
   for (const k of ["title", "description", "priority", "status", "suggested", "model", "reasoning", "permission_mode"] as const) {
@@ -67,11 +84,43 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       // The run knobs are per-CLI vocabularies ("opus" means nothing to codex),
       // so a switch resets them to the new driver's defaults - the same reset
       // the /clear handoff performs.
-      allowed.model = null;
-      allowed.reasoning = null;
+      if (!("model" in body)) allowed.model = null;
+      if (!("reasoning" in body)) allowed.reasoning = null;
       allowed.permission_mode = null;
       allowed.resolved_model = null;
     }
+  }
+  const launchConfigChanged =
+    ("agent" in allowed && allowed.agent !== previous.agent) ||
+    ("model" in allowed && allowed.model !== previous.model) ||
+    ("reasoning" in allowed && allowed.reasoning !== previous.reasoning);
+  if (
+    launchConfigChanged &&
+    previous.started === 0 &&
+    previous.launch_config_required === 1
+  ) {
+    allowed.launch_config_confirmed_at = 0;
+  }
+  if ((body as { confirm_launch_config?: unknown }).confirm_launch_config === true) {
+    if (previous.started === 1) {
+      return NextResponse.json(
+        { error: "This task already has a session, so its launch setup can no longer be confirmed." },
+        { status: 409 },
+      );
+    }
+    const configuration = {
+      agent: allowed.agent ?? previous.agent,
+      model: "model" in allowed ? allowed.model ?? null : previous.model,
+      reasoning:
+        "reasoning" in allowed
+          ? allowed.reasoning ?? null
+          : previous.reasoning,
+    };
+    const configError = validateLaunchConfiguration(configuration);
+    if (configError) {
+      return NextResponse.json({ error: configError }, { status: 400 });
+    }
+    allowed.launch_config_confirmed_at = Date.now();
   }
   // Cancelling means "stop working on this": kill any in-flight turn. The
   // runner's finally block settles running=0 and discards the parked queue.

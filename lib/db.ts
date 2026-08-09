@@ -62,6 +62,8 @@ export function init(db: Database.Database) {
       resolved_model TEXT,
       reasoning   TEXT,
       permission_mode TEXT,
+      launch_config_required INTEGER NOT NULL DEFAULT 0,
+      launch_config_confirmed_at INTEGER NOT NULL DEFAULT 0,
       session_id  TEXT,
       worktree_path TEXT NOT NULL DEFAULT '',
       work_branch   TEXT NOT NULL DEFAULT '',
@@ -453,6 +455,13 @@ export function migrate(db: Database.Database) {
   // Per-task run controls (added after model selection): thinking preset + permission mode.
   if (!taskCols.includes("reasoning")) db.exec("ALTER TABLE tasks ADD COLUMN reasoning TEXT");
   if (!taskCols.includes("permission_mode")) db.exec("ALTER TABLE tasks ADD COLUMN permission_mode TEXT");
+  if (!taskCols.includes("launch_config_required")) {
+    db.exec("ALTER TABLE tasks ADD COLUMN launch_config_required INTEGER NOT NULL DEFAULT 0");
+    db.exec("UPDATE tasks SET launch_config_required = 1 WHERE suggested = 1 AND started = 0");
+  }
+  if (!taskCols.includes("launch_config_confirmed_at")) {
+    db.exec("ALTER TABLE tasks ADD COLUMN launch_config_confirmed_at INTEGER NOT NULL DEFAULT 0");
+  }
   // Agent-driver seam: which driver runs this task's sessions. Every pre-seam
   // task ran Claude, so the column default backfills existing rows correctly.
   if (!taskCols.includes("agent")) db.exec("ALTER TABLE tasks ADD COLUMN agent TEXT NOT NULL DEFAULT 'claude'");
@@ -581,10 +590,10 @@ function seedIfEmpty(db: Database.Database) {
   const seedTask = (title: string, description: string, priority: string, suggested: number) =>
     db
       .prepare(
-        `INSERT INTO tasks (id, project_id, title, description, priority, status, suggested, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 'not_started', ?, ?, ?)`
+        `INSERT INTO tasks (id, project_id, title, description, priority, status, suggested, launch_config_required, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 'not_started', ?, ?, ?, ?)`
       )
-      .run(nanoid(), pid, title, description, priority, suggested, now, now);
+      .run(nanoid(), pid, title, description, priority, suggested, suggested, now, now);
 
   // The hands-on task: it drives the full loop in one turn — a question, a
   // one-file edit, a diff to review, a one-click merge. Its title + description

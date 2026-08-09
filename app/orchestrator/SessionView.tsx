@@ -12,6 +12,7 @@ import {
   type WorkstreamLinkT,
 } from "./types";
 import { capsFor, agentLabel, findAgent } from "./agents";
+import { needsLaunchConfiguration } from "./launchConfig";
 import { StatusDot, Avatar, Popover, Skel } from "./shared";
 import { Modal } from "./Modal";
 import { jsend } from "./api";
@@ -251,9 +252,10 @@ function WorkstreamTaskControls({ taskId }: { taskId: string }) {
   );
 }
 
-function TaskHero({ task, project, onStart, onEdit, running, blockedBy }: { task: TaskRow; project: ProjectRow; onStart: () => void; onEdit: () => void; running: boolean; blockedBy?: string[] }) {
+function TaskHero({ task, project, agents, onStart, onEdit, running, blockedBy, agentReady }: { task: TaskRow; project: ProjectRow; agents: AgentsBundle; onStart: () => void; onEdit: () => void; running: boolean; blockedBy?: string[]; agentReady: boolean }) {
   const carried = task.generation > 1;
   const blocked = !!blockedBy?.length && !task.started;
+  const needsSetup = needsLaunchConfiguration(task, agents);
   const statusLine = carried ? "Fresh window · summary carried" : `${SLABEL[task.status]} · no session yet`;
   return (
     <div className="hero">
@@ -274,8 +276,8 @@ function TaskHero({ task, project, onStart, onEdit, running, blockedBy }: { task
         </div>
       )}
       <div style={{ display: "flex", gap: 10 }}>
-        <button className="btn btn-accent" style={{ height: 38, padding: "0 20px", fontSize: 14 }} onClick={onStart} disabled={running || blocked} title={blocked ? `Blocked until done: ${blockedBy!.join(", ")}` : undefined}>
-          {Icon.play()} {running ? "Starting…" : blocked ? "Blocked" : "Start session"}
+        <button className="btn btn-accent" style={{ height: 38, padding: "0 20px", fontSize: 14 }} onClick={needsSetup ? onEdit : onStart} disabled={running || blocked || (!needsSetup && !agentReady)} title={blocked ? `Blocked until done: ${blockedBy!.join(", ")}` : needsSetup ? "Review Harness, Model, and Thinking strength before starting" : !agentReady ? "Connect this task's harness before starting" : undefined}>
+          {needsSetup ? Icon.sliders() : Icon.play()} {running ? "Starting…" : blocked ? "Blocked" : needsSetup ? "Review setup" : !agentReady ? "Harness not connected" : "Start session"}
         </button>
         <button className="btn btn-line" style={{ height: 38, padding: "0 16px", fontSize: 14 }} onClick={onEdit} disabled={running} title="Edit title & description before starting">
           {Icon.edit()} Edit
@@ -736,7 +738,7 @@ export function SessionView({ project, task, agents, messages, running, blockedB
         )}
 
         {!hasSession ? (
-          <TaskHero task={task} project={project} onStart={onStart} onEdit={onEdit} running={running} blockedBy={blockedBy} />
+          <TaskHero task={task} project={project} agents={agents} onStart={onStart} onEdit={onEdit} running={running} blockedBy={blockedBy} agentReady={findAgent(agents, task.agent)?.authenticated ?? false} />
         ) : !mobile ? (
           // Desktop: transcript beside the DIFF / PREVIEW / CONTEXT rail. The
           // zero-width seam between them holds the drag handle (a 0px grid track),

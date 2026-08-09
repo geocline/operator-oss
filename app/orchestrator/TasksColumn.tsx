@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { Icon } from "../icons";
 import { isAwaiting, relTime } from "./format";
 import { SLABEL, AWAIT_LABEL, SEARCH_MIN, type ProjectRow, type TaskRow, type AgentsBundle, type TaskView } from "./types";
-import { agentLabel } from "./agents";
+import { agentLabel, findAgent } from "./agents";
+import { launchConfigurationSummary, needsLaunchConfiguration } from "./launchConfig";
 import { StatusDot, PriPill, SearchBar, AgentBadge } from "./shared";
 import { TaskCardSkeleton } from "./Layout";
 import { TaskBoard } from "./TaskBoard";
@@ -177,10 +178,24 @@ export function TasksColumn({ project, agents, tasks, suggested, selTaskId, runn
                 <div className="sg-meta">
                   <div className="sg-name">{s.title}</div>
                   {s.description && <div className="sg-why">{s.description}</div>}
+                  {launchConfigurationSummary(s, agents) && (
+                    <div className="launch-summary">{launchConfigurationSummary(s, agents)}</div>
+                  )}
                 </div>
                 <button className="sug-dismiss" title="Edit title & description" onClick={() => onEditTask(s.id)}>{Icon.edit()}</button>
                 <button className="sug-add" title="Add to task list to start later" onClick={() => onAcceptSuggestion(s.id)}>{Icon.plus()} Add</button>
-                <button className="sug-btn" onClick={() => onStartSuggestion(s.id)}>{Icon.play()} Start</button>
+                {needsLaunchConfiguration(s, agents) ? (
+                  <button className="sug-btn" onClick={() => onEditTask(s.id)}>{Icon.sliders()} Review setup</button>
+                ) : (
+                  <button
+                    className="sug-btn"
+                    disabled={!findAgent(agents, s.agent)?.authenticated}
+                    title={!findAgent(agents, s.agent)?.authenticated ? `${agentLabel(agents, s.agent)} is not connected` : undefined}
+                    onClick={() => onStartSuggestion(s.id)}
+                  >
+                    {Icon.play()} Start
+                  </button>
+                )}
                 <button className="sug-dismiss" title="Dismiss" onClick={() => onDismissSuggestion(s.id)}>{Icon.x()}</button>
               </div>
             ))}

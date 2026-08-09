@@ -25,6 +25,9 @@ export function liteLLMCapabilities(): AgentCapabilities {
         contextWindow: m.contextWindow ?? 200_000,
         contextWindowKnown: m.contextWindow !== null,
         group: "LiteLLM",
+        reasoningValues: m.reasoningOptions
+          .map((value) => REASONING[value]?.value)
+          .filter((value): value is string => Boolean(value)),
       })),
     reasoningOptions: [...reasoning].map((value) => REASONING[value]).filter(Boolean),
     permissionModes: [

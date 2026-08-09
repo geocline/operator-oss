@@ -5,6 +5,7 @@ import { Icon } from "./icons";
 import { TerminalView, type TermApi } from "./Terminal";
 import { PROJ_W, TASK_W, DEFAULT_LAYOUT } from "./orchestrator/types";
 import { useOrchestrator } from "./orchestrator/useOrchestrator";
+import { useDocumentTitle } from "./orchestrator/useDocumentTitle";
 import { ProjectsColumn } from "./orchestrator/ProjectsColumn";
 import { TasksColumn } from "./orchestrator/TasksColumn";
 import { BoardWorkspace } from "./orchestrator/TaskBoard";
@@ -99,6 +100,16 @@ export default function Orchestrator() {
   const isMobile = useIsMobile();
   const features = clientFeatures();
   const isDark = o.appearance.theme !== "light";
+  // Browser tab title. The workspace names the project and, once a session is
+  // selected, the task - which is what tells two Operator tabs apart. The other
+  // views have no selection worth naming, so they just say which view they are.
+  useDocumentTitle(
+    o.view !== "workspace"
+      ? o.view === "settings" ? "Settings" : o.view === "insights" ? "Insights" : "Quota"
+      : !project ? null
+      : task ? `${project.name} / ${task.title}`
+      : project.name,
+  );
   const [needsYouOpen, setNeedsYouOpen] = useState(false);
   // Focus mode: hide the projects/tasks columns so the selected session fills
   // the workspace. Esc (or the session header button) exits; auto-exits when
@@ -586,7 +597,15 @@ export default function Orchestrator() {
 
       {o.modal === "task" && project && <NewTaskModal project={project} agents={o.agents} tasks={o.realTasks} onClose={() => o.setModal(null)} onCreate={o.createTask} onOpenSetup={o.rerunOnboarding} />}
       {o.editId && o.tasks.find((t) => t.id === o.editId) && (
-        <EditTaskModal task={o.tasks.find((t) => t.id === o.editId)!} tasks={o.realTasks} onClose={() => o.setEditId(null)} onSave={o.saveTask} onDelete={o.removeTask} />
+        <EditTaskModal
+          task={o.tasks.find((t) => t.id === o.editId)!}
+          tasks={o.realTasks}
+          agents={o.agents}
+          appDefaults={o.appDefaults}
+          onClose={() => o.setEditId(null)}
+          onSave={o.saveTask}
+          onDelete={o.removeTask}
+        />
       )}
       {o.modal === "context" && project && <ContextModal project={project} agents={o.agents} onSetDefaultAgent={o.setProjectDefaultAgent} onClose={() => o.setModal(null)} onSave={o.saveContext} onDelete={() => o.removeProject(project.id)} onDeprecate={() => o.setDeprecated(project.id, true)} />}
       {o.modal === "project" && <NewProjectModal onClose={() => o.setModal(null)} onCreate={o.createProject} />}

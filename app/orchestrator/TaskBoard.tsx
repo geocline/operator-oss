@@ -5,7 +5,8 @@ import type { Status } from "@/lib/types";
 import { Icon } from "../icons";
 import { isAwaiting, relTime } from "./format";
 import { SEARCH_MIN, type ProjectRow, type TaskRow, type AgentsBundle, type TaskView } from "./types";
-import { agentLabel } from "./agents";
+import { agentLabel, findAgent } from "./agents";
+import { launchConfigurationSummary, needsLaunchConfiguration } from "./launchConfig";
 import { StatusDot, PriPill, SearchBar, AgentBadge } from "./shared";
 
 // The kanban alternative to the grouped task list (layout from the Claude
@@ -108,6 +109,7 @@ function BoardCard({ task, agents, selected, running, blockedBy, mini, dragging,
     : task.status === "cancelled" ? `cancelled · ${relTime(task.updated_at)}`
     : task.status === "on_hold" ? `held · ${relTime(task.updated_at)}`
     : task.started ? relTime(task.updated_at) : "not started";
+  const launchSummary = launchConfigurationSummary(task, agents);
   return (
     <article
       role="button" tabIndex={0}
@@ -128,6 +130,7 @@ function BoardCard({ task, agents, selected, running, blockedBy, mini, dragging,
       </div>
       <div className="bc-meta">
         <AgentBadge label={agentLabel(agents, task.agent)} multi={!mini && agents.agents.length > 1} />
+        {launchSummary && <span className="launch-summary">{launchSummary}</span>}
         <span className={`bc-act ${awaiting ? "need" : running ? "on" : ""}`}>{activity}</span>
       </div>
       {running && <div className="bc-bar"><i /></div>}
@@ -259,7 +262,18 @@ export function TaskBoard({ tasks, suggested, agents, selTaskId, running, blocke
                       onDragEnd={reset}
                       actions={t.suggested ? (
                         <div className="bsug-acts" onClick={(e) => e.stopPropagation()}>
-                          <button className="go" onClick={() => onStartSuggestion(t.id)}>{Icon.play()} Start</button>
+                          {needsLaunchConfiguration(t, agents) ? (
+                            <button className="go" onClick={() => onEditTask(t.id)}>{Icon.sliders()} Review setup</button>
+                          ) : (
+                            <button
+                              className="go"
+                              disabled={!findAgent(agents, t.agent)?.authenticated}
+                              title={!findAgent(agents, t.agent)?.authenticated ? `${agentLabel(agents, t.agent)} is not connected` : undefined}
+                              onClick={() => onStartSuggestion(t.id)}
+                            >
+                              {Icon.play()} Start
+                            </button>
+                          )}
                           <button onClick={() => onAcceptSuggestion(t.id)} title="Add to list to start later">{Icon.plus()} Add</button>
                           <button className="no" onClick={() => onDismissSuggestion(t.id)} title="Dismiss">{Icon.x()}</button>
                         </div>

@@ -531,10 +531,22 @@ export function createTask(input: {
   ).n;
   getDb()
     .prepare(
-      `INSERT INTO tasks (id, project_id, title, description, priority, status, suggested, agent, position, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 'not_started', ?, ?, ?, ?, ?)`
+      `INSERT INTO tasks (id, project_id, title, description, priority, status, suggested, agent, launch_config_required, position, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 'not_started', ?, ?, ?, ?, ?, ?)`
     )
-    .run(id, input.project_id, input.title, input.description ?? "", input.priority ?? "med", input.suggested ? 1 : 0, agent, position, now, now);
+    .run(
+      id,
+      input.project_id,
+      input.title,
+      input.description ?? "",
+      input.priority ?? "med",
+      input.suggested ? 1 : 0,
+      agent,
+      input.suggested ? 1 : 0,
+      position,
+      now,
+      now,
+    );
   return getTask(id)!;
 }
 
@@ -557,9 +569,35 @@ export function updateTask(id: string, patch: Partial<Task>): Task | undefined {
   getDb()
     .prepare(
       `UPDATE tasks SET title=?, description=?, priority=?, status=?, suggested=?, agent=?, model=?, resolved_model=?, reasoning=?, permission_mode=?,
-        session_id=?, worktree_path=?, work_branch=?, base_sha=?, merged_at=?, pr_url=?, generation=?, started=?, running=?, awaiting_input=?, updated_at=? WHERE id=?`
+        launch_config_required=?, launch_config_confirmed_at=?, session_id=?, worktree_path=?, work_branch=?, base_sha=?, merged_at=?, pr_url=?,
+        generation=?, started=?, running=?, awaiting_input=?, updated_at=? WHERE id=?`
     )
-    .run(n.title, n.description, n.priority, n.status, n.suggested, n.agent, n.model ?? null, n.resolved_model ?? null, n.reasoning ?? null, n.permission_mode ?? null, n.session_id, n.worktree_path, n.work_branch, n.base_sha, n.merged_at, n.pr_url, n.generation, n.started, n.running, n.awaiting_input, n.updated_at, id);
+    .run(
+      n.title,
+      n.description,
+      n.priority,
+      n.status,
+      n.suggested,
+      n.agent,
+      n.model ?? null,
+      n.resolved_model ?? null,
+      n.reasoning ?? null,
+      n.permission_mode ?? null,
+      n.launch_config_required,
+      n.launch_config_confirmed_at,
+      n.session_id,
+      n.worktree_path,
+      n.work_branch,
+      n.base_sha,
+      n.merged_at,
+      n.pr_url,
+      n.generation,
+      n.started,
+      n.running,
+      n.awaiting_input,
+      n.updated_at,
+      id,
+    );
   return getTask(id);
 }
 

@@ -512,7 +512,16 @@ export function useOrchestrator() {
     }
   }, [loadTasks]);
 
-  const saveTask = async (id: string, patch: { title: string; description: string; priority: Priority; depends_on: string[] }) => {
+  const saveTask = async (id: string, patch: {
+    title: string;
+    description: string;
+    priority: Priority;
+    depends_on: string[];
+    agent?: string;
+    model?: string;
+    reasoning?: string;
+    confirm_launch_config?: boolean;
+  }) => {
     const fresh = await saveTaskEdit<TaskRow>(id, patch);
     setTasks((prev) => prev.map((x) => (x.id === id ? { ...x, ...fresh } : x)));
   };
@@ -531,6 +540,16 @@ export function useOrchestrator() {
   };
 
   const startSuggestion = async (id: string) => {
+    const suggestion = tasks.find((entry) => entry.id === id);
+    if (
+      suggestion?.launch_config_required === 1 &&
+      (suggestion.launch_config_confirmed_at === 0 ||
+        !suggestion.model ||
+        !suggestion.reasoning)
+    ) {
+      setEditId(id);
+      return;
+    }
     await jsend<TaskRow>(`/api/tasks/${id}`, "PATCH", { suggested: 0 });
     if (selProj) await loadTasks(selProj, false);
     setSelTask(id);

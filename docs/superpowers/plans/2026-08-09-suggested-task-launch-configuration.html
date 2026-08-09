@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Suggested Task Launch Configuration - Implementation Plan</title>
+  <style>
+    :root{color-scheme:light dark;--bg:#0f1117;--panel:#171a22;--ink:#f3f4f6;--muted:#a7adba;--line:#303644;--accent:#e58a61}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    main{width:min(980px,calc(100% - 32px));margin:40px auto 72px}h1{margin:0 0 6px;font-size:32px;letter-spacing:-.03em}h2{margin:30px 0 10px;font-size:21px}
+    h3{margin:22px 0 7px;font-size:17px}p,li{color:var(--muted)}strong,code{color:var(--ink)}section,.meta{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:16px 18px;margin:14px 0}
+    .meta{display:grid;grid-template-columns:130px 1fr;gap:4px 12px}code{background:#232733;padding:2px 5px;border-radius:5px}pre{overflow:auto;background:#10131a;border:1px solid var(--line);padding:12px;border-radius:8px;color:#e9edf5}
+    input{accent-color:var(--accent)}@media(prefers-color-scheme:light){:root{--bg:#f7f5f2;--panel:#fff;--ink:#1b1d22;--muted:#555d69;--line:#d9dce2;--accent:#b95431}code{background:#f0eee9}pre{background:#f6f7f9;color:#222}}
+  </style>
+</head>
+<body><main>
+  <h1>Suggested Task Launch Configuration Implementation Plan</h1>
+  <p>Inline execution plan for the approved design and consolidation of the existing dirty change set.</p>
+  <div class="meta">
+    <strong>Goal</strong><span>Require explicit Harness, Model, and Thinking strength confirmation before an agent-created suggested task can start.</span>
+    <strong>Architecture</strong><span>Persist launch requirements on the task, validate confirmation through the task API, enforce it at the initial-message boundary, and render one reusable configuration editor in the edit modal.</span>
+    <strong>Stack</strong><span>Next.js 16, React 19, TypeScript, SQLite, Vitest, react-test-renderer.</span>
+    <strong>Execution</strong><span>Inline, test-driven, without committing or disturbing unrelated untracked artifacts.</span>
+  </div>
+
+  <h2>File map</h2>
+  <section>
+    <ul>
+      <li><code>lib/types.ts</code>, <code>lib/db.ts</code>, <code>lib/store.ts</code>: durable task fields and migration/backfill.</li>
+      <li><code>lib/agents/types.ts</code>, <code>app/orchestrator/types.ts</code>, <code>lib/agents/litellm/capabilities.ts</code>: optional model-specific reasoning metadata.</li>
+      <li><code>app/api/tasks/[id]/route.ts</code>: configuration validation, confirmation, and invalidation.</li>
+      <li><code>app/api/tasks/[id]/messages/route.ts</code>: authoritative initial-launch gate.</li>
+      <li><code>app/orchestrator/launchConfig.ts</code>: pure suggestion and option-selection helpers.</li>
+      <li><code>app/orchestrator/modals.tsx</code>: configuration editor and Confirm setup action.</li>
+      <li><code>app/orchestrator/useOrchestrator.ts</code>, <code>app/Orchestrator.tsx</code>: save/start wiring and state refresh.</li>
+      <li><code>app/orchestrator/TasksColumn.tsx</code>, <code>app/orchestrator/TaskBoard.tsx</code>, <code>app/orchestrator/SessionView.tsx</code>: pending-review gating and confirmed summaries.</li>
+      <li><code>app/globals.css</code>: compact launch-configuration presentation.</li>
+      <li><code>lib/agentToolDefs.mjs</code>, existing dirty workstream files, and tests: consolidate the earlier permissive-posting decision.</li>
+      <li><code>app/orchestrator/useDocumentTitle.ts</code>, <code>lib/agents/shared.ts</code>, and tests: finish verification for the earlier tab-title and global-rule work.</li>
+    </ul>
+  </section>
+
+  <h2>Task 1 - Pin the durable launch contract</h2>
+  <section>
+    <ol>
+      <li>Write failing store tests asserting suggested tasks receive <code>launch_config_required=1</code> and <code>launch_config_confirmed_at=0</code>, while ordinary tasks do not require confirmation.</li>
+      <li>Run the focused test and confirm failure because the fields do not exist.</li>
+      <li>Add both integer columns to the base schema and idempotent migration. Backfill only existing unstarted rows still marked <code>suggested=1</code>.</li>
+      <li>Add both fields to server and client task types, <code>createTask</code>, and <code>updateTask</code>.</li>
+      <li>Run the focused store test and existing task/store suites.</li>
+    </ol>
+    <pre>npm test -- tests/suggestedLaunchConfig.test.ts tests/taskReorder.test.ts</pre>
+  </section>
+
+  <h2>Task 2 - Validate confirmation and block bypasses</h2>
+  <section>
+    <ol>
+      <li>Write failing route tests for: valid confirmation, unsupported model, unsupported reasoning preset, configuration changes clearing confirmation, and initial launch returning 409 before side effects.</li>
+      <li>Add a pure server helper that resolves capabilities for the selected agent and validates explicit model/reasoning values.</li>
+      <li>Extend task PATCH with a <code>confirm_launch_config</code> action. Apply agent/model/reasoning changes and confirmation atomically; clear confirmation on later pre-start configuration changes.</li>
+      <li>Gate only <code>!started &amp;&amp; launch_config_required &amp;&amp; !launch_config_confirmed_at</code> in the messages route before claiming a turn or creating a worktree.</li>
+      <li>Run route tests and confirm the rejected launch has no message, worktree, or running-state side effect.</li>
+    </ol>
+    <pre>npm test -- tests/suggestedLaunchConfig.test.ts</pre>
+  </section>
+
+  <h2>Task 3 - Build suggestion helpers and the modal flow</h2>
+  <section>
+    <ol>
+      <li>Write failing pure-helper tests for default Harness/Model/Thinking strength resolution and harness changes.</li>
+      <li>Create <code>launchConfig.ts</code>. Prefer valid explicit values, then agent-scoped reasoning default, then <code>think</code>, then the first supported option.</li>
+      <li>Extend model capability metadata with optional reasoning-preset values and populate it for LiteLLM catalog models.</li>
+      <li>Write failing modal tests asserting suggested values render, Confirm setup stays unavailable when capabilities are missing, and confirmation sends title/description/priority/dependencies plus agent/model/reasoning and <code>confirm_launch_config:true</code>.</li>
+      <li>Add the Harness, Model, and Thinking strength fields to the edit modal for required unstarted tasks. Harness changes refresh dependent choices.</li>
+      <li>Preserve the existing save timeout/retry behavior and keep edits in the open modal on failure.</li>
+    </ol>
+    <pre>npm test -- tests/launchConfig.test.ts tests/editTaskModal.test.ts</pre>
+  </section>
+
+  <h2>Task 4 - Gate every start surface</h2>
+  <section>
+    <ol>
+      <li>Write failing rendering tests for list and board suggestions: pending rows show Review setup and no Start; confirmed rows show a configuration summary and Start.</li>
+      <li>Pass agents and app defaults into EditTaskModal and route Review setup to the existing edit action.</li>
+      <li>Update list and board suggestion actions without changing Add or Dismiss semantics.</li>
+      <li>Update the unstarted task hero so an accepted-but-unconfirmed suggestion still shows Review setup instead of Start.</li>
+      <li>Keep the server gate as the final authority and surface its 409 message if a stale client attempts launch.</li>
+    </ol>
+    <pre>npm test -- tests/suggestedTaskUi.test.ts tests/editTaskModal.test.ts</pre>
+  </section>
+
+  <h2>Task 5 - Consolidate the earlier dirty work</h2>
+  <section>
+    <ol>
+      <li>Add a hook test proving project/task/view changes update the document title and the empty state resets it to Operator.</li>
+      <li>Add a context test proving the global rules file is prepended when present and missing-file behavior remains safe. Refactor the loader to accept an environment/configurable path if needed for deterministic tests.</li>
+      <li>Update <code>publish_workstream_update</code> and <code>propose_card_change</code> descriptions so they no longer contradict the removed privacy filter. Keep task scoping, explicit-request, path containment, filename structure, size, count, and supported MIME limits.</li>
+      <li>Rename stale “privacy policy” errors to accurate structural/content validation language.</li>
+      <li>Add focused tests for each newly supported attachment type and ensure unsupported executable/source formats still fail through the MIME allowlist.</li>
+      <li>Do not alter the unrelated HANDOFF rewrite or session artifacts.</li>
+    </ol>
+    <pre>npm test -- tests/documentTitle.test.ts tests/worktreeClarity.test.ts tests/agentTools.test.ts tests/workstreamSanitize.test.ts</pre>
+  </section>
+
+  <h2>Task 6 - Full verification and readable audit</h2>
+  <section>
+    <ol>
+      <li>Run <code>git diff --check</code>.</li>
+      <li>Run the full test suite, typecheck, production build, and build-trace check.</li>
+      <li>Inspect the resulting diff to confirm existing unrelated edits were preserved.</li>
+      <li>Create an HTML consolidation report listing completed prior work, changes made now, verification evidence, and any remaining operational/manual issues.</li>
+      <li>Do not restart Operator while any task turn is running; deployment/restart is outside this code pass unless separately authorized and the running-task query is empty.</li>
+    </ol>
+    <pre>npm test
+npm run typecheck
+npm run build
+npm run check:build-traces</pre>
+  </section>
+</main></body>
+</html>

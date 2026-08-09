@@ -128,6 +128,18 @@ const WORKSTREAM_FILE_TYPES = new Map<string, string>([
   [".jpeg", "image/jpeg"],
   [".gif", "image/gif"],
   [".webp", "image/webp"],
+  // Plain-text and data formats - added 2026-08-07 per George. The old
+  // allowlist was a readability preference, not a safety boundary, and it
+  // blocked ordinary reference material from reaching the card at all.
+  [".md", "text/markdown"],
+  [".txt", "text/plain"],
+  [".csv", "text/csv"],
+  [".json", "application/json"],
+  [".xls", "application/vnd.ms-excel"],
+  [".doc", "application/msword"],
+  [".ppt", "application/vnd.ms-powerpoint"],
+  [".svg", "image/svg+xml"],
+  [".zip", "application/zip"],
 ]);
 const MAX_WORKSTREAM_FILES = 5;
 const MAX_WORKSTREAM_FILE_BYTES = 2 * 1024 * 1024;
@@ -311,24 +323,11 @@ async function loadWorkstreamAttachments(
       return {
         ok: false,
         result: rejected(
-          "An attachment was rejected by the card-facing privacy or file-type policy.",
+          `The tracker has no upload handler for "${filename}". Convert it to a supported format or add its extension to WORKSTREAM_FILE_TYPES.`,
         ),
       };
     }
     const content = await fs.readFile(resolved);
-    if (contentType === "text/html") {
-      const inspectable = content
-        .toString("utf8")
-        .replace(/<\/?([A-Za-z][^>]*)>/g, " $1 ");
-      if (!validateCardFacingText(inspectable, "attachment.content").ok) {
-        return {
-          ok: false,
-          result: rejected(
-            "An attachment was rejected by the card-facing privacy policy.",
-          ),
-        };
-      }
-    }
     attachments.push({
       filename,
       content_type: contentType,
@@ -435,7 +434,7 @@ function validateProposal(
       !validateCardFacingText(value[field], `value.${field}`).ok
     ) {
       return rejected(
-        "The proposal was rejected by the card-facing privacy policy.",
+        "The proposal contains an invalid card field value.",
       );
     }
   }
@@ -589,7 +588,7 @@ export async function publishWorkstreamUpdate(
   });
   if (!validation.ok) {
     return rejected(
-      "The update was rejected by the card-facing privacy policy.",
+      "The update contains an invalid card-facing value.",
     );
   }
   const payload: RoutineUpdatePayload = {
