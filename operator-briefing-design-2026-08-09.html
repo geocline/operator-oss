@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Operator Briefing — Approved Design Specification</title>
+  <style>
+    :root{--bg:#f3f1ea;--paper:#fffdf8;--ink:#19231e;--muted:#637068;--line:#d8ddd6;--green:#176548;--soft:#e7f2eb;--amber:#7b5207;--amber-bg:#fff2d2}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.58 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    main{width:min(980px,calc(100% - 28px));margin:24px auto 64px}header,section{padding:28px;background:var(--paper);border:1px solid var(--line);border-radius:18px;margin-bottom:16px}
+    header{color:#f5faf7;background:linear-gradient(140deg,#10271d,#1b513b);border:0}h1,h2,h3{line-height:1.13;letter-spacing:-.025em}h1{font-size:clamp(2.4rem,8vw,4.5rem);margin:8px 0 12px}h2{font-size:1.65rem;margin:0 0 15px}h3{font-size:1.12rem;margin:22px 0 7px}
+    p{margin:0 0 13px}.eyebrow{text-transform:uppercase;letter-spacing:.15em;font-size:.72rem;font-weight:800;color:#acd0bc}.lede{font-size:1.14rem;color:#d1e4da;max-width:780px}
+    .verdict,.note,.warn{padding:17px;border-radius:12px;margin:16px 0}.verdict{border-left:5px solid #66d49a;background:rgba(231,242,235,.11)}.note{background:var(--soft)}.warn{background:var(--amber-bg);color:var(--amber)}
+    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:13px}.card{padding:18px;border:1px solid var(--line);border-radius:13px}.card strong{display:block;margin-bottom:5px;color:var(--green)}
+    ul,ol{padding-left:22px;margin:8px 0 16px}li{margin:7px 0}code{font:.9em ui-monospace,SFMono-Regular,Menlo,monospace;background:#edf0eb;padding:2px 5px;border-radius:5px}
+    table{width:100%;border-collapse:collapse;font-size:.93rem}th,td{text-align:left;vertical-align:top;padding:12px 10px;border-bottom:1px solid var(--line)}th{font-size:.74rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}tr:last-child td{border-bottom:0}
+    .flow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.flow span{padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:#fbfcf9}.flow b{color:var(--green)}
+    .approved{border:2px solid #78a98f;background:#f8fcf9}.foot{color:var(--muted);font-size:.87rem}
+    @media(max-width:680px){header,section{padding:21px}.grid{grid-template-columns:1fr}table{display:block;overflow-x:auto}}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="eyebrow">Written specification · 9 August 2026</div>
+    <h1>Operator Briefing</h1>
+    <p class="lede">One factual, on-demand answer to: what is running, what genuinely needs Geo, what changed, and where should work resume?</p>
+    <div class="verdict"><strong>Scope:</strong> a text-first <em>Brief me</em> page inside Operator, with optional browser read-aloud. No Telegram, scheduled alerts, microphone, new dictation, always-on narration, or AI model calls.</div>
+  </header>
+
+  <section>
+    <h2>The important distinction</h2>
+    <p>Operator currently marks every settled in-progress turn as <code>awaiting_input</code>. That means the “N need you” count mixes real blocking questions with ordinary turns that are merely ready for review, failures, and old sessions.</p>
+    <div class="grid">
+      <div class="card"><strong>Needs your decision</strong>Only unresolved structured questions. Highest priority and always expanded.</div>
+      <div class="card"><strong>Problems to review</strong>Current errors or failed tool outcomes, safely summarized.</div>
+      <div class="card"><strong>Active now</strong>Tasks with a running turn and their latest meaningful activity.</div>
+      <div class="card"><strong>Ready for review</strong>Settled ordinary turns. Sessions older than seven days collapse under “Older open sessions.”</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>The page</h2>
+    <div class="flow">
+      <span>Top bar: Brief me</span><b>→</b><span><code>/brief</code></span><b>→</b><span>One factual API response</span><b>→</b><span>Task/project deep links</span>
+    </div>
+    <h3>Six sections</h3>
+    <ol>
+      <li><strong>Needs your decision</strong> — exact unresolved questions and waiting time.</li>
+      <li><strong>Problems to review</strong> — current failures without raw stack traces or secrets.</li>
+      <li><strong>Active now</strong> — running tasks and last meaningful activity.</li>
+      <li><strong>Ready for review</strong> — recent settled turns, with stale sessions collapsed.</li>
+      <li><strong>Since your last briefing</strong> — new, active, waiting, changed, merged, or updated tasks proven by snapshot comparison.</li>
+      <li><strong>Where to pick up</strong> — up to five recent projects using stored recaps or latest-task fallback.</li>
+    </ol>
+    <p>The first visit uses the previous 24 hours for recent activity. Later visits compare with the last successfully rendered briefing.</p>
+  </section>
+
+  <section>
+    <h2>Read aloud</h2>
+    <ul>
+      <li>Starts only when Geo presses <strong>Read aloud</strong>.</li>
+      <li>Uses browser speech synthesis; system dictation remains the input method.</li>
+      <li>Reads server-provided safe text, not raw errors, paths, tool output, URLs, or ids.</li>
+      <li>Provides Stop and cancels when leaving the page.</li>
+      <li>Disappears when the browser does not support speech synthesis.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Architecture</h2>
+    <table>
+      <thead><tr><th>Part</th><th>Responsibility</th></tr></thead>
+      <tbody>
+        <tr><td><code>lib/briefing.ts</code></td><td>Bounded database reads, safe tool-message parsing, classification, ordering, snapshot diff, sanitization, and deterministic speech text.</td></tr>
+        <tr><td><code>GET /api/briefing</code></td><td>Returns the complete factual briefing without mutation or model use.</td></tr>
+        <tr><td><code>POST /api/briefing/ack</code></td><td>Stores the newest successfully rendered bounded snapshot. Idempotent; old pages cannot overwrite newer state.</td></tr>
+        <tr><td><code>/brief</code></td><td>Responsive, linkable desktop/phone page with Retry, Refresh, deep links, overflow disclosures, and read-aloud controls.</td></tr>
+        <tr><td>Settings storage</td><td>One versioned <code>briefing_last_snapshot</code> JSON value. No database migration and no transcript text in the snapshot.</td></tr>
+      </tbody>
+    </table>
+    <div class="note"><strong>No AI call in version one.</strong> Operator already has enough structured facts. Deterministic output is faster, cheaper, easier to test, and cannot invent task state.</div>
+  </section>
+
+  <section>
+    <h2>Safety and failure behavior</h2>
+    <ul>
+      <li>Corrupt tool JSON is ignored; the page uses the next safe fallback.</li>
+      <li>Missing recaps fall back to the most recently touched task.</li>
+      <li>An invalid prior snapshot becomes a first briefing instead of an error.</li>
+      <li>A failed acknowledgement leaves the briefing readable and may repeat recent activity next time.</li>
+      <li>A speech error never affects the text page.</li>
+      <li>Transcript-derived fields are stripped, bounded, and rendered as React text.</li>
+      <li>Deprecated projects and suggested tasks are excluded.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Verification gate</h2>
+    <ul>
+      <li>Pure unit tests for question, failure, active, ready, stale, ordering, sanitization, and snapshot comparison.</li>
+      <li>Route tests for non-mutating GET, valid/idempotent acknowledgement, stale-write rejection, and exclusions.</li>
+      <li>Component tests for loading, error, empty, populated, overflow, links, and speech start/stop/unmount.</li>
+      <li>Integrated desktop and phone-width checks through the existing Tailscale Operator origin.</li>
+      <li>Real-state smoke test proving a structured ask is a decision while an ordinary settled turn is only ready for review.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Explicitly not included</h2>
+    <p>Telegram, SMS, email, Slack, push delivery, schedules, new browser notifications, microphone input, transcription, always-on narration, a native Mac companion, model-generated prose, personas, custom voices, a briefing archive, sharing, or automatic cleanup of stale tasks.</p>
+  </section>
+
+  <section class="approved">
+    <h2>Success</h2>
+    <p>Geo can open one page on desktop or phone and, in under a minute, distinguish real decisions from ordinary ready turns, see what is active, understand proven changes since the previous briefing, and jump directly to the right project or task.</p>
+  </section>
+
+  <section class="foot">
+    <p>This is the human-readable companion to <code>docs/superpowers/specs/2026-08-09-operator-briefing-design.md</code>. It specifies design only; no Operator behavior has been implemented.</p>
+  </section>
+</main>
+</body>
+</html>
