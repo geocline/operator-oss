@@ -1,0 +1,14 @@
+{
+  "status": "fail",
+  "harness": "Prime Agent",
+  "provider": "operator-openrouter-kimi-only",
+  "model": "moonshotai/kimi-k3",
+  "startedAt": "2026-08-10T01:01:20.430Z",
+  "finishedAt": "2026-08-10T01:01:50.640Z",
+  "wallTimeMs": 30210,
+  "error": "Error: timed out waiting for session header\n    at Timeout._onTimeout (file:///Users/geo/Claude%20Projects/operator/worktrees/kimi-prime-eval-20260809/evaluation/harnesses/prime-agent/compatibility-runner.mjs:319:16)\n    at listOnTimeout (node:internal/timers:614:17)\n    at process.processTimers (node:internal/timers:549:7)",
+  "gates": {},
+  "artifacts": {
+    "runDir": "/Users/geo/Claude Projects/operator/worktrees/kimi-prime-eval-20260809/evaluation/harnesses/prime-agent/runs/2026-08-10T01-01-20-444Z"
+  }
+}

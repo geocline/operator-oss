@@ -1,0 +1,3 @@
+
+{"version":1,"type":"received","key":"[\"daemon-client:30211990-a1f0-4291-83a3-48e23608f78e\",\"daemon_1\"]","clientId":"daemon-client:30211990-a1f0-4291-83a3-48e23608f78e","commandId":"daemon_1","commandType":"shutdown","recordedAt":"2026-08-10T01:09:28.820Z"}
+{"version":1,"type":"result","key":"[\"daemon-client:30211990-a1f0-4291-83a3-48e23608f78e\",\"daemon_1\"]","response":{"id":"daemon_1","type":"response","command":"shutdown","success":true},"recordedAt":"2026-08-10T01:09:28.827Z"}

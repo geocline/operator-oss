@@ -1,7 +1,7 @@
 # Kimi K3 Harness Evaluation Design
 
 **Date:** 2026-08-09  
-**Status:** Approved direction; pending Geo's review of this written specification  
+**Status:** Approved for sequential execution
 **Model under test:** `operator.kimi-k3` → `openrouter/moonshotai/kimi-k3`
 
 ## Objective
@@ -58,8 +58,16 @@ harness refinement.
 
 ### OpenRouter access
 
-The machine has a working dedicated Operator inference key. Read-only account
-checks succeeded without exposing the key.
+The machine has three dedicated 30-day OpenRouter inference keys, one for each
+harness. They are stored in macOS Keychain and expire on 2026-09-08:
+
+- `harness-test-prime-kimi`;
+- `harness-test-claude-kimi`;
+- `harness-test-codex-kimi`.
+
+Each harness leg must use only its corresponding key. Runs execute sequentially,
+one harness at a time. Read-only account checks succeeded without exposing any
+key.
 
 Snapshot observed on 2026-08-09:
 
@@ -69,9 +77,23 @@ Snapshot observed on 2026-08-09:
 - Operator-key usage this month: $2.323087992;
 - Operator-key usage today at observation time: $0.
 
-The ordinary inference key can read its own usage but cannot create additional
-keys. Creating per-harness keys would require a separate OpenRouter Management
-API key or an explicitly authorized dashboard action.
+The keys were created through an explicitly authorized OpenRouter dashboard
+action. The evaluation must not create, rotate, delete, or change them without
+new authorization.
+
+### Hard OpenRouter model policy
+
+OpenRouter may run only models Geo explicitly approves. No OpenAI model and no
+Anthropic model may ever be used through OpenRouter, including aliases,
+fallbacks, automatic routing, or compatibility substitutions.
+
+For this evaluation, the sole approved OpenRouter model is:
+
+`moonshotai/kimi-k3`
+
+The names Claude Code and Codex refer only to harnesses in this experiment.
+Their native subscription models are not part of the controlled benchmark and
+must not be invoked by the benchmark runner.
 
 ## Approaches Considered
 
@@ -259,15 +281,13 @@ billable numbers when the two disagree.
 
 ### Per-run attribution
 
-Runs execute sequentially. Before and after every run, record the dedicated
-Operator key's usage counter. During the run, capture usage objects and
+Runs execute sequentially. Before and after every run, record that harness's
+dedicated key usage counter. During the run, capture usage objects and
 generation IDs from the harness/gateway response path.
 
 If unrelated traffic changes the key counter or a harness hides required
-generation usage, pause the evaluation. The preferred recovery is three
-temporary OpenRouter keys—one each for Prime Agent, Codex, and Claude
-Code—created only after explicit authorization. A custom metering proxy is not
-part of the initial design.
+generation usage, pause the evaluation. The dedicated keys isolate attribution;
+a custom metering proxy is not part of the initial design.
 
 ### Spend policy
 
@@ -356,4 +376,3 @@ The evaluation is complete when:
 - OpenRouter, [Current API-key metadata](https://openrouter.ai/docs/api/api-reference/api-keys/get-current-key)
 - Moonshot AI, [Kimi Code configuration](https://moonshotai.github.io/kimi-code/en/configuration/config-files.html)
 - Prime Intellect, [Prime Agent](https://github.com/PrimeIntellect-ai/prime-agent)
-

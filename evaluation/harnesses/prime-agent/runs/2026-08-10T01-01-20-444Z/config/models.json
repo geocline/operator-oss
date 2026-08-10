@@ -1,0 +1,36 @@
+{
+  "providers": {
+    "operator-openrouter-kimi-only": {
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "api": "openai-completions",
+      "apiKey": "OPENROUTER_API_KEY",
+      "authHeader": true,
+      "compat": {
+        "supportsDeveloperRole": true,
+        "supportsReasoningEffort": false
+      },
+      "models": [
+        {
+          "id": "moonshotai/kimi-k3",
+          "name": "Kimi K3 — controlled harness evaluation",
+          "reasoning": true,
+          "thinkingLevelMap": {
+            "off": null
+          },
+          "input": [
+            "text",
+            "image"
+          ],
+          "contextWindow": 1048576,
+          "maxTokens": 32768,
+          "cost": {
+            "input": 3,
+            "output": 15,
+            "cacheRead": 0.3,
+            "cacheWrite": 3
+          }
+        }
+      ]
+    }
+  }
+}

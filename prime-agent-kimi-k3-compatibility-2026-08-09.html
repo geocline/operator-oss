@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prime Agent × Kimi K3 — First Harness Test</title>
+  <style>
+    :root {
+      --ink: #17211c;
+      --muted: #5d6a63;
+      --paper: #f5f1e8;
+      --panel: #fffdf8;
+      --line: #d8d1c4;
+      --green: #176b4d;
+      --green-soft: #e4f1e9;
+      --amber: #8b5b12;
+      --amber-soft: #f7edd8;
+      --blue: #295b78;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main { width: min(1080px, calc(100% - 36px)); margin: 42px auto 72px; }
+    header { border-bottom: 1px solid var(--line); padding-bottom: 26px; }
+    .eyebrow {
+      color: var(--green);
+      font-size: 12px;
+      font-weight: 750;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    h1 {
+      max-width: 900px;
+      margin: 10px 0 14px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(38px, 6vw, 68px);
+      font-weight: 500;
+      letter-spacing: -.035em;
+      line-height: .98;
+    }
+    .dek { max-width: 820px; margin: 0; color: var(--muted); font-size: 20px; }
+    .verdict {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 24px;
+      align-items: center;
+      margin: 28px 0;
+      padding: 24px;
+      border: 1px solid #b8d4c4;
+      border-radius: 16px;
+      background: var(--green-soft);
+    }
+    .verdict h2 { margin: 0 0 5px; font-size: 24px; }
+    .verdict p { margin: 0; max-width: 760px; }
+    .badge {
+      padding: 9px 13px;
+      border-radius: 999px;
+      color: white;
+      background: var(--green);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: .08em;
+    }
+    h2 { margin: 36px 0 14px; font-size: 25px; letter-spacing: -.02em; }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .metric, .note {
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--panel);
+    }
+    .metric { padding: 18px; }
+    .metric b { display: block; font-size: 27px; line-height: 1.15; }
+    .metric span { color: var(--muted); font-size: 13px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--panel);
+    }
+    th, td { padding: 14px 15px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { color: var(--muted); background: #eee9df; font-size: 12px; letter-spacing: .07em; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+    code {
+      padding: .12em .35em;
+      border-radius: 5px;
+      background: #ece7dc;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: .9em;
+    }
+    .pass { color: var(--green); font-weight: 800; }
+    .notes { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .note { padding: 20px; }
+    .note h3 { margin: 0 0 7px; font-size: 17px; }
+    .note p { margin: 0; color: var(--muted); }
+    .caution { border-color: #e0c99f; background: var(--amber-soft); }
+    .next { border-left: 4px solid var(--blue); padding: 5px 0 5px 18px; }
+    .next p { margin: 5px 0; }
+    ul { padding-left: 20px; }
+    li + li { margin-top: 7px; }
+    a { color: var(--blue); }
+    footer { margin-top: 38px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+    @media (max-width: 760px) {
+      .metrics { grid-template-columns: 1fr 1fr; }
+      .notes { grid-template-columns: 1fr; }
+      .verdict { grid-template-columns: 1fr; }
+      .badge { justify-self: start; }
+      table { display: block; overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="eyebrow">Controlled harness evaluation · August 9, 2026</div>
+    <h1>Prime Agent passed its first Kimi K3 harness test.</h1>
+    <p class="dek">The new harness reached only the approved Kimi model, used its native IPython tool correctly, stopped a live tool execution, and resumed the same session without rereading the fixture.</p>
+  </header>
+
+  <section class="verdict">
+    <div>
+      <h2>Compatibility verdict: pass</h2>
+      <p>Prime Agent is compatible enough to advance to the first scored, matched task. This is evidence to continue testing—not yet evidence to integrate it into Operator.</p>
+    </div>
+    <div class="badge">4 / 4 GATES</div>
+  </section>
+
+  <section>
+    <h2>Run at a glance</h2>
+    <div class="metrics">
+      <div class="metric"><b>$0.0337104</b><span>OpenRouter charge</span></div>
+      <div class="metric"><b>25.2 sec</b><span>Total wall time</span></div>
+      <div class="metric"><b>21,736</b><span>Harness-counted tokens</span></div>
+      <div class="metric"><b>7</b><span>Model calls</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Compatibility gates</h2>
+    <table>
+      <thead>
+        <tr><th>Gate</th><th>Result</th><th>Evidence</th><th>Cost / behavior</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Identity + deterministic response</td>
+          <td class="pass">Pass</td>
+          <td>Returned exactly <code>PRIME-KIMI-OK</code>. Every assistant event identified the custom Kimi-only provider and <code>moonshotai/kimi-k3</code>.</td>
+          <td>1 model call · $0.007449</td>
+        </tr>
+        <tr>
+          <td>Read-only structured tool use</td>
+          <td class="pass">Pass</td>
+          <td>Listed the fixture, read <code>facts.txt</code>, calculated 31 and the correct SHA-256, and left both fixture files unchanged.</td>
+          <td>4 model calls · 3 successful IPython calls · $0.019635</td>
+        </tr>
+        <tr>
+          <td>Stop behavior</td>
+          <td class="pass">Pass</td>
+          <td>RPC abort was accepted after the 30-second sleep began. The IPython call ended as an error, <code>SLEEP-FINISHED</code> was never returned, and the session returned to idle.</td>
+          <td>1 model call · 1 deliberately aborted tool call · $0.0039477</td>
+        </tr>
+        <tr>
+          <td>Session resume</td>
+          <td class="pass">Pass</td>
+          <td>Relaunched from disk with the same session ID and returned <code>CONTINUITY_NONCE=CEDAR-7391</code> without another tool call.</td>
+          <td>1 model call · $0.0026787</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Model and accounting controls</h2>
+    <div class="notes">
+      <div class="note">
+        <h3>Only Kimi was reachable</h3>
+        <p>The isolated Prime configuration exposed one custom provider containing one model. OpenRouter resolved the requested alias to <code>moonshotai/kimi-k3-20260715</code> on Fireworks. No OpenAI or Anthropic model was invoked.</p>
+      </div>
+      <div class="note">
+        <h3>Costs reconcile exactly</h3>
+        <p>Prime’s $0.0337104 estimate equals the sum of all seven authoritative OpenRouter generation records and the final dedicated-key counter delta.</p>
+      </div>
+      <div class="note">
+        <h3>Token breakdown</h3>
+        <p>3,771 uncached input, 16,808 cached input, and 1,157 completion tokens. OpenRouter identified 756 native reasoning tokens inside the completions.</p>
+      </div>
+      <div class="note">
+        <h3>Secrets and state were isolated</h3>
+        <p>The API key stayed in macOS Keychain and process memory. Artifact scanning found no OpenRouter secret, telemetry was disabled, and auto-refinement was disabled.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>What the first test revealed</h2>
+    <div class="notes">
+      <div class="note caution">
+        <h3>Correct, but slightly tool-heavy</h3>
+        <p>The tool gate took three IPython calls. The third read the README after the required facts and hash were already available. That is a small efficiency penalty to compare against the Claude Code and Codex harnesses.</p>
+      </div>
+      <div class="note caution">
+        <h3>Abort normalization needs care</h3>
+        <p>Prime reported the interrupted assistant turn with <code>stopReason=toolUse</code> while the tool result carried the actual error/abort signal. An Operator driver must use both event layers when deciding whether a stop succeeded.</p>
+      </div>
+      <div class="note">
+        <h3>RPC startup is intentionally silent</h3>
+        <p>The first instrumentation attempt waited for a startup session event that RPC mode does not emit. It stopped before inference, cost $0, and was preserved. The runner now uses <code>get_state</code>, matching Prime’s RPC implementation.</p>
+      </div>
+      <div class="note">
+        <h3>Key counters update asynchronously</h3>
+        <p>The dedicated-key counter briefly showed $0.0201909 before converging to $0.0337104. The runner now verifies generation metadata first and polls the key counter before finalizing cost.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Decision</h2>
+    <div class="next">
+      <p><strong>Advance Prime Agent to scored Task 1: repository orientation.</strong></p>
+      <p>Keep auto-refinement off for the cold comparison. Use this same prompt, fixture snapshot, Kimi deployment, reasoning policy, and measurement scheme when the Claude Code and Codex harness legs run.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Evidence</h2>
+    <ul>
+      <li><a href="evaluation/harnesses/prime-agent/runs/2026-08-10T01-03-31-356Z/summary.json">Run summary</a></li>
+      <li><a href="evaluation/harnesses/prime-agent/runs/2026-08-10T01-03-31-356Z/session.html">Exported Prime session</a></li>
+      <li><a href="evaluation/harnesses/prime-agent/runs/2026-08-10T01-03-31-356Z/openrouter-generations.json">Authoritative OpenRouter generation records</a></li>
+      <li><a href="evaluation/harnesses/prime-agent/runs/2026-08-10T01-03-31-356Z/events.jsonl">Sanitized RPC event stream</a></li>
+      <li><a href="evaluation/harnesses/prime-agent/runs/2026-08-10T01-01-20-444Z/summary.json">Preserved zero-inference startup instrumentation failure</a></li>
+    </ul>
+  </section>
+
+  <footer>
+    Prime Agent v0.7.1 · Session 019fe932-3e8d-7166-96ca-cc21ee2ff979 · Dedicated Prime OpenRouter key · No credits purchased
+  </footer>
+</main>
+</body>
+</html>

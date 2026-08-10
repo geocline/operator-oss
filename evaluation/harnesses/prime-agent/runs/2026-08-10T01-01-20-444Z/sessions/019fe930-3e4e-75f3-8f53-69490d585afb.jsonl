@@ -1,0 +1,5 @@
+{"type":"session","version":3,"id":"019fe930-4059-75ec-a9b2-616eaa171d10","timestamp":"2026-08-10T01:01:21.369Z","cwd":"/Users/geo/Claude Projects/operator/worktrees/kimi-prime-eval-20260809/evaluation/harnesses/prime-agent/runs/2026-08-10T01-01-20-444Z/fixture","rlmDepth":0,"git":{"repoUrl":"https://github.com/geocline/operator-oss.git","commit":"71dabb4f2dc066d6f3c8feec28f47d3d5b16f3f3","branch":"eval/kimi-prime-20260809"}}
+{"type":"model_change","id":"16bb0ec0","parentId":null,"timestamp":"2026-08-10T01:01:21.467Z","provider":"operator-openrouter-kimi-only","modelId":"moonshotai/kimi-k3"}
+{"type":"thinking_level_change","id":"c6589abe","parentId":"16bb0ec0","timestamp":"2026-08-10T01:01:21.467Z","thinkingLevel":"high"}
+{"type":"service_tier_change","id":"b2696f89","parentId":"c6589abe","timestamp":"2026-08-10T01:01:21.467Z","serviceTier":"default"}
+{"type":"session_state","id":"7455263e","parentId":"b2696f89","timestamp":"2026-08-10T01:01:21.471Z","state":{"status":"active"}}

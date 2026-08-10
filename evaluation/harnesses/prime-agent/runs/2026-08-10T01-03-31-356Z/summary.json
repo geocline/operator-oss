@@ -1,0 +1,173 @@
+{
+  "status": "pass",
+  "harness": "Prime Agent",
+  "primeAgentVersion": "0.7.1",
+  "provider": "operator-openrouter-kimi-only",
+  "model": "moonshotai/kimi-k3",
+  "startedAt": "2026-08-10T01:03:31.339Z",
+  "finishedAt": "2026-08-10T01:03:56.541Z",
+  "wallTimeMs": 25202,
+  "sessionId": "019fe932-3e8d-7166-96ca-cc21ee2ff979",
+  "gates": {
+    "identity": {
+      "pass": true,
+      "response": "PRIME-KIMI-OK",
+      "usage": {
+        "input": 2258,
+        "output": 45,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "total": 2303,
+        "cost": 0.007449000000000001
+      },
+      "modelCalls": 1,
+      "toolCalls": 0,
+      "successfulIpynbCalls": 0,
+      "toolErrors": 0
+    },
+    "tool": {
+      "pass": true,
+      "response": "HARNESS=prime-agent\nCONTROL_MODEL=moonshotai/kimi-k3\nVALUES_SUM=31\nSHA256=3ea8fed7e0b5473bd0429c804488c20280bc8b8a5b5c3133a9e2077537ed8ea9",
+      "usage": {
+        "input": 946,
+        "output": 919,
+        "cacheRead": 10040,
+        "cacheWrite": 0,
+        "total": 11905,
+        "cost": 0.019635
+      },
+      "modelCalls": 4,
+      "toolCalls": 3,
+      "successfulIpynbCalls": 3,
+      "toolErrors": 0
+    },
+    "abort": {
+      "pass": true,
+      "rpcAccepted": true,
+      "terminalStopReasons": [
+        "toolUse"
+      ],
+      "usage": {
+        "input": 371,
+        "output": 125,
+        "cacheRead": 3199,
+        "cacheWrite": 0,
+        "total": 3695,
+        "cost": 0.0039477
+      },
+      "modelCalls": 1,
+      "toolCalls": 1,
+      "successfulIpynbCalls": 0,
+      "toolErrors": 1
+    },
+    "resume": {
+      "pass": true,
+      "response": "CONTINUITY_NONCE=CEDAR-7391",
+      "sameSessionId": true,
+      "usage": {
+        "input": 196,
+        "output": 68,
+        "cacheRead": 3569,
+        "cacheWrite": 0,
+        "total": 3833,
+        "cost": 0.0026787
+      },
+      "modelCalls": 1,
+      "toolCalls": 0,
+      "successfulIpynbCalls": 0,
+      "toolErrors": 0
+    }
+  },
+  "usage": {
+    "harness": {
+      "input": 3771,
+      "output": 1157,
+      "cacheRead": 16808,
+      "cacheWrite": 0,
+      "total": 21736
+    },
+    "harnessCost": 0.0337104,
+    "openRouterKeyUsageBefore": 0,
+    "openRouterKeyUsageAfter": 0.0337104,
+    "openRouterSpendDelta": 0.0337104,
+    "openRouterGenerationCost": 0.0337104,
+    "generationIds": [
+      "gen-1786323812-tIgSAtaf2eVjJERmqekT",
+      "gen-1786323814-TBqrPquawxDVgN36TfiU",
+      "gen-1786323817-rhy7IxcybJoJe89BNKt3",
+      "gen-1786323819-vE0clQELSSWy5zhv5ij0",
+      "gen-1786323825-zTyUWnAIoDEOaPWDd437",
+      "gen-1786323831-7Y6KspJKBSlElusZ217G",
+      "gen-1786323834-mTJrFJ2TBO5i8xVSkBKY"
+    ],
+    "upstreamProviders": [
+      "Fireworks"
+    ],
+    "eventSummary": {
+      "usage": {
+        "input": 3771,
+        "output": 1157,
+        "cacheRead": 16808,
+        "cacheWrite": 0,
+        "total": 21736,
+        "cost": 0.0337104
+      },
+      "modelCalls": 7,
+      "toolCalls": 4,
+      "successfulIpynbCalls": 3,
+      "toolErrors": 1
+    }
+  },
+  "firstRpcStats": {
+    "sessionFile": "/Users/geo/Claude Projects/operator/worktrees/kimi-prime-eval-20260809/evaluation/harnesses/prime-agent/runs/2026-08-10T01-03-31-356Z/sessions/019fe932-3d95-77b9-b109-e5975743bafc.jsonl",
+    "sessionId": "019fe932-3e8d-7166-96ca-cc21ee2ff979",
+    "userMessages": 3,
+    "assistantMessages": 6,
+    "toolCalls": 4,
+    "toolResults": 4,
+    "totalMessages": 13,
+    "tokens": {
+      "input": 3575,
+      "output": 1089,
+      "cacheRead": 13239,
+      "cacheWrite": 0,
+      "total": 17903
+    },
+    "cost": 0.031031700000000002,
+    "contextUsage": {
+      "tokens": 3700,
+      "contextWindow": 1048576,
+      "percent": 0.3528594970703125
+    }
+  },
+  "finalRpcStats": {
+    "sessionFile": "/Users/geo/Claude Projects/operator/worktrees/kimi-prime-eval-20260809/evaluation/harnesses/prime-agent/runs/2026-08-10T01-03-31-356Z/sessions/019fe932-3d95-77b9-b109-e5975743bafc.jsonl",
+    "sessionId": "019fe932-3e8d-7166-96ca-cc21ee2ff979",
+    "userMessages": 4,
+    "assistantMessages": 7,
+    "toolCalls": 4,
+    "toolResults": 4,
+    "totalMessages": 15,
+    "tokens": {
+      "input": 3771,
+      "output": 1157,
+      "cacheRead": 16808,
+      "cacheWrite": 0,
+      "total": 21736
+    },
+    "cost": 0.0337104,
+    "contextUsage": {
+      "tokens": 3833,
+      "contextWindow": 1048576,
+      "percent": 0.3655433654785156
+    }
+  },
+  "fixtureSha256": "3ea8fed7e0b5473bd0429c804488c20280bc8b8a5b5c3133a9e2077537ed8ea9",
+  "fixtureUnchanged": true,
+  "artifacts": {
+    "runDir": "/Users/geo/Claude Projects/operator/worktrees/kimi-prime-eval-20260809/evaluation/harnesses/prime-agent/runs/2026-08-10T01-03-31-356Z",
+    "events": "/Users/geo/Claude Projects/operator/worktrees/kimi-prime-eval-20260809/evaluation/harnesses/prime-agent/runs/2026-08-10T01-03-31-356Z/events.jsonl",
+    "stderr": "/Users/geo/Claude Projects/operator/worktrees/kimi-prime-eval-20260809/evaluation/harnesses/prime-agent/runs/2026-08-10T01-03-31-356Z/stderr.log",
+    "sessionHtml": "/Users/geo/Claude Projects/operator/worktrees/kimi-prime-eval-20260809/evaluation/harnesses/prime-agent/runs/2026-08-10T01-03-31-356Z/session.html"
+  }
+}
