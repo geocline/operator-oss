@@ -27,7 +27,9 @@ const cleanString = (value: unknown): string | null =>
 
 const cleanHarnesses = (value: unknown): LiteLLMHarness[] => {
   if (!Array.isArray(value)) return [];
-  const found = value.filter((x): x is LiteLLMHarness => x === "codex" || x === "claude");
+  const found = value.filter(
+    (x): x is LiteLLMHarness => x === "codex" || x === "claude" || x === "prime",
+  );
   return [...new Set(found)];
 };
 
@@ -58,7 +60,7 @@ export function parseLiteLLMModelInfo(raw: unknown): LiteLLMParseResult {
       continue;
     }
     if (!harnesses.length) {
-      errors.push({ model: value, error: "operator.harnesses must include codex or claude" });
+      errors.push({ model: value, error: "operator.harnesses must include codex, claude, or prime" });
       continue;
     }
     if (seen.has(value)) {

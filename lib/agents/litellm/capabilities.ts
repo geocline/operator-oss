@@ -1,4 +1,5 @@
 import type { AgentCapabilities, AgentPickerOption } from "../types";
+import type { LiteLLMHarness } from "./types";
 import { getLiteLLMCatalog } from "./catalog";
 
 const REASONING: Record<string, AgentPickerOption> = {
@@ -8,35 +9,41 @@ const REASONING: Record<string, AgentPickerOption> = {
   xhigh: { value: "ultrathink", label: "Extra high", sub: "maximum compatible effort" },
 };
 
-export function liteLLMCapabilities(): AgentCapabilities {
+const AUTO_RUN: AgentPickerOption = {
+  value: "bypassPermissions",
+  label: "Auto-run",
+  sub: "workspace write, no approvals",
+};
+const PLAN_MODE: AgentPickerOption = {
+  value: "plan",
+  label: "Plan mode",
+  sub: "read-only, propose without editing",
+};
+
+export function liteLLMCapabilities(harness: LiteLLMHarness = "codex"): AgentCapabilities {
   const catalog = getLiteLLMCatalog();
-  const reasoning = new Set(
-    catalog.models
-      .filter((m) => m.harnesses.includes("codex"))
-      .flatMap((m) => m.reasoningOptions),
-  );
+  const models = catalog.models.filter((m) => m.harnesses.includes(harness));
+  const reasoning = new Set(models.flatMap((m) => m.reasoningOptions));
+  // Prime is not an OS sandbox, so Plan mode stays hidden until an external
+  // restriction test proves writes and network access are blocked.
+  const prime = harness === "prime";
   return {
-    models: catalog.models
-      .filter((m) => m.harnesses.includes("codex"))
-      .map((m) => ({
-        value: m.value,
-        label: m.label,
-        sub: m.description || "Operator-tagged LiteLLM model",
-        contextWindow: m.contextWindow ?? 200_000,
-        contextWindowKnown: m.contextWindow !== null,
-        group: "LiteLLM",
-        reasoningValues: m.reasoningOptions
-          .map((value) => REASONING[value]?.value)
-          .filter((value): value is string => Boolean(value)),
-      })),
+    models: models.map((m) => ({
+      value: m.value,
+      label: m.label,
+      sub: m.description || "Operator-tagged LiteLLM model",
+      contextWindow: m.contextWindow ?? 200_000,
+      contextWindowKnown: m.contextWindow !== null,
+      group: "LiteLLM",
+      reasoningValues: m.reasoningOptions
+        .map((value) => REASONING[value]?.value)
+        .filter((value): value is string => Boolean(value)),
+    })),
     reasoningOptions: [...reasoning].map((value) => REASONING[value]).filter(Boolean),
-    permissionModes: [
-      { value: "bypassPermissions", label: "Auto-run", sub: "workspace write, no approvals" },
-      { value: "plan", label: "Plan mode", sub: "read-only, propose without editing" },
-    ],
-    supportsAsks: true,
-    supportsMcpTools: true,
-    reportsCostUsd: false,
+    permissionModes: prime ? [AUTO_RUN] : [AUTO_RUN, PLAN_MODE],
+    supportsAsks: !prime,
+    supportsMcpTools: !prime,
+    reportsCostUsd: prime,
     costIsEstimated: false,
     supportsResume: true,
     apiKeyHint: null,

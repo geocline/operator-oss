@@ -1,4 +1,4 @@
-export type LiteLLMHarness = "codex" | "claude";
+export type LiteLLMHarness = "codex" | "claude" | "prime";
 
 export interface LiteLLMModel {
   value: string;

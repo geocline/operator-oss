@@ -33,4 +33,26 @@ describe("Operator LiteLLM session index", () => {
     expect(JSON.stringify(row)).not.toMatch(/prompt|response|api.key|environment/i);
     expect(statSync(file).mode & 0o777).toBe(0o600);
   });
+
+  it("accepts prime harness records without changing the JSONL format", () => {
+    const home = mkdtempSync(path.join(os.tmpdir(), "operator-session-index-"));
+    dirs.push(home);
+    const file = appendOperatorSessionIndex(home, {
+      session_id: "prime-abc",
+      task_id: "task-2",
+      project_id: "project-1",
+      task_title: "Prime task",
+      project_path: "/workspace/project",
+      harness: "prime",
+      model: "operator.kimi-k3",
+      updated_at: "2026-08-10T12:00:00.000Z",
+    });
+    const rows = readFileSync(file, "utf8").trim().split("\n").map((line) => JSON.parse(line));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toEqual(expect.objectContaining({
+      harness: "prime",
+      model: "operator.kimi-k3",
+    }));
+    expect(statSync(file).mode & 0o777).toBe(0o600);
+  });
 });

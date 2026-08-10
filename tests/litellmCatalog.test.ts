@@ -8,6 +8,7 @@ import {
   replaceLiteLLMCatalog,
 } from "@/lib/agents/litellm/catalog";
 import { getCapabilities, isKnownAgent, knownAgentIds } from "@/lib/agents/capabilities";
+import { liteLLMCapabilities } from "@/lib/agents/litellm/capabilities";
 
 const valid = (overrides: Record<string, unknown> = {}) => ({
   model_name: "operator.frontier",
@@ -93,6 +94,67 @@ describe("Operator-tagged LiteLLM catalog", () => {
     expect(modelForHarness("operator.frontier", "codex")?.label).toBe("Operator Frontier");
     expect(modelForHarness("operator.frontier", "claude")).toBeNull();
     expect(modelForHarness("", "codex")).toBeNull();
+  });
+
+  it("accepts prime and mixed harness tags and rejects unknown strings", () => {
+    const result = parseLiteLLMModelInfo({
+      data: [
+        { ...valid({ harnesses: ["prime"] }), model_name: "operator.kimi-k3" },
+        { ...valid({ harnesses: ["codex", "prime"] }), model_name: "operator.dual" },
+        { ...valid({ harnesses: ["prime", "prime", "openrouter"] }), model_name: "operator.dedupe" },
+        { ...valid({ harnesses: ["openrouter", "gpt"] }), model_name: "operator.bad" },
+      ],
+    });
+    expect(result.models.map((m) => [m.value, m.harnesses])).toEqual([
+      ["operator.dedupe", ["prime"]],
+      ["operator.dual", ["codex", "prime"]],
+      ["operator.kimi-k3", ["prime"]],
+    ]);
+    expect(result.errors).toEqual([
+      { model: "operator.bad", error: "operator.harnesses must include codex, claude, or prime" },
+    ]);
+    expect(JSON.stringify(result)).not.toMatch(/provider-secret|private\/provider-model|litellm_params/);
+  });
+
+  it("filters modelForHarness and capability model lists per harness", () => {
+    replaceLiteLLMCatalog({
+      ...parseLiteLLMModelInfo({
+        data: [
+          { ...valid(), model_name: "operator.codex-only" },
+          { ...valid({ harnesses: ["prime"], label: "Kimi K3" }), model_name: "operator.kimi-k3" },
+        ],
+      }),
+      refreshedAt: "2026-08-10T12:00:00.000Z",
+      stale: false,
+    });
+    expect(modelForHarness("operator.kimi-k3", "prime")?.label).toBe("Kimi K3");
+    expect(modelForHarness("operator.kimi-k3", "codex")).toBeNull();
+    expect(modelForHarness("operator.codex-only", "prime")).toBeNull();
+    expect(liteLLMCapabilities("codex").models.map((m) => m.value)).toEqual(["operator.codex-only"]);
+    expect(liteLLMCapabilities("prime").models.map((m) => m.value)).toEqual(["operator.kimi-k3"]);
+  });
+
+  it("exposes Auto-run-only, metered-cost, no-asks capabilities for prime", () => {
+    replaceLiteLLMCatalog({
+      ...parseLiteLLMModelInfo({
+        data: [{ ...valid({ harnesses: ["prime"] }), model_name: "operator.kimi-k3" }],
+      }),
+      refreshedAt: "2026-08-10T12:00:00.000Z",
+      stale: false,
+    });
+    const caps = liteLLMCapabilities("prime");
+    expect(caps.permissionModes).toEqual([
+      expect.objectContaining({ value: "bypassPermissions", label: "Auto-run" }),
+    ]);
+    expect(caps.supportsAsks).toBe(false);
+    expect(caps.supportsMcpTools).toBe(false);
+    expect(caps.reportsCostUsd).toBe(true);
+    expect(caps.costIsEstimated).toBe(false);
+    // Codex behavior is unchanged.
+    const codex = liteLLMCapabilities("codex");
+    expect(codex.permissionModes.map((p) => p.value)).toEqual(["bypassPermissions", "plan"]);
+    expect(codex.supportsAsks).toBe(true);
+    expect(codex.supportsMcpTools).toBe(true);
   });
 
   it("drives the SDK-free litellm-codex capability descriptor dynamically", () => {
