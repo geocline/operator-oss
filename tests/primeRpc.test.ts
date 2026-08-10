@@ -21,7 +21,7 @@ function launch(env: Record<string, string> = {}, options: {
     executable: process.execPath,
     args: [FAKE, ...(options.args ?? [])],
     cwd: process.cwd(),
-    env: { ...process.env as Record<string, string>, ...env },
+    env: { ...process.env, ...env },
     signal: options.signal,
     onEvent: (event) => {
       events.push(event);
