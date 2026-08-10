@@ -74,6 +74,13 @@ export interface AgentCapabilities {
    */
   loginStyle: "paste_code" | "device_code" | "managed_endpoint";
   connectionStyle?: "paste_code" | "device_code" | "managed_endpoint";
+  /**
+   * Browser-safe URL for the driver's "Refresh models" action, present only on
+   * managed-endpoint drivers (LiteLLM harnesses). Server-generated from the
+   * driver id so the client never hardcodes a per-harness path; served by
+   * app/api/agents/[id]/models/refresh/route.ts.
+   */
+  managedCatalogPath?: string;
 }
 
 // ---------- auth surface (shape after lib/claude-auth.ts) ----------

@@ -51,5 +51,9 @@ export function liteLLMCapabilities(harness: LiteLLMHarness = "codex"): AgentCap
     apiKeyHint: null,
     loginStyle: "managed_endpoint",
     connectionStyle: "managed_endpoint",
+    // Driver id follows the "litellm-<harness>" convention (litellm-codex,
+    // litellm-prime) - see lib/agents/registry.ts. Computed here rather than
+    // passed in so every caller gets the right path with no extra plumbing.
+    managedCatalogPath: `/api/agents/litellm-${harness}/models/refresh`,
   };
 }

@@ -36,8 +36,16 @@ describe("LiteLLM managed agent surface", () => {
       capabilities: {
         connectionStyle: "managed_endpoint",
         models: [{ value: "operator.frontier" }],
+        managedCatalogPath: "/api/agents/litellm-codex/models/refresh",
       },
     });
+  });
+
+  it("gives every managed-endpoint driver its own refresh path, keyed off the driver id", async () => {
+    const body = await (await GET()).json();
+    const byId = Object.fromEntries(body.agents.map((a: { id: string; capabilities: { managedCatalogPath?: string } }) => [a.id, a.capabilities.managedCatalogPath]));
+    expect(byId["litellm-codex"]).toBe("/api/agents/litellm-codex/models/refresh");
+    expect(byId["litellm-prime"]).toBe("/api/agents/litellm-prime/models/refresh");
   });
 
   it("renders refresh controls instead of a subscription login", () => {

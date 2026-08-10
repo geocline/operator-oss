@@ -20,7 +20,7 @@ import { createProject, createTask, getTask, updateTask } from "@/lib/store";
 import { subscribeGlobal, type BusEvent } from "@/lib/events";
 import { PATCH as patchTask } from "@/app/api/tasks/[id]/route";
 import { isKnownAgent, knownAgentIds } from "@/lib/agents/capabilities";
-import { listDrivers } from "@/lib/agents/registry";
+import { listDrivers, getDriver, getDriverStrict } from "@/lib/agents/registry";
 
 const params = (id: string) => ({ params: Promise.resolve({ id }) });
 
@@ -157,9 +157,34 @@ describe("the SDK-free agent id map", () => {
     expect(isKnownAgent("claude")).toBe(true);
     expect(isKnownAgent("codex")).toBe(true);
     expect(isKnownAgent("litellm-codex")).toBe(true);
+    expect(isKnownAgent("litellm-prime")).toBe(true);
     expect(isKnownAgent("gemini")).toBe(false);
     expect(isKnownAgent("")).toBe(false);
     expect(isKnownAgent(null)).toBe(false);
     expect(isKnownAgent(undefined)).toBe(false);
+  });
+
+  it("registers litellm-prime in both the runtime driver registry and the SDK-free capability map", () => {
+    expect(knownAgentIds()).toContain("litellm-prime");
+    expect(listDrivers().map((d) => d.id)).toContain("litellm-prime");
+  });
+
+  it("rejects an unknown agent id on a task write even when it looks close to a real one", async () => {
+    const project = createProject({ name: "PrimeTypo" });
+    const task = createTask({ project_id: project.id, title: "Typo", agent: "claude" });
+
+    const res = await patch(task.id, { agent: "litellm-primee" });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/unknown agent/i);
+    expect(getTask(task.id)!.agent).toBe("claude");
+  });
+
+  it("resolves litellm-prime to itself, never falling back to Claude", () => {
+    expect(getDriver("litellm-prime").id).toBe("litellm-prime");
+    expect(getDriverStrict("litellm-prime")?.id).toBe("litellm-prime");
+    // A registered-but-unavailable Prime task must still resolve as Prime; only
+    // a genuinely unknown id falls back (and getDriverStrict returns null for
+    // that case rather than silently substituting Claude).
+    expect(getDriverStrict("gemini")).toBeNull();
   });
 });
