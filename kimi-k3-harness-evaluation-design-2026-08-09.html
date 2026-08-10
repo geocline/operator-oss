@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kimi K3 Harness Evaluation Design</title>
+  <style>
+    :root { --ink:#17211b; --muted:#5f6c64; --paper:#f4f1e9; --panel:#fffdf7; --line:#d8d4c8; --green:#174e3a; --soft:#dce9df; --amber:#8a5a12; --amber-soft:#f5e8cc; --red:#8d3429; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font:16px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    main { width:min(1120px,calc(100% - 32px)); margin:auto; padding:50px 0 72px; }
+    header { border-top:7px solid var(--green); border-bottom:1px solid var(--line); padding:30px 0 26px; }
+    .eyebrow { color:var(--green); font-size:12px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; }
+    h1,h2 { font-family:Georgia,"Times New Roman",serif; font-weight:500; letter-spacing:-.025em; }
+    h1 { max-width:900px; margin:10px 0 12px; font-size:clamp(38px,6vw,68px); line-height:1; }
+    h2 { margin:0 0 14px; font-size:30px; }
+    h3 { margin:0 0 8px; font-size:17px; }
+    p { margin:0 0 12px; }
+    section { margin-top:34px; }
+    a { color:#244b73; }
+    code { border:1px solid var(--line); border-radius:4px; background:#f7f4ec; padding:.08em .32em; font:.9em ui-monospace,SFMono-Regular,Menlo,monospace; }
+    .dek { max-width:820px; color:var(--muted); font-size:19px; }
+    .meta,.small { color:var(--muted); font-size:13px; }
+    .meta { margin-top:18px; }
+    .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+    .two { grid-template-columns:repeat(2,1fr); }
+    .card { border:1px solid var(--line); border-radius:12px; background:var(--panel); padding:21px; }
+    .selected { border-color:#91aa9a; background:linear-gradient(145deg,#fbfff9,var(--soft)); }
+    .callout { margin:18px 0; border-left:4px solid var(--amber); background:var(--amber-soft); padding:15px 17px; }
+    .callout strong { color:var(--amber); }
+    .score { display:grid; grid-template-columns:repeat(5,1fr); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+    .score div { background:var(--panel); padding:16px; border-right:1px solid var(--line); }
+    .score div:last-child { border-right:0; }
+    .score b { display:block; font:600 25px/1 Georgia,serif; color:var(--green); }
+    .score span { color:var(--muted); font-size:12px; }
+    table { width:100%; border-collapse:collapse; border:1px solid var(--line); background:var(--panel); font-size:14px; }
+    th,td { border-bottom:1px solid var(--line); padding:12px 13px; text-align:left; vertical-align:top; }
+    th { background:#ebe8de; color:#425047; font-size:11px; letter-spacing:.06em; text-transform:uppercase; }
+    tr:last-child td { border-bottom:0; }
+    ul,ol { margin:8px 0 0; padding-left:22px; }
+    li { margin:6px 0; }
+    .yes { color:var(--green); font-weight:750; }
+    .warn { color:var(--amber); font-weight:750; }
+    .no { color:var(--red); font-weight:750; }
+    footer { margin-top:42px; padding-top:20px; border-top:1px solid var(--line); color:var(--muted); font-size:13px; }
+    @media(max-width:760px){ main{width:min(100% - 22px,1120px);padding-top:24px}.grid,.two{grid-template-columns:1fr}.score{grid-template-columns:1fr 1fr}.score div{border-bottom:1px solid var(--line)}table{display:block;overflow:auto} }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="eyebrow">Controlled harness experiment</div>
+    <h1>One model. Three harnesses. Measured call by call.</h1>
+    <p class="dek">Kimi K3 stays fixed while Prime Agent, Codex, and Claude Code perform the same work. The experiment measures correctness, tools, recovery, time, tokens, and exact OpenRouter cost.</p>
+    <p class="meta">Design for Geo · August 9, 2026 · No installation or paid test has been performed</p>
+  </header>
+
+  <section>
+    <h2>Read-only validation results</h2>
+    <div class="grid">
+      <div class="card selected"><h3>Kimi K3 is the control</h3><p>1,048,576-token context, always-on reasoning, image input, and tool use. The local gateway already exposes the exact route as <code>operator.kimi-k3</code>.</p></div>
+      <div class="card"><h3>Claude Code can attempt it</h3><p>The CLI supports arbitrary gateway model names and LiteLLM's Anthropic-format endpoint. Anthropic does not support non-Claude models, so compatibility must be proven rather than assumed.</p></div>
+      <div class="card"><h3>OpenRouter is measurable</h3><p>The existing Operator key can report its own spend. Each model response can include prompt, completion, reasoning, cache, generation, latency, and exact cost data.</p></div>
+    </div>
+    <div class="callout"><strong>Current balance:</strong> the observed OpenRouter account snapshot leaves approximately <b>$13.18</b>. The experiment will report spend after every task and will not purchase credits automatically.</div>
+  </section>
+
+  <section>
+    <h2>Selected approach</h2>
+    <div class="grid">
+      <div class="card"><h3>Quick smoke</h3><p>Three tasks once. Cheap, but too vulnerable to one unlucky run.</p></div>
+      <div class="card"><h3>Fixed full benchmark</h3><p>Five tasks twice. Stronger, but wastes credits on obvious failures.</p></div>
+      <div class="card selected"><h3>Adaptive paired evaluation</h3><p>Compatibility gates, five matched tasks, then repeat only close or anomalous results. Best evidence per dollar.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Experimental controls</h2>
+    <table>
+      <thead><tr><th>Held constant</th><th>Variable being tested</th></tr></thead>
+      <tbody>
+        <tr><td>Exact Kimi K3 alias and LiteLLM/OpenRouter route</td><td rowspan="7"><b>The harness:</b> its native system prompt, tool vocabulary, context management, execution loop, retries, compaction, subagents, and recovery behavior.</td></tr>
+        <tr><td>Identical prompt and attachments</td></tr>
+        <tr><td>Fresh copy of the same repository snapshot</td></tr>
+        <tr><td>Equivalent high reasoning and auto-run permissions</td></tr>
+        <tr><td>Same network availability</td></tr>
+        <tr><td>Fresh isolated sessions, configuration, skills, and memory</td></tr>
+        <tr><td>No fallback model</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Five matched tasks</h2>
+    <div class="grid two">
+      <div class="card"><h3>1 · Architecture</h3><p>Inspect an unfamiliar repository and produce a fact-checked architecture brief with valid paths.</p></div>
+      <div class="card"><h3>2 · Debugging</h3><p>Reproduce, diagnose, and repair a seeded bug; targeted and full tests must pass.</p></div>
+      <div class="card"><h3>3 · Feature work</h3><p>Implement a bounded feature from a realistic specification without unrelated changes.</p></div>
+      <div class="card"><h3>4 · Research</h3><p>Use available tools to reach a cited, source-supported decision.</p></div>
+      <div class="card"><h3>5 · Continuity</h3><p>Handle a correction, interruption, resume, and completion without stale assumptions or repeated work.</p></div>
+      <div class="card selected"><h3>Separate · Refinement</h3><p>Prime Agent alone receives a before/refine/after/rollback sequence. This is not mixed into its cold score.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Scoring</h2>
+    <div class="score">
+      <div><b>40</b><span>correctness & tests</span></div>
+      <div><b>20</b><span>tool reliability</span></div>
+      <div><b>15</b><span>autonomy & recovery</span></div>
+      <div><b>15</b><span>tokens, cost & time</span></div>
+      <div><b>10</b><span>communication & closure</span></div>
+    </div>
+    <p class="small" style="margin-top:10px">Objective repository checks run first. Qualitative results are blinded as A/B/C until scores and notes are locked.</p>
+  </section>
+
+  <section>
+    <h2>Per-run instrumentation</h2>
+    <table>
+      <thead><tr><th>Source</th><th>Captured</th><th>Authority</th></tr></thead>
+      <tbody>
+        <tr><td>OpenRouter response/generation</td><td>Prompt, completion, reasoning, cache, total tokens, exact cost, provider, generation ID, latency</td><td class="yes">Authoritative for billing</td></tr>
+        <tr><td>Harness stream/transcript</td><td>Model requests, tools, retries, compactions, subagents, usage, errors</td><td class="yes">Authoritative for behavior</td></tr>
+        <tr><td>Repository and tests</td><td>Diff, files touched, commands, objective pass/fail</td><td class="yes">Authoritative for outcome</td></tr>
+        <tr><td>OpenRouter key counter</td><td>Before/after spend delta for each sequential run</td><td class="warn">Cross-check; pause if unrelated traffic appears</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Decision gates</h2>
+    <ol>
+      <li>Prove each harness reaches Kimi K3 without fallback.</li>
+      <li>Prove read-only tools, usage, Stop, and resume.</li>
+      <li>Run the five cold tasks once per compatible harness.</li>
+      <li>Repeat only close, suspicious, or recoverable failures while credits permit.</li>
+      <li>Run Prime Agent's separate longitudinal refinement test.</li>
+      <li>Publish the evidence as an HTML recommendation: reject, revisit, Labs integration, or production candidate.</li>
+    </ol>
+  </section>
+
+  <footer>
+    Full specification: <code>docs/superpowers/specs/2026-08-09-kimi-k3-harness-evaluation-design.md</code>. Sources include Anthropic's gateway documentation, OpenRouter usage and generation APIs, Moonshot's Kimi configuration, and Prime Agent's public repository.
+  </footer>
+</main>
+</body>
+</html>
