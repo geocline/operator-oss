@@ -35,8 +35,8 @@ const PROVIDER_SECRET_ENV = [
 export function buildPrimeHarnessEnv(
   taskId: string,
   baseEnv: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
-): Record<string, string> {
-  const env = buildHarnessEnv(taskId, baseEnv);
+): NodeJS.ProcessEnv {
+  const env = buildHarnessEnv(taskId, baseEnv) as NodeJS.ProcessEnv;
   for (const key of PROVIDER_SECRET_ENV) delete env[key];
   return env;
 }

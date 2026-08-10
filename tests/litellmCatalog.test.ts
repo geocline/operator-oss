@@ -134,7 +134,7 @@ describe("Operator-tagged LiteLLM catalog", () => {
     expect(liteLLMCapabilities("prime").models.map((m) => m.value)).toEqual(["operator.kimi-k3"]);
   });
 
-  it("exposes Auto-run-only, metered-cost, no-asks capabilities for prime", () => {
+  it("exposes Auto-run-only, metered-cost capabilities for prime", () => {
     replaceLiteLLMCatalog({
       ...parseLiteLLMModelInfo({
         data: [{ ...valid({ harnesses: ["prime"] }), model_name: "operator.kimi-k3" }],
@@ -146,15 +146,14 @@ describe("Operator-tagged LiteLLM catalog", () => {
     expect(caps.permissionModes).toEqual([
       expect.objectContaining({ value: "bypassPermissions", label: "Auto-run" }),
     ]);
-    expect(caps.supportsAsks).toBe(false);
-    expect(caps.supportsMcpTools).toBe(false);
+    // Asks and Operator tools ride the Prime extension (Task 5 parity suite).
+    expect(caps.supportsAsks).toBe(true);
+    expect(caps.supportsMcpTools).toBe(true);
     expect(caps.reportsCostUsd).toBe(true);
     expect(caps.costIsEstimated).toBe(false);
     // Codex behavior is unchanged.
     const codex = liteLLMCapabilities("codex");
     expect(codex.permissionModes.map((p) => p.value)).toEqual(["bypassPermissions", "plan"]);
-    expect(codex.supportsAsks).toBe(true);
-    expect(codex.supportsMcpTools).toBe(true);
   });
 
   it("drives the SDK-free litellm-codex capability descriptor dynamically", () => {

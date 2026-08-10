@@ -5,9 +5,17 @@
 // stdout. Scenario knobs come from FAKE_PRIME_* env vars so the client under
 // test runs unmodified.
 import { spawn } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 
 const send = (value) => process.stdout.write(`${JSON.stringify(value)}\n`);
+
+// Let driver tests inspect exactly what the child was launched with.
+if (process.env.FAKE_PRIME_ARGS_FILE) {
+  writeFileSync(process.env.FAKE_PRIME_ARGS_FILE, JSON.stringify(process.argv.slice(2)));
+}
+if (process.env.FAKE_PRIME_ENV_FILE) {
+  writeFileSync(process.env.FAKE_PRIME_ENV_FILE, JSON.stringify(process.env));
+}
 
 if (process.env.FAKE_PRIME_EXIT_NONZERO === "1") {
   process.stderr.write("fake prime boot failure: bad config\n");

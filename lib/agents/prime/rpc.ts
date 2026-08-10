@@ -104,16 +104,24 @@ export class PrimeRpcClient {
       this.stderrTail = (this.stderrTail + chunk).slice(-this.stderrTailBytes);
     });
 
+    let settle!: (exit: PrimeExit) => void;
     this.settled = new Promise<PrimeExit>((resolve) => {
-      this.child.once("exit", (code, signal) => {
-        this.exit = { code, signal };
-        this.failAllPending(this.exitError());
-        resolve(this.exit);
-      });
+      settle = resolve;
+    });
+    this.child.once("exit", (code, signal) => {
+      this.exit = { code, signal };
+      this.failAllPending(this.exitError());
+      settle(this.exit);
     });
     this.child.once("error", (error) => {
+      // Spawn failures (missing binary, no exec bit) never fire "exit" — the
+      // process is settled by definition, so resolve here too or stop() hangs.
       this.failure = this.failure ?? error;
       this.failAllPending(error);
+      if (!this.exit) {
+        this.exit = { code: null, signal: null };
+        settle(this.exit);
+      }
     });
 
     if (options.signal) {

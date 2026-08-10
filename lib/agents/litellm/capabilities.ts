@@ -41,8 +41,10 @@ export function liteLLMCapabilities(harness: LiteLLMHarness = "codex"): AgentCap
     })),
     reasoningOptions: [...reasoning].map((value) => REASONING[value]).filter(Boolean),
     permissionModes: prime ? [AUTO_RUN] : [AUTO_RUN, PLAN_MODE],
-    supportsAsks: !prime,
-    supportsMcpTools: !prime,
+    // Prime asks/tools run through the Operator extension; enabled once the
+    // tool-parity suite (tests/primeOperatorTools.test.ts) went green.
+    supportsAsks: true,
+    supportsMcpTools: true,
     reportsCostUsd: prime,
     costIsEstimated: false,
     supportsResume: true,

@@ -1,0 +1,6 @@
+{"type":"message_start","message":{"role":"assistant"}}
+{"type":"message_update","delta":{"type":"text","text":"Task "}}
+{"type":"message_update","delta":{"type":"text","text":"complete."}}
+{"type":"tool_execution_start","toolCallId":"call-1","toolName":"ipython","args":{"code":"print('ok')"}}
+{"type":"tool_execution_end","toolCallId":"call-1","toolName":"ipython","isError":false,"result":"ok"}
+{"type":"message_end","message":{"role":"assistant","stopReason":"stop","responseId":"gen-driver-1","content":[{"type":"text","text":"Task complete."}],"usage":{"input":200,"output":80,"cacheRead":20,"cacheWrite":0,"cost":{"total":0.0091}},"provider":"operator-litellm","model":"operator.kimi-k3","resolvedModel":"moonshotai/kimi-k3"}}
