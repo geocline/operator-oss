@@ -13,6 +13,11 @@ mkdir -p \
   "$HOME/projects" \
   "$HOME/.claude"
 
+# Task-local Prime Agent state root (config + sessions per task). Restrictive:
+# session transcripts and generated provider configs live here.
+mkdir -p "$HOME/.operator/litellm-prime"
+chmod 700 "$HOME/.operator/litellm-prime"
+
 # Subscription login by default. If an agent key/token env var is present, the
 # `claude`/`codex` CLIs (and the Agent SDK child processes, and every pty shell
 # — all inherit this environment) prefer it over the volume's stored login and

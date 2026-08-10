@@ -82,6 +82,8 @@ Export the variables in the environment that launches `npm run dev` / `npm start
 | `ORCH_SERVICE_HOSTS` | *(off)* | Set `1` to serve each service on a public hostname `<slug>--<appHost>` with per-service visibility (private / shared link / public). Separate opt-in from the services feature itself; also needs `PUBLIC_BASE_URL` + wildcard DNS/TLS |
 | `ORCH_FEATURE_SERVICES` | `1` (on) | The managed-services feature (Services drawer, supervisor, persisted registry with boot auto-restart + orphan reaping). Set `0` to disable |
 | `CLAUDE_CLI_PATH` | `~/.local/bin/claude` | Path to the logged-in `claude` CLI (pinned because Next's server may run with a trimmed `PATH`) |
+| `PRIME_CLI_PATH` | `prime-agent` on `PATH` | Path to the pinned `prime-agent` CLI the `litellm-prime` driver spawns (the image pins `/usr/local/bin/prime-agent`, version 0.7.1). Prime is not an OS sandbox: tasks run Auto-run only, with the Operator process's host permissions |
+| `LITELLM_PRIME_HOME` | `~/.operator/litellm-prime` | Task-local Prime state root (per-task config + per-generation sessions). Hard-deleting a task removes only its own directory here |
 | `POSTHOG_KEY` | *(empty)* | PostHog project API key. Set = product analytics on (browser snippet + server events). Empty = fully no-op, nothing is ever sent |
 | `POSTHOG_HOST` | `https://us.i.posthog.com` | PostHog ingest host |
 | `ORCH_ACCOUNT_ID` | *(empty)* | The `distinct_id` analytics events are keyed by. Empty = `self-hosted` |

@@ -72,6 +72,20 @@ RUN npm install -g @anthropic-ai/claude-code && claude --version
 # PATH lookup and the auth helpers resolve it next to `claude`.
 RUN npm install -g @openai/codex && codex --version
 
+# The `prime-agent` CLI (the litellm-prime driver drives it over JSONL RPC;
+# task-local state lives under ~/.operator/litellm-prime on the volume).
+# Pinned - never `latest` - from the official GitHub release tarball, verified
+# against its published SHA256 before install, then version-verified.
+ARG PRIME_AGENT_VERSION=0.7.1
+ARG PRIME_AGENT_SHA256=d68612c83239caafab72cc76c55ac572bfd07a059ea8fbd2a3ddbe1f2b55dcdb
+RUN curl -fsSL -o /tmp/prime-agent.tgz \
+    "https://github.com/PrimeIntellect-ai/prime-agent/releases/download/v${PRIME_AGENT_VERSION}/prime-agent-${PRIME_AGENT_VERSION}.tgz" \
+  && echo "${PRIME_AGENT_SHA256}  /tmp/prime-agent.tgz" | sha256sum -c - \
+  && npm install -g /tmp/prime-agent.tgz \
+  && rm /tmp/prime-agent.tgz \
+  && [ "$(prime-agent --version 2>&1)" = "${PRIME_AGENT_VERSION}" ] \
+  && prime-agent --version
+
 # Replace the base image's `node` user so uid 1000 owns /home/orch — named
 # volumes initialize from this skeleton with correct ownership on first mount.
 RUN userdel -r node \
@@ -97,6 +111,10 @@ COPY --from=build --chown=root:root /app/lib/auth ./lib/auth
 # they must be COPY'd explicitly (same gotcha as the auth/router .mjs above).
 COPY --from=build --chown=root:root /app/scripts/orch-mcp.mjs ./scripts/orch-mcp.mjs
 COPY --from=build --chown=root:root /app/lib/agentToolDefs.mjs ./lib/agentToolDefs.mjs
+# The Prime Operator tool extension (loaded by prime-agent per turn via
+# --extension; jiti reads the TS source directly). Root-owned and read-only so
+# an Auto-run task cannot rewrite the tool surface out from under the driver.
+COPY --from=build --chown=root:root --chmod=444 /app/scripts/prime-operator-extension.ts ./scripts/prime-operator-extension.ts
 COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/orch-entrypoint
 
 # HOSTNAME is explicit because Docker injects the container id as $HOSTNAME,
@@ -114,6 +132,7 @@ ENV NODE_ENV=production \
     ORCH_WORKTREES_DIR=/home/orch/worktrees \
     CLAUDE_CLI_PATH=/usr/local/bin/claude \
     CODEX_CLI_PATH=/usr/local/bin/codex \
+    PRIME_CLI_PATH=/usr/local/bin/prime-agent \
     DISABLE_AUTOUPDATER=1
 
 USER orch
