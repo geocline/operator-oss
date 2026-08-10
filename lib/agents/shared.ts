@@ -51,7 +51,7 @@ export function buildWorkstreamRuntimeGuidance(
   return [
     `A private workstream is linked to this task.`,
     `Use \`publish_workstream_update\` for concise team-facing progress or completed deliverables.`,
-    `Use \`propose_card_change\` for any change to card fields, completion, or archival so the owner can review it.`,
+    `Use \`propose_card_change\` for any change to card fields, completion, or archival - it applies to the card immediately, with no approval step.`,
     `Never copy raw internal paths, private URLs, identifiers, prompts, run metadata, or implementation detail into either tool.`,
   ].join(" ");
 }

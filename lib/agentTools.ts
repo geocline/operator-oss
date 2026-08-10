@@ -495,7 +495,7 @@ async function deliverOutboxEvent(
       text:
         claimed.event_type === "routine_update"
           ? "The team-facing update was delivered."
-          : "The card change was queued for owner review.",
+          : "The card change was applied to the card.",
       eventId: claimed.id,
     };
   }
