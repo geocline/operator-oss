@@ -235,32 +235,53 @@ export class PrimeRpcClient {
       await this.settled;
       await this.waitForTreeExit(tree, this.termGraceMs);
     }
+    // Final sweep: catch a straggler forked after the earlier snapshots (it
+    // still carries the child's inherited process group even once orphaned).
+    for (let pass = 0; pass < 2; pass++) {
+      const stragglers = this.processTree().filter((pid) => pid !== this.child.pid);
+      const alive = stragglers.filter((pid) => this.anyAlive([pid]));
+      if (!alive.length) break;
+      this.signalTree(alive, "SIGKILL");
+      await delay(150);
+    }
     if (reason && !this.failure) this.failure = new Error(`Prime turn stopped: ${reason}`);
     return this.exit ?? (await this.settled);
   }
 
-  /** The spawned pid plus every live descendant, walked via ps ppid links. */
+  /**
+   * The spawned pid plus every live descendant (ps ppid links) plus every pid
+   * still in the child's original process group — the group scan catches a
+   * worker that was spawned after a ppid snapshot and reparented to PID 1
+   * when its parent exited, as long as it kept the inherited group.
+   */
   private processTree(): number[] {
     const root = this.child.pid;
     if (!root || process.platform === "win32") return root ? [root] : [];
     try {
-      const out = execFileSync("ps", ["-eo", "pid=,ppid="], { encoding: "utf8" });
+      const out = execFileSync("ps", ["-eo", "pid=,ppid=,pgid="], { encoding: "utf8" });
       const children = new Map<number, number[]>();
+      const byGroup = new Map<number, number[]>();
       for (const line of out.trim().split("\n")) {
-        const [pid, ppid] = line.trim().split(/\s+/).map(Number);
+        const [pid, ppid, pgid] = line.trim().split(/\s+/).map(Number);
         if (!Number.isInteger(pid) || !Number.isInteger(ppid)) continue;
         if (!children.has(ppid)) children.set(ppid, []);
         children.get(ppid)!.push(pid);
-      }
-      const acc = [root];
-      const queue = [root];
-      while (queue.length) {
-        for (const child of children.get(queue.shift()!) ?? []) {
-          acc.push(child);
-          queue.push(child);
+        if (Number.isInteger(pgid)) {
+          if (!byGroup.has(pgid)) byGroup.set(pgid, []);
+          byGroup.get(pgid)!.push(pid);
         }
       }
-      return acc;
+      const acc = new Set<number>([root, ...(byGroup.get(root) ?? [])]);
+      const queue = [...acc];
+      while (queue.length) {
+        for (const child of children.get(queue.shift()!) ?? []) {
+          if (!acc.has(child)) {
+            acc.add(child);
+            queue.push(child);
+          }
+        }
+      }
+      return [...acc];
     } catch {
       return [root];
     }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getTask, getProject, updateTask, deleteTask, listMessages, getTaskUsage, getTaskContext, getTaskDeps, setTaskDeps, countAwaiting } from "@/lib/store";
 import { removeWorktree } from "@/lib/git";
 import { removePrimeTaskState } from "@/lib/agents/prime/session-paths";
+import { settlePrimeTask } from "@/lib/agents/prime/driver";
 import { removeTaskUploads } from "@/lib/uploads";
 import { abortTurn, hasTurn } from "@/lib/abort";
 import { publishGlobal } from "@/lib/events";
@@ -165,10 +166,12 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   }
   removeTaskUploads(id);
   // Retire task-local Prime state (a no-op for non-Prime tasks). abortTurn
-  // above already tripped the turn's controller, and the Prime RPC client
-  // kills its whole process group on that signal; the delayed re-sweep mops up
-  // any straggler write a dying process flushed after the first removal.
+  // above tripped the turn's controller; settlePrimeTask then AWAITS the full
+  // Prime process tree before the directory is removed, so no live child can
+  // outlive the delete or re-populate the retired state. The delayed re-sweep
+  // mops up any straggler write a dying process flushed after removal.
   try {
+    await settlePrimeTask(id);
     removePrimeTaskState(id);
     setTimeout(() => {
       try {

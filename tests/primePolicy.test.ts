@@ -82,6 +82,25 @@ describe("buildPrimeHarnessEnv", () => {
     }
     expect(JSON.stringify(env)).not.toMatch(/sk-openai|sk-anthropic|tok-anthropic|sk-or|sk-litellm/);
   });
+
+  it("strips credential-shaped names beyond the known six", () => {
+    const env = buildPrimeHarnessEnv("task-1", {
+      PATH: "/usr/bin",
+      GOOGLE_API_KEY: "sk-google",
+      MISTRAL_API_KEY: "sk-mistral",
+      SOME_ACCESS_TOKEN: "tok",
+      MY_APP_SECRET: "shh",
+      GH_AUTH_TOKEN: "gho",
+      SERVICE_TOKEN: "instance-token",
+      FAKE_PRIME_EVENTS: "/tmp/events.jsonl",
+    });
+    for (const key of ["GOOGLE_API_KEY", "MISTRAL_API_KEY", "SOME_ACCESS_TOKEN", "MY_APP_SECRET", "GH_AUTH_TOKEN"]) {
+      expect(env).not.toHaveProperty(key);
+    }
+    // The two secrets the child legitimately needs survive / are re-injected.
+    expect(env.SERVICE_TOKEN).toBe("instance-token");
+    expect(env.FAKE_PRIME_EVENTS).toBe("/tmp/events.jsonl");
+  });
 });
 
 describe("Prime model policy", () => {

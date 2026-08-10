@@ -143,6 +143,16 @@ describe("mapPrimeEvent", () => {
   });
 
   describe("9. model identity policy", () => {
+    it("rejects a missing resolvedModel when the provider is not operator-litellm", () => {
+      const base = (VALID_MESSAGE_END({}) as { message: Record<string, unknown> }).message;
+      const { out } = run([
+        { type: "message_end", message: { ...base, resolvedModel: undefined, provider: "llama-router" } } as PrimeRpcEvent,
+        { type: "agent_end" },
+      ]);
+      expect(out.some((e) => e.type === "error")).toBe(true);
+      expect(out.some((e) => e.type === "done")).toBe(false);
+    });
+
     it("accepts a message_end without resolvedModel when alias and provider are clean", () => {
       // prime-agent 0.7.1 cannot observe the physical model through the
       // credential-preserving relay; the alias→physical binding is pinned

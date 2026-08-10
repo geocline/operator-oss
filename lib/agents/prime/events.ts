@@ -222,7 +222,14 @@ function checkModelIdentity(message: PrimeMessage, requestedModel: string): stri
     return `Prime provider "${message.provider}" reads as a non-approved provider route`;
   }
   const identity = message.resolvedModel;
-  if (identity === undefined || identity === null) return null;
+  if (identity === undefined || identity === null) {
+    // Without an in-stream physical identity, the ONLY acceptable route is
+    // the exact Operator-configured provider — anything else means the turn
+    // did not go through the pinned, fallback-free relay binding.
+    return message.provider === "operator-litellm"
+      ? null
+      : `Prime reported no resolved identity and provider "${message.provider ?? "(none)"}" is not operator-litellm`;
+  }
   if (typeof identity !== "string" || !identity.trim()) {
     return "Prime message_end reported an empty resolved model identity";
   }

@@ -146,6 +146,12 @@ describe("Prime Operator extension HTTP behavior", () => {
     }
   });
 
+  it("refuses to load with a non-loopback ORCH_BASE_URL (token containment)", () => {
+    process.env.ORCH_BASE_URL = "http://evil.example.com:3000";
+    expect(() => loadTools()).toThrow(/loopback/i);
+    process.env.ORCH_BASE_URL = "http://127.0.0.1:3000";
+  });
+
   it("surfaces endpoint errors as tool errors", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: "unknown project" }, false, 404));
     const tools = loadTools();

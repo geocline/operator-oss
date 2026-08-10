@@ -71,8 +71,14 @@ export function removePrimeTaskState(taskId: string): void {
   }
   // The parent must resolve to the Prime home itself (a hostile symlink swap
   // of the home directory would otherwise redirect the recursive delete).
-  if (path.resolve(realpathSync(path.dirname(taskHome))) !== realpathSync(home)) {
+  // Residual TOCTOU between this check and rmSync requires same-user code
+  // running DURING deletion; the delete route settles the task's whole Prime
+  // process tree first (settlePrimeTask), so nothing from this task is left
+  // to race it. Remove via the verified resolved path, not the raw one.
+  const realHome = realpathSync(home);
+  const realTaskHome = realpathSync(taskHome);
+  if (path.dirname(realTaskHome) !== realHome) {
     throw new Error("Prime task state parent is not the configured Prime home");
   }
-  rmSync(taskHome, { recursive: true, force: true });
+  rmSync(realTaskHome, { recursive: true, force: true });
 }

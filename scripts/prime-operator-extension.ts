@@ -66,6 +66,16 @@ export default function operatorExtension(pi: PrimeExtensionApi): void {
   const TASK_ID = process.env.ORCH_TASK_ID || "";
   const PROJECT_ID = process.env.ORCH_PROJECT_ID || "";
   const BASE_URL = (process.env.ORCH_BASE_URL || "http://127.0.0.1:3000").replace(/\/+$/, "");
+  // SERVICE_TOKEN travels in every tool call; it may only ever go to the
+  // local Operator process. A misconfigured (or injected) non-loopback base
+  // URL must fail closed rather than exfiltrate the instance secret.
+  const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "[::1]", "localhost"]);
+  {
+    const host = new URL(BASE_URL).hostname;
+    if (!LOOPBACK_HOSTS.has(host)) {
+      throw new Error(`ORCH_BASE_URL must be a loopback origin; got host "${host}"`);
+    }
+  }
   const SERVICE_TOKEN = process.env.SERVICE_TOKEN || "";
   const ASK_POLL_MS = Number(process.env.ORCH_ASK_POLL_MS || 1500);
 

@@ -31,6 +31,37 @@ import { ensurePrimeTaskDirs } from "./session-paths";
 
 const PROVIDER_ID = "operator-litellm";
 
+// Live RPC clients by task id (HMR-surviving, like lib/abort.ts) so task
+// deletion can await real process-tree settlement instead of racing it.
+const liveClients = (globalThis as typeof globalThis & {
+  __operatorPrimeClients?: Map<string, Set<PrimeRpcClient>>;
+}).__operatorPrimeClients ??= new Map<string, Set<PrimeRpcClient>>();
+(globalThis as typeof globalThis & { __operatorPrimeClients?: Map<string, Set<PrimeRpcClient>> }).__operatorPrimeClients = liveClients;
+
+function trackClient(taskId: string, client: PrimeRpcClient): void {
+  if (!liveClients.has(taskId)) liveClients.set(taskId, new Set());
+  liveClients.get(taskId)!.add(client);
+  void client.settled.then(() => {
+    const set = liveClients.get(taskId);
+    set?.delete(client);
+    if (set && set.size === 0) liveClients.delete(taskId);
+  });
+}
+
+/**
+ * Stop and await every live Prime client for a task (bounded). Called by the
+ * task DELETE route before its Prime state is removed, so no process from the
+ * task can outlive (or re-populate) the directory being retired.
+ */
+export async function settlePrimeTask(taskId: string, timeoutMs = 15_000): Promise<void> {
+  const clients = [...(liveClients.get(taskId) ?? [])];
+  if (!clients.length) return;
+  await Promise.race([
+    Promise.all(clients.map((client) => client.stop().catch(() => undefined))),
+    new Promise<void>((resolve) => setTimeout(resolve, timeoutMs).unref()),
+  ]);
+}
+
 /** Resolved per turn so a relocated CLI or a test override applies without a restart. */
 function primeCliPath(): string {
   return process.env.PRIME_CLI_PATH || "prime-agent";
@@ -168,6 +199,7 @@ async function* runTurn(
         }
       },
     });
+    trackClient(task.id, client);
     void client.settled.then(() => queue.close());
 
     const guidance = buildWorkstreamRuntimeGuidance(getWorkstreamByTask(task.id)?.state === "active");

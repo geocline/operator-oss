@@ -32,11 +32,21 @@ const PROVIDER_SECRET_ENV = [
   "LITELLM_API_KEY",
 ] as const;
 
+// Denylisting six names is not enough: a provider credential under ANY name
+// (GOOGLE_API_KEY, MISTRAL_API_KEY, a shell-profile leak) must not reach the
+// Prime child. Strip everything whose NAME reads like a credential; the
+// driver re-injects the only secrets the child may hold (the relay token and
+// SERVICE_TOKEN) after this scrub.
+const SECRET_NAME_PATTERN = /(API_?KEY|APIKEY|AUTH_?TOKEN|ACCESS_?TOKEN|SECRET|OPENROUTER|LITELLM)/i;
+
 export function buildPrimeHarnessEnv(
   taskId: string,
   baseEnv: NodeJS.ProcessEnv | Record<string, string | undefined> = process.env,
 ): NodeJS.ProcessEnv {
   const env = buildHarnessEnv(taskId, baseEnv) as NodeJS.ProcessEnv;
   for (const key of PROVIDER_SECRET_ENV) delete env[key];
+  for (const key of Object.keys(env)) {
+    if (SECRET_NAME_PATTERN.test(key)) delete env[key];
+  }
   return env;
 }

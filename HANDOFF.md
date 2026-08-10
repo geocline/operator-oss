@@ -1,150 +1,169 @@
-# HANDOFF - Operator fork + deal tracker integration (session of 2026-08-01 to 2026-08-03)
+# HANDOFF — Prime Agent integration
 
-For any session working on the operator app or the Ardent deal tracker: this
-records what a prior session already built, and the decisions Geo has locked
-in. Do not undo or re-litigate these without asking him.
+Last updated: 2026-08-10
 
-## What this fork is
+Project root: `/Users/geo/Claude Projects/operator`
 
-Fork of iishyfishyy/operator-oss (Apache-2.0) at geocline/operator-oss.
-Runs as launchd service com.geo.operator (port 3000) + com.geo.operator-pty
-(PTY_PORT=3101, NOT upstream's 3001). Registered in services/config.yaml.
-Logs: "/Users/geo/Claude Projects/.services/logs/operator.{log,err}".
-Env: ORCH_PROJECTS_DIR="/Users/geo/Claude Projects" (new projects land there),
-set in .env AND the launchd plist. Upstream remote configured; sync policy is
-merge, never rebase; expect conflicts mostly in app/Orchestrator.tsx.
+Branch/HEAD when prepared: `main` at `71dabb4`
 
-## HARD RULES (Geo corrections - violating these caused real damage)
+## Start here
 
-1. NEVER restart/kickstart the operator service while any task turn is
-   running. It kills the turn mid-tool with no closing message. Check first:
-   `sqlite3 ~/.zen-orchestrator/orchestrator.db "SELECT title FROM tasks WHERE running=1"`
-   Build, then kickstart only at zero running turns.
-2. NO prompt injection for behavior shaping. Geo explicitly rejected adding
-   communication/behavior rules to project contexts or CLAUDE.md files. A
-   COMMUNICATION block was added to all project contexts on 2026-08-03 and
-   then fully reverted at his direction. Project contexts hold deal/project
-   facts and pointers ONLY. Claude's native summarize-at-end behavior is
-   trusted as-is.
-3. Transcript UI must read like Claude Code: prose only. ALL tool peeks are
-   condensed to one-line headers unconditionally (app/orchestrator/
-   SessionView.tsx sets condensed = true); errors still auto-open. Do not
-   restore preview tiers without asking.
-4. Never commit corpus documents (pdf/xlsx/docx/images) in the Ardent deal
-   folders. Deal repos are code-and-notes only (whitelist .gitignore).
-5. No em dashes in anything written for Geo (use plain hyphens).
-6. Commits only when Geo asks; pushes only with his explicit OK per repo.
+1. Read this file completely.
+2. Read `AGENTS.md` if present, then read `CLAUDE.md`.
+3. Read the canonical Prime integration design:
+   `docs/superpowers/specs/2026-08-10-prime-agent-operator-integration-design.md`.
+4. Execute the plan:
+   `docs/superpowers/plans/2026-08-10-prime-agent-operator-integration.md`.
+5. Review the Geo-facing research summary:
+   `prime-agent-operator-integration-research-2026-08-10.html`.
+6. Before editing, run `git status --short`. Do not revert, delete, overwrite,
+   stage, or commit unrelated dirty/untracked files. Do not use `git add .`.
 
-## Fork changes already shipped (all committed on main)
+The superseded task-save handoff is preserved at `HANDOFF.old2.md`. The earlier
+historical handoff remains at `HANDOFF.old1.md`.
 
-- fix(codex): close stdin pipe in verify exec turn (codex >= 0.145 blocks on
-  an open stdin pipe).
-- feat(quota): /api/quota + QuotaView + topbar QuotaStrip + QuotaAdvisor
-  banner. Source: opencodex proxy 127.0.0.1:10100/api/provider-quotas.
-  Percents are USED (not remaining); anthropic timestamps are ms, openai
-  seconds; normalize on read. Settings keys quota_warn_threshold (default 80),
-  quota_advisor_enabled. Per-model usage lines (Fable highlighted) read the
-  conversations index DB read-only.
-- feat(handoff): optional {agent} body on POST /api/tasks/[id]/clear switches
-  the task's driver across the generation boundary (same worktree, summary
-  carried). SessionView renders a two-step "Continue with Codex/Claude Code"
-  button. window.confirm is BANNED in this app (embedded webviews suppress
-  it); use the arm-then-confirm button pattern.
-- feat(ui): "Renew" is the user-facing name for /clear (label change only,
-  command still /clear). Focus mode button + Esc (hides project/task columns).
-  Session header sh-tools row wraps (fix: controls were clipped off-screen).
-  Mobile topbar: tb-mobile-hide class hides desktop-only icons; titlebar is
-  flex on mobile.
-- feat(open): GET /open deep-link resolver. Resolution order:
-  1. session id operator ran -> its task.
-  2. unknown session id -> looked up in conversations-dashboard index.db,
-     transcript tail rebuilt from JSONL on disk, new task pre-seeded with the
-     dialogue (cross-border Renew).
-  3. exact repo_path project match -> that project.
-  4. path INSIDE a lane's repo_path -> TASK in that lane (deal-lane routing,
-     dedup by card path marker in the description).
-  5. otherwise find-or-create project for the folder (only if it exists).
-- feat(uploads): any file type attachable (composer says "file"); extension
-  whitelist opened, traversal guard kept.
-- feat(pwa): radar-sweep icons + apple-touch-icon (iOS cannot animate icons;
-  motion is painted). manifest.json for Add to Home Screen over Tailscale.
-- feat(projects): New folder / Existing folder / Clone modes; New auto-creates
-  ORCH_PROJECTS_DIR/<name> at create time. BrowseDirButton uses the in-app
-  picker on coarse-pointer devices (native macOS chooser opens on the host).
-- guide at public/guide.html; toolbar links to cockpit (8770) and
-  conversations dashboard (8772); package.json start:geo loads .env.
+## Decision
 
-## Deal tracker changes already shipped (pushed to Vercel, geocline/ardent-deal-tracker)
+Geo approved adding Prime Agent to Operator as the preferred harness option for
+approved Kimi models.
 
-- CardModal AI Workspace row: "Open in Operator" (targets
-  http://geos-mbp.tail9f0829.ts.net:3000, override NEXT_PUBLIC_OPERATOR_BASE;
-  localhost is wrong because Geo uses the tracker from iPhone), "Copy project
-  path", existing "Copy cd + claude" and "Refresh".
-- trackerOnline probe: 4s timeout (was 1.5s) + "Check again" retry buttons on
-  both offline notices.
-- Attached-conversation rows: "Continue in Operator" link (session id ->
-  /open resolver).
+Implement a new concrete driver:
 
-## Workflow decisions (Geo's mental model - build to fit it)
+- Driver ID: `litellm-prime`
+- User label: `Prime Agent`
+- Initial model alias: `operator.kimi-k3`
+- Billing route: Operator → loopback relay → LiteLLM → approved Kimi provider
 
-- Project = deal/lane. Task = assignment (a tracker card is a task). Session =
-  a generation inside a task; Renew rolls generations.
-- Lanes live in operator for: Chamblee, WR1, WR2, Wobbe (deals), Ardent
-  Internal, General (firm/catch-all), Fortress (Bedrock PMS tenant-side
-  integration lane - NOT a deal; Sage-Intacct is the GL sibling and has no
-  lane by choice). Each lane folder has a local nested git repo, code+notes
-  only, corpus untracked. The Ardent ROOT is a commitless 8.8GB repo - never
-  let operator baseline it; never point a lane at the Ardent root.
-- Context philosophy: sessions preload only the lane blurb + task description
-  (pointers). Knowledge stays on disk (INDEX.md per deal, ardent-find,
-  Paperless MCP) and is pulled on demand. Never preload corpus.
-- Tracker cards route into deal lanes as tasks via /open path containment.
-  Two grandfathered pre-routing projects hold live work and must not be
-  deleted: "Review TMF missed fees/Returned Check", "Ardent/Sage-Intacct".
-- Retrieval Pipeline lane owns the corpus-search work (Paperless MCP is
-  registered user-level; INDEX.md generator + eval harness live in its
-  worktree, uncommitted by Geo's choice). Eval verdict: fix Paperless OCR
-  before considering any embedding layer.
-- Foreign files in this repo root (.superpowers/, *.html session artifacts)
-  belong to other sessions - do not commit or delete them.
+This is additive:
 
-## Verification conventions
+- native Claude Code remains on the Anthropic subscription;
+- native Codex remains on the OpenAI subscription;
+- `litellm-codex` remains available;
+- Claude remains Operator's default agent unless Geo changes it later;
+- existing tasks and projects must not be retargeted.
 
-- After any operator code change: npm run build, wait for zero running turns,
-  kickstart, curl health, then verify in the browser pane. Frontend changes
-  in Work_Cockpit need a ?v= cache-bust.
-- Tracker deploys via git push to GitHub (Vercel auto-builds). npm run build
-  locally first.
+Hard policy: OpenRouter may run only models Geo explicitly approves. Never route
+an OpenAI or Anthropic model through OpenRouter. Never configure a fallback.
 
-## 2026-08-04 - Card workstreams, breadcrumbs, and hardening
+## Current state — IMPLEMENTED 2026-08-10
 
-- Operator commit `9e9c83f` implements the approved single-user card workstream
-  bridge: manual activation, pause/resume/post-now/disconnect controls, durable
-  delivery, proposal handling, exact conversation registration, and private
-  task/card linkage.
-- Tracker commit `05447de` implements owner-only workstreams, fixed bot
-  attribution, exact breadcrumbs, proposal approval, private AI Workspace
-  storage, hardened automatic HTML attachments, and migrations 0044 and 0045.
-- MCP commit `c7480f3` implements exact standalone session breadcrumbs and the
-  fixed `Geo's Bot` attribution. Conversations dashboard commit `5265797`
-  exposes exact annotation revisions.
-- Operator hardening commits through `3b9db50` upgrade the secure runtime to
-  Next 16.3 and Node 20.9+, remove production audit findings, accept arbitrary
-  composer files, atomically deduplicate historical external-session imports,
-  add CI for Node 20.9 and Node 22, validate production traces, and migrate the
-  Next file convention from middleware to proxy.
-- Tracker hardening commits `f139569` and `36d3fdc` anchor Turbopack to the app
-  root, upgrade Next to 16.3, replace the stale registry XLSX package with the
-  official SheetJS CE 0.20.3 tarball, and reduce the production audit from four
-  high findings to zero.
-- Fresh release verification passed: Operator 450 tests, Tracker 103 tests,
-  MCP 55 tests, dashboard 1 test, plus type checks, lint, builds, audit, trace
-  checks, and independent reviews.
-- Operator `main` is pushed and running locally. The tracker release is pushed
-  only to `codex/card-workstreams-rollout`. Do not promote tracker `main` until
-  migrations 0044 and 0045 have been applied and verified in that order.
-- Production gate still open: the Supabase dashboard session is signed out.
-  After Geo signs in, run migrations 0044 then 0045, verify the new tables,
-  functions, RLS, and removal of `cards.ai_project_path`, push tracker `main`,
-  confirm Vercel production, and complete the signed-in activation/breadcrumb/
-  comment/control/proposal/attachment acceptance pass.
+The integration is implemented, verified, and live-acceptance tested. Commits
+(main): 9dfd686, 632ce5b, 0aa2c0e, 50396bc, 446d6a0, 7662714, ddcc5b7,
+15a020f, b6e0e29, 4fa3064, b3b804e, 7a4061b, c4417b2, e43b512 (plus the
+LiteLLM server repo commit 2330000 tagging `operator.kimi-k3` with `prime`).
+
+Validation evidence:
+
+- Focused suites (catalog, policy, RPC, events, tools, driver, UI, cleanup,
+  agent switch, packaging) pass; `npm run verify` passes end to end.
+- Docker: prime-agent 0.7.1 installed from the official GitHub release
+  tarball, sha256-pinned; smoke test (`scripts/prime-docker-smoke.sh`) passes,
+  including the orphan-process check.
+- Live acceptance (`PRIME_ACCEPTANCE=1 npx vitest run
+  tests/primeAcceptance.live.test.ts`) passed: fresh turn with a real
+  workspace edit, one resume, one abort, no surviving prime/ipykernel
+  processes. Sanitized artifact with provider-side reconciliation:
+  `docs/evaluations/2026-08-10-prime-kimi-acceptance.json` — all four
+  generations resolved to `moonshotai/kimi-k3-20260715`, total $0.0253.
+- Native Claude (Max) and Codex (ChatGPT) subscription logins re-verified
+  authenticated and untouched.
+
+Two evidence-driven deviations from the original plan, both recorded in
+commit messages: (1) prime-agent 0.7.1 cannot observe the physical model
+through the credential-preserving relay, so the in-stream identity gate is
+exact-alias + provider + no-fallback, `resolvedModel` validated only when
+present, and physical identity is reconciled out-of-band (the alias→physical
+binding is fallback-free and test-pinned in the LiteLLM repo); (2) the npm
+wrapper re-execs the real binary into its own process group, so stop() kills
+the full descendant tree (snapshot + group + pid, SIGTERM→SIGKILL), pinned by
+a dedicated escaped-group regression test.
+
+Prime cost is recorded as 0/unestimated in Operator (allowed by plan Task 6);
+trusted attribution lives with LiteLLM/provider records.
+
+Prime Agent 0.7.1 was separately evaluated with Kimi and passed the core
+compatibility gates for exact model selection, tool execution, abort, resume,
+usage, and cost attribution. The real-task run showed that Prime is viable, but
+the new driver must independently enforce production policy and lifecycle rules.
+
+The repository audit found:
+
+- the existing `AgentDriver`, runner, abort owner, session persistence, usage
+  store, and task switching are reusable;
+- no database migration is needed;
+- Prime should run as a pinned external CLI over JSONL RPC;
+- Prime state must be isolated under
+  `~/.operator/litellm-prime/<task-id>/`;
+- the current LiteLLM catalog and credential relay should be reused;
+- a Prime extension must expose all six Operator tools through the existing
+  authenticated internal endpoints;
+- the managed model-refresh UI is currently hardcoded to
+  `litellm-codex` and must be generalized;
+- Prime is not an OS sandbox, so the first release must expose Auto-run only.
+
+## Exact next work
+
+Start with Task 1 in
+`docs/superpowers/plans/2026-08-10-prime-agent-operator-integration.md`.
+
+Use strict TDD. Complete and verify each plan task before moving to the next.
+Do not begin a paid Kimi acceptance run until all local tests, the full
+`npm run verify` gate, and the Docker-free lifecycle tests pass.
+
+Before editing the separate LiteLLM server repository in plan Task 10, inspect:
+
+```text
+/Users/geo/Claude Projects/LiteLLM server
+```
+
+Run its `git status --short` first and preserve unrelated work.
+
+## Non-negotiable implementation rules
+
+- Validate `operator.kimi-k3` before launch and the resolved physical Kimi model
+  before successful completion.
+- Provider credentials stay in LiteLLM. A Prime child receives only the
+  loopback relay token.
+- Keep the Prime driver registered when the CLI or model is unavailable so an
+  existing Prime task fails actionably rather than falling back to Claude.
+- Disable Prime telemetry, automatic refinement, and user/global Prime
+  extensions, skills, and prompt templates initially.
+- Keep built-in IPython, subagents, and repository context files available.
+- Stop the full process tree before collecting final failure attribution.
+- Prove no Prime daemon, worker, kernel, subagent, or ZeroMQ process survives
+  abort, timeout, deletion, or shutdown.
+- Do not expose Plan mode until an external OS/container restriction test proves
+  that writes and network access are blocked.
+- Do not purchase credits. If the approved provider balance is insufficient for
+  final acceptance, stop and tell Geo.
+
+## Validation required before completion
+
+- Focused Prime catalog, policy, RPC, event, tools, driver, UI, cleanup, and
+  agent-switch suites pass.
+- `npm run verify` passes.
+- Pinned Docker build and orphan-process smoke test pass.
+- The LiteLLM Kimi alias has a `prime` harness tag and no fallback.
+- One controlled real Kimi task completes, resumes once, and aborts once.
+- Exact model identity, tokens, trusted cost, tool trace, and process settlement
+  are recorded in a sanitized artifact.
+- Native Claude and Codex subscription paths are rechecked.
+- An independent review finds no unresolved Critical or Important issues.
+
+## Known dirty/untracked files
+
+This worktree already contains user/session-owned changes:
+
+- `.superpowers/`
+- `HANDOFF.old1.md`
+- numerous root-level HTML reports
+- this planning set:
+  - `docs/superpowers/specs/2026-08-10-prime-agent-operator-integration-design.md`
+  - `docs/superpowers/plans/2026-08-10-prime-agent-operator-integration.md`
+  - `prime-agent-operator-integration-research-2026-08-10.html`
+  - `HANDOFF.md`
+  - `HANDOFF.old2.md`
+  - `docs/NEXT-SESSION-PROMPT.md`
+
+Do not delete or bulk-stage any of them. The planning and handoff files have not
+been committed.
