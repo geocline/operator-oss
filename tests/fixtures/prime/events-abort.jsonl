@@ -1,0 +1,25 @@
+{"type":"message_start","message":{"role":"assistant"}}
+{"type":"tool_execution_start","toolCallId":"call-slow","toolName":"ipython","args":{"code":"import time; time.sleep(30)"}}
+{"type":"message_update","delta":{"type":"text","text":"working..."}}
+{"type":"message_update","delta":{"type":"text","text":"still working..."}}
+{"type":"message_update","delta":{"type":"text","text":"more..."}}
+{"type":"message_update","delta":{"type":"text","text":"more..."}}
+{"type":"message_update","delta":{"type":"text","text":"more..."}}
+{"type":"message_update","delta":{"type":"text","text":"more..."}}
+{"type":"message_update","delta":{"type":"text","text":"more..."}}
+{"type":"message_update","delta":{"type":"text","text":"more..."}}
+{"type":"message_update","delta":{"type":"text","text":"more..."}}
+{"type":"message_update","delta":{"type":"text","text":"more..."}}
+{"type":"message_update","delta":{"type":"text","text":"more..."}}
+{"type":"message_update","delta":{"type":"text","text":"more..."}}
+{"type":"message_update","delta":{"type":"text","text":"more..."}}
+{"type":"message_update","delta":{"type":"text","text":"more..."}}
+{"type":"message_update","delta":{"type":"text","text":"more..."}}
+{"type":"message_update","delta":{"type":"text","text":"more..."}}
+{"type":"message_update","delta":{"type":"text","text":"more..."}}
+{"type":"message_update","delta":{"type":"text","text":"more..."}}
+{"type":"message_update","delta":{"type":"text","text":"more..."}}
+{"type":"message_update","delta":{"type":"text","text":"more..."}}
+{"type":"message_update","delta":{"type":"text","text":"more..."}}
+{"type":"message_update","delta":{"type":"text","text":"more..."}}
+{"type":"message_update","delta":{"type":"text","text":"more..."}}

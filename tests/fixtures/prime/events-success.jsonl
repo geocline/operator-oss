@@ -1,0 +1,6 @@
+{"type":"message_start","message":{"role":"assistant"}}
+{"type":"message_update","delta":{"type":"text","text":"Hello "}}
+{"type":"message_update","delta":{"type":"text","text":"world"}}
+{"type":"tool_execution_start","toolCallId":"call-1","toolName":"ipython","args":{"code":"print(2+2)"}}
+{"type":"tool_execution_end","toolCallId":"call-1","toolName":"ipython","isError":false,"result":"4"}
+{"type":"message_end","message":{"role":"assistant","stopReason":"stop","responseId":"gen-fake-1","content":[{"type":"text","text":"Hello world"}],"usage":{"input":120,"output":45,"cacheRead":10,"cacheWrite":0,"cost":{"total":0.0042}},"provider":"operator-litellm","model":"operator.kimi-k3"}}
