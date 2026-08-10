@@ -39,6 +39,7 @@ export async function POST(req: Request) {
     context: body.context,
     repo_path: repoPath,
     branch: body.branch,
+    run_in_repo: body.run_in_repo === undefined ? undefined : body.run_in_repo ? 1 : 0,
   });
   track("project_created", { project_id: project.id, has_repo: !!project.repo_path });
   return NextResponse.json(project, { status: 201 });

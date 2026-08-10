@@ -16,6 +16,7 @@ export interface ProjectRow {
   setup_command: string;
   test_command: string;
   default_agent: string; // agent driver new tasks in this project default to (lib/agents/registry.ts)
+  run_in_repo: number; // 1 = new tasks skip worktree isolation and run directly in repo_path
   port: number;
   deprecated: number;
   seeded: number; // 1 = built-in "Welcome" tutorial project (coach marks + post-merge nudge)
@@ -40,6 +41,7 @@ export interface TaskRow {
   launch_config_required: number;
   launch_config_confirmed_at: number;
   session_id: string | null;
+  worktree_path: string; // isolated git worktree this task runs in ("" = runs in repo_path)
   pr_url: string; // GitHub PR opened from this task's branch ("" = none yet)
   generation: number;
   started: number;

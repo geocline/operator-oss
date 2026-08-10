@@ -190,14 +190,19 @@ export function SessionRail({ project, task, sessions, running, onResolveWithAI,
   // isn't real yet — keep it behind a flag (default off) so it ships only once
   // the live URL actually works. See lib/features.ts.
   const showPreview = clientFeatures().livePreview;
-  const [tab, setTab] = useState<Tab>("diff");
+  // Repo-direct tasks (project "run in folder" toggle, no worktree of their own)
+  // have no isolated branch to diff or merge — hide the tab entirely. Tasks that
+  // predate the toggle keep their worktree, so worktree_path is the source of truth.
+  const showDiff = !(project.run_in_repo && !task.worktree_path);
+  const [tab, setTab] = useState<Tab>(showDiff ? "diff" : "notes");
+  useEffect(() => { if (!showDiff && tab === "diff") setTab("notes"); }, [showDiff, tab]);
   const Tab = ({ id, label }: { id: Tab; label: string }) => (
     <button className={`rail-tab ${tab === id ? "on" : ""}`} onClick={() => setTab(id)}>{label}</button>
   );
   return (
     <aside className="sess-rail">
       <div className="rail-tabs">
-        <Tab id="diff" label="DIFF" />
+        {showDiff && <Tab id="diff" label="DIFF" />}
         {showPreview && <Tab id="preview" label="PREVIEW" />}
         <Tab id="notes" label="NOTES" />
         <Tab id="context" label="CONTEXT" />
@@ -205,7 +210,7 @@ export function SessionRail({ project, task, sessions, running, onResolveWithAI,
         <button className="rail-collapse" onClick={onCollapse} title="Hide panel">{Icon.chevRight()}</button>
       </div>
       <div className="rail-scroll">
-        {tab === "diff" && (
+        {tab === "diff" && showDiff && (
           <TaskChanges taskId={task.id} running={running} prUrl={task.pr_url} onMerged={onMerged} onPrCreated={onPrCreated} onResolveWithAI={async (id) => {
             const res = await onResolveWithAI(id);
             if (res.ok && !res.merged) onSwitchToChat();
