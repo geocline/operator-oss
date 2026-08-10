@@ -143,11 +143,30 @@ describe("mapPrimeEvent", () => {
   });
 
   describe("9. model identity policy", () => {
-    it("rejects a message_end with no resolvedModel at all", () => {
+    it("accepts a message_end without resolvedModel when alias and provider are clean", () => {
+      // prime-agent 0.7.1 cannot observe the physical model through the
+      // credential-preserving relay; the alias→physical binding is pinned
+      // fallback-free in the LiteLLM config and reconciled out-of-band.
       const { out } = run([VALID_MESSAGE_END({ resolvedModel: undefined }) as PrimeRpcEvent, { type: "agent_end" }]);
-      expect(out.some((e) => e.type === "error")).toBe(true);
-      expect(out.some((e) => e.type === "done")).toBe(false);
-      expect(out.some((e) => e.type === "model")).toBe(false);
+      expect(out.some((e) => e.type === "error")).toBe(false);
+      expect(out.some((e) => e.type === "done")).toBe(true);
+      expect(out.find((e) => e.type === "model")).toMatchObject({ model: "operator.kimi-k3" });
+    });
+
+    it("rejects a fallback-suffixed alias and a non-approved provider", () => {
+      const fallbackAlias = run([
+        { ...(VALID_MESSAGE_END({ resolvedModel: undefined }) as { message: Record<string, unknown> }), message: { ...(VALID_MESSAGE_END({}) as { message: Record<string, unknown> }).message, resolvedModel: undefined, model: "operator.kimi-k3:fallback" }, type: "message_end" } as PrimeRpcEvent,
+        { type: "agent_end" },
+      ]);
+      expect(fallbackAlias.out.some((e) => e.type === "error")).toBe(true);
+      expect(fallbackAlias.out.some((e) => e.type === "done")).toBe(false);
+
+      const badProvider = run([
+        { ...(VALID_MESSAGE_END({}) as { message: Record<string, unknown> }), message: { ...(VALID_MESSAGE_END({}) as { message: Record<string, unknown> }).message, resolvedModel: undefined, provider: "openai" }, type: "message_end" } as PrimeRpcEvent,
+        { type: "agent_end" },
+      ]);
+      expect(badProvider.out.some((e) => e.type === "error")).toBe(true);
+      expect(badProvider.out.some((e) => e.type === "done")).toBe(false);
     });
 
     it("rejects an identity that reads as OpenAI", () => {

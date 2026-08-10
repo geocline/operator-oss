@@ -172,7 +172,9 @@ function mapMessageEnd(ev: PrimeRpcEvent, state: PrimeMapState): StreamEvent[] {
       out.push({ type: "error", content: identityError });
     } else {
       state.outcome = "success";
-      out.push({ type: "model", model: message.resolvedModel! });
+      // Prefer the resolved physical identity when the stream carries one;
+      // otherwise the exact validated alias is the honest badge.
+      out.push({ type: "model", model: message.resolvedModel || message.model! });
     }
   }
 
@@ -188,16 +190,29 @@ function mapMessageEnd(ev: PrimeRpcEvent, state: PrimeMapState): StreamEvent[] {
   return out;
 }
 
-// Requires BOTH the requested alias and a resolved physical identity, and
-// rejects anything that reads as a different provider or a fallback route.
+// Requires the exact requested alias and rejects anything that reads as a
+// different provider or a fallback route. The resolved PHYSICAL identity is
+// not observable through the credential-preserving relay (verified against
+// prime-agent 0.7.1: message_end carries only the configured alias), so it is
+// optional enrichment here — but when present it must be clean. The
+// alias→physical binding itself is enforced and test-pinned, fallback-free,
+// in the LiteLLM gateway config; acceptance reconciles the physical identity
+// out-of-band via the provider's generation lookup.
 // Returns a human-readable reason, or null when the identity is clean.
 function checkModelIdentity(message: PrimeMessage, requestedModel: string): string | null {
   if (message.model !== requestedModel) {
     return `Prime turn requested "${requestedModel}" but message_end reported alias "${message.model ?? "(none)"}"`;
   }
+  if (FALLBACK_SUFFIX.test(message.model)) {
+    return `Prime model alias "${message.model}" is a fallback route, not the pinned model`;
+  }
+  if (typeof message.provider === "string" && DISALLOWED_IDENTITY.test(message.provider)) {
+    return `Prime provider "${message.provider}" reads as a non-approved provider route`;
+  }
   const identity = message.resolvedModel;
+  if (identity === undefined || identity === null) return null;
   if (typeof identity !== "string" || !identity.trim()) {
-    return "Prime message_end is missing a resolved physical model identity";
+    return "Prime message_end reported an empty resolved model identity";
   }
   if (DISALLOWED_IDENTITY.test(identity)) {
     return `Prime resolved model identity "${identity}" reads as a non-Kimi provider`;
