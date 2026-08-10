@@ -26,6 +26,7 @@ const task: TaskRow = {
   launch_config_required: 0,
   launch_config_confirmed_at: 0,
   session_id: null,
+  worktree_path: "",
   pr_url: "",
   generation: 1,
   started: 0,

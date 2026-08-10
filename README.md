@@ -27,7 +27,7 @@ Each **project** carries reusable context. Each **task** is its own agent sessio
 
 ## Features
 
-- **Parallel sessions** — every task is an isolated git worktree with its own agent session.
+- **Parallel sessions** — by default tasks run directly in the project folder (single-task workflows, no per-task branch/diff/merge). Turn the per-project "Run tasks directly in the project folder" toggle OFF to give every task an isolated git worktree with its own agent session for safe parallel work.
 - **Diff review → one-click merge** — or AI conflict resolution, branch sync, and GitHub PR creation.
 - **Pick your route per task** — Claude Code or Codex on their native subscription logins, plus an independently managed LiteLLM route for approved models.
 - **Write-once project context** — auto-injected into every task; **Refresh with AI** redrafts it from the repo.

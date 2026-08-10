@@ -564,14 +564,14 @@ export function useOrchestrator() {
     if (selProj) await loadTasks(selProj, false);
   };
 
-  const saveContext = async (patch: { name: string; context: string; repo_path: string; branch: string; dev_command: string; setup_command: string; test_command: string }) => {
+  const saveContext = async (patch: { name: string; context: string; repo_path: string; branch: string; dev_command: string; setup_command: string; test_command: string; run_in_repo: number }) => {
     if (!project) return;
     await jsend(`/api/projects/${project.id}`, "PATCH", patch);
     const ps = await jget<ProjectRow[]>("/api/projects");
     setProjects(ps);
     setModal(null);
   };
-  const createProject = async (input: { name: string; sub: string; color: string; context: string; repo_path: string; branch?: string }) => {
+  const createProject = async (input: { name: string; sub: string; color: string; context: string; repo_path: string; branch?: string; run_in_repo?: number }) => {
     const p = await jsend<ProjectRow>("/api/projects", "POST", input);
     const ps = await jget<ProjectRow[]>("/api/projects");
     setProjects(ps);

@@ -137,6 +137,7 @@ export function createProject(input: {
   context?: string;
   repo_path?: string;
   branch?: string;
+  run_in_repo?: number;
 }): Project {
   const now = Date.now();
   const id = nanoid();
@@ -148,10 +149,10 @@ export function createProject(input: {
   const defaultAgent = getSetting("default_agent") || "claude";
   getDb()
     .prepare(
-      `INSERT INTO projects (id, name, icon, sub, color, context, repo_path, branch, default_agent, port, position, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO projects (id, name, icon, sub, color, context, repo_path, branch, default_agent, run_in_repo, port, position, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(id, input.name, icon, input.sub ?? "", input.color ?? "#C2603C", input.context ?? "", input.repo_path ?? "", input.branch ?? "main", defaultAgent, nextServicePort(), position, now);
+    .run(id, input.name, icon, input.sub ?? "", input.color ?? "#C2603C", input.context ?? "", input.repo_path ?? "", input.branch ?? "main", defaultAgent, input.run_in_repo === undefined ? 1 : input.run_in_repo ? 1 : 0, nextServicePort(), position, now);
   return getProject(id)!;
 }
 
@@ -370,9 +371,9 @@ export function updateProject(id: string, patch: Partial<Omit<Project, "id" | "c
   getDb()
     .prepare(
       `UPDATE projects SET name = ?, icon = ?, sub = ?, color = ?, context = ?, repo_path = ?, branch = ?,
-        dev_command = ?, setup_command = ?, test_command = ?, default_agent = ?, deprecated = ? WHERE id = ?`
+        dev_command = ?, setup_command = ?, test_command = ?, default_agent = ?, run_in_repo = ?, deprecated = ? WHERE id = ?`
     )
-    .run(n.name, (n.icon || "?").toUpperCase().slice(0, 1), n.sub, n.color, n.context, n.repo_path, n.branch, n.dev_command ?? "", n.setup_command ?? "", n.test_command ?? "", n.default_agent || "claude", n.deprecated ? 1 : 0, id);
+    .run(n.name, (n.icon || "?").toUpperCase().slice(0, 1), n.sub, n.color, n.context, n.repo_path, n.branch, n.dev_command ?? "", n.setup_command ?? "", n.test_command ?? "", n.default_agent || "claude", n.run_in_repo ? 1 : 0, n.deprecated ? 1 : 0, id);
   return getProject(id);
 }
 

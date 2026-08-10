@@ -308,7 +308,7 @@ export function EditTaskModal({
 // "Refresh with AI" job state the modal polls.
 type RefreshState = { status: "idle" | "running" | "done" | "error"; draft: string; error: string; started_at: number };
 
-export function ContextModal({ project, agents, onSetDefaultAgent, onClose, onSave, onDelete, onDeprecate }: { project: ProjectRow; agents: AgentsBundle; onSetDefaultAgent: (agent: string) => void; onClose: () => void; onSave: (p: { name: string; context: string; repo_path: string; branch: string; dev_command: string; setup_command: string; test_command: string }) => void; onDelete: () => void; onDeprecate: () => void }) {
+export function ContextModal({ project, agents, onSetDefaultAgent, onClose, onSave, onDelete, onDeprecate }: { project: ProjectRow; agents: AgentsBundle; onSetDefaultAgent: (agent: string) => void; onClose: () => void; onSave: (p: { name: string; context: string; repo_path: string; branch: string; dev_command: string; setup_command: string; test_command: string; run_in_repo: number }) => void; onDelete: () => void; onDeprecate: () => void }) {
   const [name, setName] = useState(project.name);
   const [context, setContext] = useState(project.context);
   const [repo, setRepo] = useState(project.repo_path);
@@ -316,6 +316,7 @@ export function ContextModal({ project, agents, onSetDefaultAgent, onClose, onSa
   const [devCmd, setDevCmd] = useState(project.dev_command);
   const [setupCmd, setSetupCmd] = useState(project.setup_command);
   const [testCmd, setTestCmd] = useState(project.test_command);
+  const [runInRepo, setRunInRepo] = useState(!!project.run_in_repo);
   const [confirmDel, setConfirmDel] = useState(false);
   const showServices = clientFeatures().services;
   // AI context refresh: let Claude read the repo and draft fresh context. The
@@ -410,7 +411,7 @@ export function ContextModal({ project, agents, onSetDefaultAgent, onClose, onSa
         )}
         <span className="spacer" />
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-accent" onClick={() => onSave({ name, context, repo_path: repo, branch, dev_command: devCmd, setup_command: setupCmd, test_command: testCmd })}>{Icon.check()} Save</button>
+        <button className="btn btn-accent" onClick={() => onSave({ name, context, repo_path: repo, branch, dev_command: devCmd, setup_command: setupCmd, test_command: testCmd, run_in_repo: runInRepo ? 1 : 0 })}>{Icon.check()} Save</button>
       </>}>
       <div className="field">
         <div className="lab">Project name</div>
@@ -473,6 +474,17 @@ export function ContextModal({ project, agents, onSetDefaultAgent, onClose, onSa
           <div className="lab">{Icon.git()} Branch</div>
           <input type="text" className="ctx-mono" value={branch} onChange={(e) => setBranch(e.target.value)} />
         </div>
+      </div>
+      <div className="field" style={{ marginTop: 14, marginBottom: 0 }}>
+        <label style={{ display: "flex", alignItems: "flex-start", gap: 8, cursor: "pointer" }}>
+          <input type="checkbox" checked={runInRepo} style={{ marginTop: 2 }} onChange={(e) => setRunInRepo(e.target.checked)} />
+          <span>
+            Run tasks directly in the project folder
+            <div className="hlp" style={{ marginTop: 2 }}>
+              New tasks run in the working dir itself - no per-task branch, diff, or merge (the default). Turn off to isolate each task in its own git worktree for safe parallel tasks. Existing tasks keep their worktrees.
+            </div>
+          </span>
+        </label>
       </div>
       <div style={{ marginTop: 14 }}>
         <AgentPicker
@@ -595,7 +607,7 @@ export function SessionsModal({ project, onClose, onJump }: { project: ProjectRo
   );
 }
 
-export function NewProjectModal({ onClose, onCreate }: { onClose: () => void; onCreate: (i: { name: string; sub: string; color: string; context: string; repo_path: string; branch?: string }) => void | Promise<void> }) {
+export function NewProjectModal({ onClose, onCreate }: { onClose: () => void; onCreate: (i: { name: string; sub: string; color: string; context: string; repo_path: string; branch?: string; run_in_repo?: number }) => void | Promise<void> }) {
   const [name, setName] = useState("");
   const [sub, setSub] = useState("");
   const [context, setContext] = useState("");
@@ -607,6 +619,7 @@ export function NewProjectModal({ onClose, onCreate }: { onClose: () => void; on
   // of the user's GitHub repos. "new" sends no path - the server creates
   // PROJECTS_DIR/<name> and the folder exists before the first task.
   const [mode, setMode] = useState<"new" | "existing" | "clone">("new");
+  const [runInRepo, setRunInRepo] = useState(true);
   const [cloneSpec, setCloneSpec] = useState(""); // owner/repo or pasted URL
   const [cloning, setCloning] = useState(false);
   const [cloneErr, setCloneErr] = useState<string | null>(null);
@@ -617,7 +630,7 @@ export function NewProjectModal({ onClose, onCreate }: { onClose: () => void; on
 
   const submit = async () => {
     if (!ok) return;
-    const base = { name: name.trim(), sub: sub.trim() || "app", color, context: context.trim() };
+    const base = { name: name.trim(), sub: sub.trim() || "app", color, context: context.trim(), run_in_repo: runInRepo ? 1 : 0 };
     if (mode === "new") { await onCreate({ ...base, repo_path: "" }); return; }
     if (mode === "existing") { await onCreate({ ...base, repo_path: repo.trim() }); return; }
     // Clone first; only create the project once the repo actually landed.
@@ -692,6 +705,17 @@ export function NewProjectModal({ onClose, onCreate }: { onClose: () => void; on
           }}
         />
       )}
+      <div className="field">
+        <label style={{ display: "flex", alignItems: "flex-start", gap: 8, cursor: "pointer" }}>
+          <input type="checkbox" checked={runInRepo} style={{ marginTop: 2 }} onChange={(e) => setRunInRepo(e.target.checked)} />
+          <span>
+            Run tasks directly in the project folder
+            <div className="hlp" style={{ marginTop: 2 }}>
+              Skips per-task git worktrees (no isolated branch, diff, or merge). Best for single-task workflows; leave off to run tasks in parallel safely.
+            </div>
+          </span>
+        </label>
+      </div>
       <div className="field">
         <div className="lab">What we&apos;re building <span className="opt">— optional, can add later</span></div>
         <textarea value={context} placeholder="Description, stack, conventions…" onChange={(e) => setContext(e.target.value)} />

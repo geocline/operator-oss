@@ -40,6 +40,10 @@ export function init(db: Database.Database) {
       port          INTEGER NOT NULL DEFAULT 0,
       -- Which agent driver new tasks in this project run under (lib/agents/).
       default_agent TEXT NOT NULL DEFAULT 'claude',
+      -- 1 = new tasks skip worktree isolation and run directly in repo_path
+      -- (the default: single-task workflows edit the real folder; turn OFF per
+      -- project to get isolated per-task worktrees for parallel safety).
+      run_in_repo INTEGER NOT NULL DEFAULT 1,
       position    INTEGER NOT NULL DEFAULT 0,
       deprecated  INTEGER NOT NULL DEFAULT 0,
       -- 1 for the built-in "Welcome" tutorial project so it's excluded from the
@@ -416,6 +420,11 @@ export function migrate(db: Database.Database) {
   // Agent-driver seam (lib/agents/): which driver new tasks default to. Every
   // pre-seam project ran Claude, so the column default backfills correctly.
   add("default_agent", "TEXT NOT NULL DEFAULT 'claude'");
+  // Per-project "run tasks directly in the project folder" toggle: new tasks
+  // skip worktree creation (worktree_path stays "") and sessions run in
+  // repo_path. Default 1 (the owner works single-task in the real folder);
+  // tasks that already have a worktree keep it either way.
+  add("run_in_repo", "INTEGER NOT NULL DEFAULT 1");
   // Manual sidebar ordering. Backfill in creation order so existing projects
   // keep the order they had when this column was the implicit sort.
   if (!cols.includes("position")) {

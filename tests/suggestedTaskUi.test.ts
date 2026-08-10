@@ -33,6 +33,7 @@ const suggested: TaskRow = {
   launch_config_required: 1,
   launch_config_confirmed_at: 0,
   session_id: null,
+  worktree_path: "",
   pr_url: "",
   generation: 1,
   started: 0,
