@@ -179,12 +179,13 @@ function ManagedEndpointConnect({
 }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const refreshPath = agent.capabilities.managedCatalogPath ?? `/api/agents/${agent.id}/models/refresh`;
   const refresh = async () => {
     setBusy(true);
     setMessage(null);
     try {
       const result = await jsend<{ models: unknown[]; errors: unknown[] }>(
-        "/api/agents/litellm-codex/models/refresh",
+        refreshPath,
         "POST",
       );
       setMessage(`${result.models.length} Operator model${result.models.length === 1 ? "" : "s"} available`);
@@ -199,6 +200,9 @@ function ManagedEndpointConnect({
     <div className="field" style={{ maxWidth: 560 }}>
       <div className="hlp" style={{ marginTop: 0 }}>
         Managed by your loopback LiteLLM gateway. Provider keys and model routing stay in LiteLLM.
+        {agent.id === "litellm-prime" && (
+          <> {"Prime Agent runs with the Operator process's host permissions (no OS sandbox) and only Auto-run is offered. Cost is metered through LiteLLM, never estimated."}</>
+        )}
       </div>
       <button className="btn btn-accent btn-sm" disabled={busy} onClick={refresh} style={{ alignSelf: "flex-start" }}>
         {Icon.restore()} {busy ? "Refreshing…" : "Refresh models"}

@@ -188,6 +188,7 @@ export type AgentCapabilitiesT = {
   apiKeyHint: string | null;
   loginStyle: "paste_code" | "device_code" | "managed_endpoint";
   connectionStyle?: "paste_code" | "device_code" | "managed_endpoint";
+  managedCatalogPath?: string;
   models?: AgentModelOption[];
 };
 export type AgentInfoT = {
@@ -229,6 +230,8 @@ export interface AgentCapabilities {
   reportsCostUsd: boolean;    // usage carries a real dollar cost (not just tokens)
   costIsEstimated: boolean;   // cost is estimated from tokens × API prices — show with ~
   supportsResume: boolean;    // turns can resume a prior session/thread id
+  connectionStyle?: "paste_code" | "device_code" | "managed_endpoint";
+  managedCatalogPath?: string;
 }
 // How this agent is signed in. "subscription" (a Max/Pro or ChatGPT login) means
 // turns draw on plan quota and cost no marginal money, so a dollar figure is an

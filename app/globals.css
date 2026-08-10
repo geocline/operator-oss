@@ -815,6 +815,7 @@ a.tc-btn{display:inline-flex;align-items:center;text-decoration:none;line-height
 .msg .who .av.cc{color:var(--ink-2);}
 .msg .who .av.cc.claude{color:#D97757;}
 .msg .who .av.cc.codex{color:var(--ink);}
+.msg .who .av.cc.litellm-prime{color:#7C5CFC;}
 .msg .who .av svg{width:11px;height:11px;}
 .msg .who .av.cc svg{width:16px;height:16px;}
 .msg-body{font-size:14px;line-height:1.6;color:var(--ink);}

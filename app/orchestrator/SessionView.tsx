@@ -355,10 +355,11 @@ export function SessionView({ project, task, agents, messages, running, blockedB
   const models = modelOptions(caps);
   const reasoningOpts = reasoningOptions(caps);
   const permissionOpts = permissionOptions(caps);
+  const managedCatalogPath = caps?.managedCatalogPath ?? `/api/agents/${task.agent}/models/refresh`;
   const refreshLiteLLMModels = async () => {
     setModelRefreshing(true);
     try {
-      const response = await fetch("/api/agents/litellm-codex/models/refresh", {
+      const response = await fetch(managedCatalogPath, {
         method: "POST",
       });
       if (response.ok) {
@@ -612,7 +613,7 @@ export function SessionView({ project, task, agents, messages, running, blockedB
               </button>
               {modelOpen && (
                 <Popover onClose={() => setModelOpen(false)}>
-                  {task.agent === "litellm-codex" && (
+                  {caps?.connectionStyle === "managed_endpoint" && (
                     <>
                       <div className="pop-sec">LiteLLM</div>
                       <button

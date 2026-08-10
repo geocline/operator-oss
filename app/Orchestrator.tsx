@@ -630,7 +630,7 @@ export default function Orchestrator() {
             { id: "toggle-theme", label: "Toggle theme", hint: isDark ? "switch to light" : "switch to dark", keywords: "dark light mode appearance", icon: isDark ? Icon.sun() : Icon.moon(), run: () => o.setAppearance("theme", isDark ? "light" : "dark") },
             { id: "open-settings", label: "Open Settings", keywords: "preferences defaults setup", icon: Icon.gear(), run: () => openSettings() },
             { id: "open-insights", label: "Open Insights", keywords: "usage spend cost tokens analytics dashboard metrics stats", icon: Icon.chart(), run: () => o.setView("insights") },
-            { id: "connect-agent", label: "Connect an agent", keywords: "codex claude agent connect login subscription", icon: Icon.bolt(), run: () => openSettings("agents") },
+            { id: "connect-agent", label: "Connect an agent", keywords: "codex claude agent connect login subscription prime kimi litellm openrouter", icon: Icon.bolt(), run: () => openSettings("agents") },
             { id: "open-appearance", label: "Open Appearance", keywords: "appearance density theme dark light mode", icon: Icon.sliders(), run: () => o.setAppearanceOpen(true) },
             project && features.services && { id: "toggle-services", label: "Toggle Services", hint: o.servicesOpen ? "hide" : "show", keywords: "dev server setup test drawer", icon: Icon.sliders(), run: () => { o.setServicesMounted(true); o.setServicesOpen((s) => !s); } },
             project && { id: "toggle-terminal", label: "Toggle Terminal", hint: o.termOpen ? "hide" : "show", keywords: "shell console pty", icon: Icon.terminal(), run: () => { o.setTermMounted(true); o.setTermOpen((t) => !t); } },
