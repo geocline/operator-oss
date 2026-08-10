@@ -29,7 +29,7 @@ export interface PrimeRpcOptions {
   executable: string;
   args: string[];
   cwd: string;
-  env: Record<string, string>;
+  env: Record<string, string | undefined>;
   onEvent?: (event: PrimeRpcEvent) => void;
   signal?: AbortSignal;
   /** Grace period after RPC abort before SIGTERM (ms). */
