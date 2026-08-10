@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { lstatSync, mkdirSync, realpathSync, rmSync, unlinkSync } from "node:fs";
 import path from "node:path";
 import { LITELLM_PRIME_HOME } from "@/lib/config";
 
@@ -42,4 +42,37 @@ export function ensurePrimeTaskDirs(taskId: string, generation: number): PrimeTa
     mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
   return paths;
+}
+
+/**
+ * Hard-delete one task's Prime state. Called from the task DELETE route after
+ * the abort owner has tripped the turn, and again from a delayed re-sweep in
+ * case a dying Prime process flushed a straggler write.
+ *
+ * Containment is defensive on every axis: the task id is re-validated, the
+ * resolved parent must be the configured Prime home (no traversal even via a
+ * symlinked home), and a symlinked task directory is removed as a LINK — never
+ * followed into whatever it points at.
+ */
+export function removePrimeTaskState(taskId: string): void {
+  validateSegment("task id", taskId);
+  const home = path.resolve(LITELLM_PRIME_HOME);
+  const taskHome = path.join(home, taskId);
+
+  let stat;
+  try {
+    stat = lstatSync(taskHome);
+  } catch {
+    return; // Never ran Prime — nothing to retire.
+  }
+  if (stat.isSymbolicLink()) {
+    unlinkSync(taskHome);
+    return;
+  }
+  // The parent must resolve to the Prime home itself (a hostile symlink swap
+  // of the home directory would otherwise redirect the recursive delete).
+  if (path.resolve(realpathSync(path.dirname(taskHome))) !== realpathSync(home)) {
+    throw new Error("Prime task state parent is not the configured Prime home");
+  }
+  rmSync(taskHome, { recursive: true, force: true });
 }

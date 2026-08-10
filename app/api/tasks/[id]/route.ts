@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getTask, getProject, updateTask, deleteTask, listMessages, getTaskUsage, getTaskContext, getTaskDeps, setTaskDeps, countAwaiting } from "@/lib/store";
 import { removeWorktree } from "@/lib/git";
+import { removePrimeTaskState } from "@/lib/agents/prime/session-paths";
 import { removeTaskUploads } from "@/lib/uploads";
 import { abortTurn, hasTurn } from "@/lib/abort";
 import { publishGlobal } from "@/lib/events";
@@ -163,6 +164,22 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     if (project?.repo_path) await removeWorktree(project.repo_path, task.worktree_path, task.work_branch);
   }
   removeTaskUploads(id);
+  // Retire task-local Prime state (a no-op for non-Prime tasks). abortTurn
+  // above already tripped the turn's controller, and the Prime RPC client
+  // kills its whole process group on that signal; the delayed re-sweep mops up
+  // any straggler write a dying process flushed after the first removal.
+  try {
+    removePrimeTaskState(id);
+    setTimeout(() => {
+      try {
+        removePrimeTaskState(id);
+      } catch {
+        /* best-effort re-sweep */
+      }
+    }, 10_000).unref();
+  } catch (error) {
+    console.error(`prime state cleanup failed for task ${id}:`, error);
+  }
   deleteTask(id);
   // Publish AFTER the hard delete, carrying the project id + its recomputed
   // awaiting count: the row is gone, so /api/events' usual re-read-the-task
