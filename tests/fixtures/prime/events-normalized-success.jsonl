@@ -1,0 +1,8 @@
+{"type":"agent_start","sessionFile":"/tmp/fake-prime/normalized-session.jsonl","resumed":false,"resumePath":null}
+{"type":"message_start","message":{"role":"assistant"}}
+{"type":"message_update","delta":{"type":"text","text":"Running "}}
+{"type":"message_update","delta":{"type":"text","text":"the calculation"}}
+{"type":"tool_execution_start","toolCallId":"call-1","toolName":"ipython","args":{"code":"print(2+2)"}}
+{"type":"tool_execution_end","toolCallId":"call-1","toolName":"ipython","isError":false,"result":"4"}
+{"type":"message_end","message":{"role":"assistant","stopReason":"stop","responseId":"gen-normalized-1","content":[{"type":"text","text":"Running the calculation"}],"usage":{"input":120,"output":45,"cacheRead":10,"cacheWrite":0,"cost":{"total":0.0042}},"provider":"operator-litellm","model":"operator.kimi-k3","resolvedModel":"kimi-k3-0905-preview"}}
+{"type":"agent_end"}
