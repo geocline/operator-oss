@@ -1,0 +1,13 @@
+{
+  "sourceRepo": "/Users/geo/Claude Projects/operator/worktrees/kimi-prime-eval-20260809",
+  "disposableRepo": "/var/folders/4d/rvh98q9x3_b0fqr3t5gl98pc0000gn/T/operator-prime-real-Ppxvdd/repo",
+  "pinnedCommit": "8da7e84b963e96b902bf8b94ae9404457a0e16e2",
+  "seededCommit": "54500cf9696e5a4011f415018db9db5febf6b7df",
+  "immutableTestHash": "73686e4fbe51db4191bfbe9e79c969b82a401158e26d812355bf5833db47f281",
+  "changedPaths": [
+    "app/globals.css",
+    "app/orchestrator/SessionView.tsx",
+    "app/orchestrator/Transcript.tsx"
+  ],
+  "baselineFailureConfirmed": true
+}

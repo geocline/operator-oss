@@ -1,0 +1,20 @@
+{
+  "status": "fail",
+  "harness": "Prime Agent",
+  "model": "moonshotai/kimi-k3",
+  "taskId": "operator-transcript-timestamps-regression",
+  "startedAt": "2026-08-10T02:41:35.326Z",
+  "finishedAt": "2026-08-10T02:41:40.450Z",
+  "wallTimeMs": 5124,
+  "error": "Error: seeded fixture changed unexpected files: pp/globals.css, app/orchestrator/SessionView.tsx, app/orchestrator/Transcript.tsx\n    at prepareFixture (file:///Users/geo/Claude%20Projects/operator/worktrees/kimi-prime-eval-20260809/evaluation/harnesses/prime-agent/real-task-runner.mjs:153:11)\n    at runRealTask (file:///Users/geo/Claude%20Projects/operator/worktrees/kimi-prime-eval-20260809/evaluation/harnesses/prime-agent/real-task-runner.mjs:227:15)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async main (file:///Users/geo/Claude%20Projects/operator/worktrees/kimi-prime-eval-20260809/evaluation/harnesses/prime-agent/real-task-runner.mjs:374:19)",
+  "gates": {},
+  "usage": {
+    "openRouterSpendDelta": 0,
+    "openRouterGenerationCost": 0,
+    "generationIds": []
+  },
+  "attributionError": null,
+  "artifacts": {
+    "runDir": "/Users/geo/Claude Projects/operator/worktrees/kimi-prime-eval-20260809/evaluation/harnesses/prime-agent/real-tasks/transcript-timestamps/runs/2026-08-10T02-41-35-325Z"
+  }
+}

@@ -172,7 +172,7 @@ export function summarizeEvents(events, { allowToolErrors = false } = {}) {
   };
 }
 
-function assistantText(events) {
+export function assistantText(events) {
   const messages = events
     .filter((event) => event.type === "message_end" && event.message?.role === "assistant")
     .map((event) => event.message);
@@ -186,7 +186,7 @@ function assistantText(events) {
     .trim();
 }
 
-function keychainSecret() {
+export function getPrimeOpenRouterKey() {
   const result = spawnSync(
     "/usr/bin/security",
     ["find-generic-password", "-w", "-a", KEYCHAIN_ACCOUNT, "-s", KEYCHAIN_SERVICE],
@@ -202,7 +202,7 @@ function keychainSecret() {
   return secret;
 }
 
-async function openRouterKeySnapshot(secret) {
+export async function snapshotOpenRouterKey(secret) {
   const response = await fetch("https://openrouter.ai/api/v1/key", {
     headers: { Authorization: `Bearer ${secret}` },
     signal: AbortSignal.timeout(15_000),
@@ -222,16 +222,26 @@ async function openRouterKeySnapshot(secret) {
   });
 }
 
+export function shouldRetryGenerationMetadata(status, attempt, maxAttempts = 20) {
+  return status === 404 && attempt < maxAttempts - 1;
+}
+
 async function openRouterGeneration(secret, generationId, { enforceIdentity = true } = {}) {
   const url = new URL("https://openrouter.ai/api/v1/generation");
   url.searchParams.set("id", generationId);
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${secret}` },
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (!response.ok) {
-    throw new Error(`OpenRouter generation request failed with HTTP ${response.status}`);
+  let response;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    response = await fetch(url, {
+      headers: { Authorization: `Bearer ${secret}` },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (response.ok) break;
+    if (!shouldRetryGenerationMetadata(response.status, attempt)) {
+      throw new Error(`OpenRouter generation request failed with HTTP ${response.status}`);
+    }
+    await new Promise((resolveWait) => setTimeout(resolveWait, 1_000));
   }
+  if (!response?.ok) throw new Error("OpenRouter generation request did not complete");
   const body = await response.json();
   const data = body.data ?? body;
   const generation = redactSecrets({
@@ -255,7 +265,7 @@ async function openRouterGeneration(secret, generationId, { enforceIdentity = tr
 async function reconciledKeySnapshot(secret, beforeUsage, expectedDelta) {
   let snapshot;
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    snapshot = await openRouterKeySnapshot(secret);
+    snapshot = await snapshotOpenRouterKey(secret);
     if (usageCounterSettled(beforeUsage, keyUsage(snapshot), expectedDelta)) return snapshot;
     await new Promise((resolveWait) => setTimeout(resolveWait, 1_000));
   }
@@ -275,7 +285,7 @@ function recordedEvents(runDir) {
   }
 }
 
-async function collectRunAttribution(secret, runDir, before, { enforceIdentity = true } = {}) {
+export async function collectRunAttribution(secret, runDir, before, { enforceIdentity = true } = {}) {
   const events = recordedEvents(runDir);
   const generationIds = generationIdsFromEvents(events);
   const generations = [];
@@ -289,7 +299,7 @@ async function collectRunAttribution(secret, runDir, before, { enforceIdentity =
   const after =
     beforeUsage !== null && generationAttribution.generationCost > 0
       ? await reconciledKeySnapshot(secret, beforeUsage, generationAttribution.generationCost)
-      : await openRouterKeySnapshot(secret);
+      : await snapshotOpenRouterKey(secret);
   writeJson(join(runDir, "openrouter-after.json"), after);
   const afterUsage = keyUsage(after);
 
@@ -306,7 +316,7 @@ async function collectRunAttribution(secret, runDir, before, { enforceIdentity =
   };
 }
 
-function writeJson(path, value) {
+export function writeJson(path, value) {
   writeFileSync(path, `${JSON.stringify(redactSecrets(value), null, 2)}\n`, { mode: 0o600 });
 }
 
@@ -320,7 +330,7 @@ function makeRunDirectory(root) {
   return runDir;
 }
 
-function configureRun(runDir) {
+export function configurePrimeRun(runDir) {
   const configDir = join(runDir, "config");
   const models = {
     providers: {
@@ -374,8 +384,8 @@ function directoryDigest(root) {
   return files;
 }
 
-class RpcClient {
-  constructor({ runDir, configDir, secret, resumePath }) {
+export class RpcClient {
+  constructor({ runDir, configDir, secret, resumePath, cwd = join(runDir, "fixture"), loadContextFiles = false }) {
     this.runDir = runDir;
     this.events = [];
     this.waiters = new Set();
@@ -400,12 +410,12 @@ class RpcClient {
       "--no-extensions",
       "--no-skills",
       "--no-prompt-templates",
-      "--no-context-files",
     ];
+    if (!loadContextFiles) args.push("--no-context-files");
     if (resumePath) args.push("--resume", resumePath);
 
     this.child = spawn("prime-agent", args, {
-      cwd: join(runDir, "fixture"),
+      cwd,
       detached: true,
       stdio: ["pipe", "pipe", "pipe"],
       env: {
@@ -563,13 +573,13 @@ function keyUsage(snapshot) {
 
 export async function runCompatibility({ outputRoot = join(SCRIPT_DIR, "runs") } = {}) {
   const startedAt = Date.now();
-  const secret = keychainSecret();
+  const secret = getPrimeOpenRouterKey();
   const runDir = makeRunDirectory(resolve(outputRoot));
-  const configDir = configureRun(runDir);
+  const configDir = configurePrimeRun(runDir);
   const fixtureDir = join(runDir, "fixture");
   const fixtureBefore = directoryDigest(fixtureDir);
   const expectedHash = createHash("sha256").update(readFileSync(join(fixtureDir, "facts.txt"))).digest("hex");
-  const before = await openRouterKeySnapshot(secret);
+  const before = await snapshotOpenRouterKey(secret);
   writeJson(join(runDir, "openrouter-before.json"), before);
 
   const gates = {};
@@ -730,7 +740,7 @@ export async function runCompatibility({ outputRoot = join(SCRIPT_DIR, "runs") }
         collectionError instanceof Error ? collectionError.message : String(collectionError),
       );
       try {
-        const after = await openRouterKeySnapshot(secret);
+        const after = await snapshotOpenRouterKey(secret);
         writeJson(join(runDir, "openrouter-after.json"), after);
         const beforeUsage = keyUsage(before);
         const afterUsage = keyUsage(after);

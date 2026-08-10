@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prime Agent × Kimi K3 — Real Operator Coding Test</title>
+  <style>
+    :root {
+      --ink:#17211c; --muted:#5d6a63; --paper:#f3efe6; --panel:#fffdf8;
+      --line:#d7d0c4; --green:#176b4d; --green-soft:#e5f1e9;
+      --amber:#8b5b12; --amber-soft:#f7edd8; --blue:#295b78;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    main{width:min(1100px,calc(100% - 36px));margin:42px auto 72px}
+    header{padding-bottom:28px;border-bottom:1px solid var(--line)}
+    .eyebrow{color:var(--green);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+    h1{max-width:960px;margin:10px 0 14px;font:500 clamp(40px,6vw,72px)/.98 Georgia,serif;letter-spacing:-.04em}
+    .dek{max-width:850px;margin:0;color:var(--muted);font-size:20px}
+    h2{margin:38px 0 14px;font-size:25px;letter-spacing:-.02em}
+    .verdict{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:center;margin:28px 0;padding:24px;border:1px solid #b8d4c4;border-radius:16px;background:var(--green-soft)}
+    .verdict h2{margin:0 0 6px}.verdict p{margin:0;max-width:780px}
+    .score{font:700 36px/1 Georgia,serif;color:var(--green)}
+    .score small{display:block;margin-top:6px;font:800 11px/1.2 -apple-system,sans-serif;letter-spacing:.09em;text-align:center;text-transform:uppercase}
+    .metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+    .metric,.card{border:1px solid var(--line);border-radius:13px;background:var(--panel)}
+    .metric{padding:18px}.metric b{display:block;font-size:27px;line-height:1.15}.metric span{color:var(--muted);font-size:13px}
+    table{width:100%;border-collapse:collapse;border:1px solid var(--line);background:var(--panel)}
+    th,td{padding:14px 15px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+    th{background:#eee9df;color:var(--muted);font-size:12px;letter-spacing:.07em;text-transform:uppercase}
+    tr:last-child td{border-bottom:0}.pass{color:var(--green);font-weight:800}
+    .cards{display:grid;grid-template-columns:1fr 1fr;gap:14px}.card{padding:20px}.card h3{margin:0 0 7px;font-size:17px}.card p{margin:0;color:var(--muted)}
+    .warning{border-color:#dec69c;background:var(--amber-soft)}
+    code{padding:.12em .35em;border-radius:5px;background:#ece7dc;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.9em}
+    pre{overflow:auto;padding:18px;border:1px solid var(--line);border-radius:12px;background:#1d2722;color:#edf3ef;font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}
+    .next{padding:5px 0 5px 18px;border-left:4px solid var(--blue)}.next p{margin:5px 0}
+    a{color:var(--blue)}ul{padding-left:20px}li+li{margin-top:7px}
+    footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+    @media(max-width:760px){.metrics,.cards{grid-template-columns:1fr 1fr}.verdict{grid-template-columns:1fr}.score{justify-self:start}table{display:block;overflow-x:auto}}
+    @media(max-width:520px){.metrics,.cards{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="eyebrow">Real repository task · Clean-history run · August 9, 2026</div>
+    <h1>Prime Agent and Kimi fixed a real Operator regression unaided.</h1>
+    <p class="dek">In a single uninterrupted session, the harness diagnosed a multi-file transcript bug, repaired it without changing tests, passed 513 tests and TypeScript, and closed the task with precise evidence.</p>
+  </header>
+
+  <section class="verdict">
+    <div>
+      <h2>Verdict: strong pass</h2>
+      <p>This was a meaningful coding result. The target repository exposed one broken Operator snapshot in a fresh, single-commit Git history with no parent or other refs. Prime received no steering, rescue, or follow-up.</p>
+    </div>
+    <div class="score">100<small>objective score</small></div>
+  </section>
+
+  <section>
+    <h2>Run at a glance</h2>
+    <div class="metrics">
+      <div class="metric"><b>$0.4266456</b><span>Exact OpenRouter charge</span></div>
+      <div class="metric"><b>4m 33s</b><span>Agent work time</span></div>
+      <div class="metric"><b>235,952</b><span>Harness-counted tokens</span></div>
+      <div class="metric"><b>17 + 17</b><span>Model calls + tool calls</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>The real task</h2>
+    <p>Operator’s transcript must put timestamps first on user prompts and the first assistant prose reply. Tool calls, question cards, system notices, and assistant continuations must not receive timestamps. The fixture reversed the real production fix in a standalone, single-commit repository while preserving the original regression test.</p>
+    <table>
+      <thead><tr><th>Control</th><th>Evidence</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>Failure existed before launch</td><td>Focused test: 2 failed, 1 passed</td><td class="pass">Confirmed</td></tr>
+        <tr><td>Fix history hidden in target repo</td><td>Exactly one generic initial commit; no parent or other refs</td><td class="pass">Confirmed</td></tr>
+        <tr><td>Model held constant</td><td><code>moonshotai/kimi-k3</code> resolved to dated Kimi K3 on Moonshot AI</td><td class="pass">Confirmed</td></tr>
+        <tr><td>No human help</td><td>One prompt; zero steering messages or interventions</td><td class="pass">Confirmed</td></tr>
+        <tr><td>Tests immutable</td><td>Regression-test SHA-256 unchanged</td><td class="pass">Confirmed</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>What Prime/Kimi did</h2>
+    <div class="cards">
+      <div class="card">
+        <h3>Diagnosed the real causes</h3>
+        <p>It found the misplaced timestamp element, unconditional timestamp rendering on continuation/system rows, the missing <code>isFirstAssistantReply</code> classifier, and the naive previous-row heuristic that failed when tools preceded prose.</p>
+      </div>
+      <div class="card">
+        <h3>Made a tightly scoped repair</h3>
+        <p>It changed only <code>SessionView.tsx</code> and <code>Transcript.tsx</code>: 27 insertions and 11 deletions. It did not touch the regression test or unrelated files.</p>
+      </div>
+      <div class="card">
+        <h3>Verified its own work</h3>
+        <p>The agent ran the focused test, TypeScript, and the full suite itself. Host-side evaluation repeated the focused test and all 513 tests; <code>tsc --noEmit</code> was replayed afterward from the saved patch and also passed.</p>
+      </div>
+      <div class="card">
+        <h3>Closed the task cleanly</h3>
+        <p>Its final answer named the causes, described the two-file fix, reported the original failures, and supplied exact passing test counts.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Independent verification</h2>
+    <table>
+      <thead><tr><th>Check</th><th>Before</th><th>After</th></tr></thead>
+      <tbody>
+        <tr><td>Focused transcript test</td><td>2 failed / 1 passed</td><td class="pass">3 passed / 3</td></tr>
+        <tr><td>Full Operator suite</td><td>Not run on broken seed</td><td class="pass">64 files · 513 tests passed</td></tr>
+        <tr><td>TypeScript</td><td>Not scored at baseline</td><td class="pass"><code>tsc --noEmit</code> passed in post-run saved-patch replay</td></tr>
+        <tr><td>Regression test integrity</td><td>SHA-256 locked</td><td class="pass">Unchanged</td></tr>
+        <tr><td>Diff scope</td><td>Three production areas seeded</td><td class="pass">Two production files changed</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Historical-fix comparison</h2>
+    <div class="cards">
+      <div class="card">
+        <h3>Behaviorally correct alternative</h3>
+        <p>The clean run did not reproduce the historical patch byte-for-byte. It independently implemented the same timestamp classification and rendering behavior with somewhat fuller comments.</p>
+      </div>
+      <div class="card warning">
+        <h3>One historical styling change omitted</h3>
+        <p>The original fix also changed <code>.msg-time</code> badge styling in <code>globals.css</code>. The prompt specified placement and row eligibility—not visual badge styling—so the two-file solution satisfies every acceptance test but is not identical to production history.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Efficiency and cost</h2>
+    <table>
+      <thead><tr><th>Metric</th><th>Value</th><th>Interpretation</th></tr></thead>
+      <tbody>
+        <tr><td>Uncached input</td><td>90,983 tokens</td><td>Substantial repository/tool-loop context</td></tr>
+        <tr><td>Cached input</td><td>137,472 tokens</td><td>Prime reused prior context across turns</td></tr>
+        <tr><td>Completion</td><td>7,497 tokens</td><td>Includes 3,719 native reasoning tokens</td></tr>
+        <tr><td>Tool errors</td><td>0</td><td>Every IPython/tool execution completed successfully</td></tr>
+        <tr><td>Billable cost</td><td>$0.4266456</td><td>Prime estimate, generation sum, and dedicated-key delta reconcile exactly</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Methodology note</h2>
+    <div class="card warning">
+      <h3>An earlier run was excluded; filesystem isolation was limited</h3>
+      <p>The first historical fixture exposed the seeded regression commit in Git history. Prime correctly diagnosed it but then used <code>git revert</code>, so that $0.3561798 sample was excluded as contaminated. The scored run used a standalone one-commit target repository, and its event trace shows no access to external history. It was not an OS-hermetic sandbox, however: Prime inherited the host user’s filesystem permissions. One retained pre-inference real-task parser failure cost $0. The runner has no credit-purchase capability.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>What this says about the harness</h2>
+    <div class="next">
+      <p><strong>Prime Agent is now worth the controlled comparison.</strong> Its persistent IPython loop handled repository search, code inspection, edits, focused verification, full-suite verification, and task closure without intervention.</p>
+      <p>The next meaningful step is to run this exact clean snapshot and prompt through the Claude Code and Codex harnesses with the same Kimi deployment, then compare time, calls, tokens, cost, diff quality, and closure. One successful task is strong evidence, but not enough by itself to integrate Prime into Operator.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Evidence</h2>
+    <ul>
+      <li><a href="evaluation/harnesses/prime-agent/real-tasks/transcript-timestamps/runs/2026-08-10T02-53-32-430Z/summary.json">Scored run summary</a></li>
+      <li><a href="evaluation/harnesses/prime-agent/real-tasks/transcript-timestamps/runs/2026-08-10T02-53-32-430Z/session.html">Prime session export</a></li>
+      <li><a href="evaluation/harnesses/prime-agent/real-tasks/transcript-timestamps/runs/2026-08-10T02-53-32-430Z/agent.patch">Agent patch</a></li>
+      <li><a href="evaluation/harnesses/prime-agent/real-tasks/transcript-timestamps/runs/2026-08-10T02-53-32-430Z/host-focused-test.json">Focused host verification</a></li>
+      <li><a href="evaluation/harnesses/prime-agent/real-tasks/transcript-timestamps/runs/2026-08-10T02-53-32-430Z/host-full-test.json">Full-suite host verification</a></li>
+      <li><a href="evaluation/harnesses/prime-agent/real-tasks/transcript-timestamps/runs/2026-08-10T02-53-32-430Z/host-typecheck.json">Host TypeScript verification</a></li>
+      <li><a href="evaluation/harnesses/prime-agent/real-tasks/transcript-timestamps/runs/2026-08-10T02-53-32-430Z/openrouter-generations.json">OpenRouter generation records</a></li>
+    </ul>
+  </section>
+
+  <footer>
+    Prime Agent v0.7.1 · Kimi K3 · Dedicated Prime OpenRouter key · Clean run cost $0.4266456 · Runner cannot purchase credits
+  </footer>
+</main>
+</body>
+</html>

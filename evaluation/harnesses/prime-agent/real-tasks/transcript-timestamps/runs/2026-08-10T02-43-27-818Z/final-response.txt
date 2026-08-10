@@ -1,0 +1,27 @@
+Done. Here's the summary:
+
+## Diagnosis
+
+The regression was introduced by commit `54500cf` ("test fixture: seed transcript timestamp regression"), which touched three spots:
+
+1. **`app/orchestrator/Transcript.tsx` — `MessageView` header**: the `<MessageTime>` element was moved from the *leading* position in the `.who` header to the trailing meta position (after the spacer), and rendered **unconditionally** — so assistant continuation rows (`hideWho`) also got timestamps, and user prompts / first replies no longer led with the time.
+2. **`app/orchestrator/Transcript.tsx` — `isFirstAssistantReply` deleted**, and **`SessionView.tsx`** fell back to a naive `prev.role === "assistant" || "tool"` check. Because a reply can legitimately begin with tool calls before the first prose, the first assistant prose after leading tool activity was misclassified as a continuation and lost its header/timestamp entirely.
+3. **`ArtifactNoticeView`** (a system-notice row) *gained* a `<MessageTime>`, violating the rule that non-conversational rows get no timestamp. The `.msg-time` CSS was also restyled for the trailing position.
+
+## Fix (smallest correct change)
+
+Reverted the seed commit — restoring the previously-working implementation, no test edits:
+
+- Restored `isFirstAssistantReply(messages, index)` in `Transcript.tsx`: walks backwards from an assistant message, tolerating tool rows, and returns true at the first user prompt.
+- `SessionView.tsx` computes `hideWho = m.role === "assistant" && !isFirstAssistantReply(...)` again.
+- `MessageView` renders `<MessageTime>` **first** in the `.who` header, only when the header is shown (`!hideWho`); queued user messages also lead with their time.
+- Removed the timestamp from the artifact-notice (system) row and restored the badge-style `.msg-time` CSS for the leading position.
+
+## Verification evidence
+
+- **Reproduced before fix**: `npx vitest run tests/transcriptTimestamps.test.ts` → 2 failed (`expected 'span' to be 'time'`; `isFirstAssistantReply is not a function`).
+- **After fix, focused test**: `✓ tests/transcriptTimestamps.test.ts (3 tests)` — all 3 pass (timestamp-first on user/first reply + none on continuation, no timestamps on tool/question/system rows, first-reply detection through leading tool calls).
+- **Full suite**: `npm test` → `Test Files 64 passed (64)`, `Tests 513 passed (513)`.
+- **Strict typecheck**: `npx tsc --noEmit` → clean.
+
+Committed as `91f456a` ("fix: restore leading timestamps on conversational transcript rows"), 3 files, +24/−17.

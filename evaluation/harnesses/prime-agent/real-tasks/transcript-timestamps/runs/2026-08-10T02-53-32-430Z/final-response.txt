@@ -1,0 +1,19 @@
+Done. Full suite is green.
+
+## Diagnosis
+
+The transcript timestamp logic in `app/orchestrator/Transcript.tsx` had drifted from the intended rule in three ways, all reproduced by `tests/transcriptTimestamps.test.ts` (2 of 3 tests failing before the fix):
+
+1. **Timestamp placement** — in `MessageView`, the `<MessageTime>` element was rendered *last* in the `.who` header (after the avatar, label, badges, and meta spacer) instead of first, for both user prompts and assistant replies.
+2. **Wrong rows got timestamps** — continuation rows (`hideWho`, i.e. later prose chunks of the same assistant reply) still rendered a timestamp, and the artifact system notice (`ArtifactNoticeView`) carried one too. Meanwhile the "first reply" classifier `isFirstAssistantReply` (which the test imports from `Transcript.tsx`) didn't exist at all, and `SessionView`'s `hideWho` heuristic (`prev.role === "assistant" || prev.role === "tool"`) wrongly treated a reply that *opens* with tool calls as a continuation.
+
+## Fix (27 insertions / 11 deletions across 2 files, no test changes)
+
+- **`Transcript.tsx`**: added exported `isFirstAssistantReply(messages, index)` — walks back from an assistant row past non-conversational rows (tool/system), returning true only if it reaches a user prompt (or the start) before another assistant row. In `MessageView`'s user/assistant header the timestamp now renders **first** and only when `!hideWho`; queued user prompts get the same first-position timestamp. Removed the timestamp from `ArtifactNoticeView` (system notice).
+- **`SessionView.tsx`**: `hideWho` is now `m.role === "assistant" && !isFirstAssistantReply(s.messages, mi)`, so a first reply preceded by tool calls keeps its header and timestamp while genuine continuations collapse.
+
+## Verification evidence
+
+- `npx vitest run tests/transcriptTimestamps.test.ts` → **3 passed (3)** (was 2 failed / 1 passed).
+- `npx tsc --noEmit` → clean.
+- `npm test` (full suite) → **Test Files 64 passed (64), Tests 513 passed (513)**, 25.5s.

@@ -12,6 +12,7 @@ import {
   parsePrimeAgentVersion,
   redactSecrets,
   resolveSessionFile,
+  shouldRetryGenerationMetadata,
   stopBeforeAttribution,
   summarizeEvents,
   usageCounterSettled,
@@ -153,6 +154,13 @@ test("accepts only the dated Kimi K3 deployment returned by OpenRouter", () => {
 test("waits for the asynchronous OpenRouter key counter to reconcile", () => {
   assert.equal(usageCounterSettled(0, 0.0201909, 0.0337104), false);
   assert.equal(usageCounterSettled(0, 0.0337104, 0.0337104), true);
+});
+
+test("retries fresh generation metadata only for bounded 404s", () => {
+  assert.equal(shouldRetryGenerationMetadata(404, 0), true);
+  assert.equal(shouldRetryGenerationMetadata(404, 18), true);
+  assert.equal(shouldRetryGenerationMetadata(404, 19), false);
+  assert.equal(shouldRetryGenerationMetadata(500, 0), false);
 });
 
 test("reads Prime Agent version from stderr", () => {

@@ -1,0 +1,85 @@
+{
+  "status": "excluded",
+  "methodologyContaminated": true,
+  "exclusionReason": "The fixture exposed the seeded regression commit and historical fix through Git history; Prime used git revert after diagnosis. This run is retained for transparency but is not scored.",
+  "recoveredAfterMeteringDelay": true,
+  "harness": "Prime Agent",
+  "model": "moonshotai/kimi-k3",
+  "primeAgentVersion": "0.7.1",
+  "taskId": "operator-transcript-timestamps-regression",
+  "startedAt": "2026-08-10T02:43:27.819Z",
+  "finishedAt": "2026-08-10T02:50:53.871Z",
+  "originalEvaluatorWallTimeMs": 195553,
+  "agentCommit": "91f456a7677cd1a913e6d9c5d729ecea7a677755",
+  "gates": {
+    "baselineFailure": true,
+    "modelIdentity": true,
+    "focusedTestPassed": true,
+    "fullSuitePassed": true,
+    "typecheckPassed": true,
+    "testUnchanged": true,
+    "scopedDiff": true
+  },
+  "scoring": {
+    "objectivePass": true,
+    "score": 100,
+    "components": {
+      "correctness": 40,
+      "tools": 20,
+      "autonomy": 15,
+      "efficiency": 15,
+      "closure": 10
+    },
+    "scoped": true
+  },
+  "changedFiles": [
+    "app/globals.css",
+    "app/orchestrator/SessionView.tsx",
+    "app/orchestrator/Transcript.tsx"
+  ],
+  "exactHistoricalPatch": true,
+  "agentPatchSha256": "dc952c70ce25be59787ea3a2767bfe490094332ef5307f4ddbdb151080725c34",
+  "historicalPatchSha256": "dc952c70ce25be59787ea3a2767bfe490094332ef5307f4ddbdb151080725c34",
+  "finalResponse": "Done. Here's the summary:\n\n## Diagnosis\n\nThe regression was introduced by commit `54500cf` (\"test fixture: seed transcript timestamp regression\"), which touched three spots:\n\n1. **`app/orchestrator/Transcript.tsx` — `MessageView` header**: the `<MessageTime>` element was moved from the *leading* position in the `.who` header to the trailing meta position (after the spacer), and rendered **unconditionally** — so assistant continuation rows (`hideWho`) also got timestamps, and user prompts / first replies no longer led with the time.\n2. **`app/orchestrator/Transcript.tsx` — `isFirstAssistantReply` deleted**, and **`SessionView.tsx`** fell back to a naive `prev.role === \"assistant\" || \"tool\"` check. Because a reply can legitimately begin with tool calls before the first prose, the first assistant prose after leading tool activity was misclassified as a continuation and lost its header/timestamp entirely.\n3. **`ArtifactNoticeView`** (a system-notice row) *gained* a `<MessageTime>`, violating the rule that non-conversational rows get no timestamp. The `.msg-time` CSS was also restyled for the trailing position.\n\n## Fix (smallest correct change)\n\nReverted the seed commit — restoring the previously-working implementation, no test edits:\n\n- Restored `isFirstAssistantReply(messages, index)` in `Transcript.tsx`: walks backwards from an assistant message, tolerating tool rows, and returns true at the first user prompt.\n- `SessionView.tsx` computes `hideWho = m.role === \"assistant\" && !isFirstAssistantReply(...)` again.\n- `MessageView` renders `<MessageTime>` **first** in the `.who` header, only when the header is shown (`!hideWho`); queued user messages also lead with their time.\n- Removed the timestamp from the artifact-notice (system) row and restored the badge-style `.msg-time` CSS for the leading position.\n\n## Verification evidence\n\n- **Reproduced before fix**: `npx vitest run tests/transcriptTimestamps.test.ts` → 2 failed (`expected 'span' to be 'time'`; `isFirstAssistantReply is not a function`).\n- **After fix, focused test**: `✓ tests/transcriptTimestamps.test.ts (3 tests)` — all 3 pass (timestamp-first on user/first reply + none on continuation, no timestamps on tool/question/system rows, first-reply detection through leading tool calls).\n- **Full suite**: `npm test` → `Test Files 64 passed (64)`, `Tests 513 passed (513)`.\n- **Strict typecheck**: `npx tsc --noEmit` → clean.\n\nCommitted as `91f456a` (\"fix: restore leading timestamps on conversational transcript rows\"), 3 files, +24/−17.",
+  "usage": {
+    "harness": {
+      "input": 82076,
+      "output": 4253,
+      "cacheRead": 153856,
+      "cacheWrite": 0,
+      "total": 240185
+    },
+    "harnessCost": 0.35617979999999994,
+    "modelCalls": 17,
+    "toolCalls": 16,
+    "toolErrors": 0,
+    "openRouterSpendDelta": 0.3561798,
+    "openRouterGenerationCost": 0.3561798,
+    "generationIds": [
+      "gen-1786329814-bSIHatHYrPGamh76uMy8",
+      "gen-1786329819-kNXuQcLIHw643z2MEcL4",
+      "gen-1786329825-Mbtt1gXmUoAE5jB4B4a5",
+      "gen-1786329828-Tm4MgawO7PDHTePFAXXa",
+      "gen-1786329834-0xeDPvamMPE6jbHh2myP",
+      "gen-1786329838-ppMcSPnbAqVwn4f4zAxl",
+      "gen-1786329847-T8yjl2BrmaYlGw06ctVG",
+      "gen-1786329855-8rSaZX1fwOTfvdoZnZld",
+      "gen-1786329867-b4XXsSGMlKELOqGfidxC",
+      "gen-1786329871-fLnbYfHSl0JFZ7P42lcu",
+      "gen-1786329901-lshHPz5rFgUjipgMc16H",
+      "gen-1786329907-0ltCLfkLRK2obRVdXWej",
+      "gen-1786329913-5R7DIItiW9xuPlqdYNPE",
+      "gen-1786329924-QWoBH88HxZDRGVn5o1bb",
+      "gen-1786329955-seqFIh456cAXc9uRUgra",
+      "gen-1786329964-Avo01w2uwCeLbsjaR5PO",
+      "gen-1786329978-dWTpdKPRW2yskRdMwbDp"
+    ],
+    "upstreamProviders": [
+      "Wafer",
+      "Moonshot AI"
+    ]
+  },
+  "artifacts": {
+    "runDir": "/Users/geo/Claude Projects/operator/worktrees/kimi-prime-eval-20260809/evaluation/harnesses/prime-agent/real-tasks/transcript-timestamps/runs/2026-08-10T02-43-27-818Z"
+  }
+}

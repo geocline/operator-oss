@@ -1,0 +1,17 @@
+{
+  "id": "operator-transcript-timestamps-regression",
+  "project": "Operator",
+  "pinnedCommit": "8da7e84b963e96b902bf8b94ae9404457a0e16e2",
+  "parentCommit": "5adce378e5bc3b975df5de29967bc87f7044d92e",
+  "historicalFixCommit": "8da7e84b963e96b902bf8b94ae9404457a0e16e2",
+  "productionFiles": [
+    "app/globals.css",
+    "app/orchestrator/SessionView.tsx",
+    "app/orchestrator/Transcript.tsx"
+  ],
+  "immutableTest": "tests/transcriptTimestamps.test.ts",
+  "immutableTestSha256": "73686e4fbe51db4191bfbe9e79c969b82a401158e26d812355bf5833db47f281",
+  "focusedTestCommand": "npm test -- tests/transcriptTimestamps.test.ts",
+  "fullTestCommand": "npm test",
+  "prompt": "Operator has a transcript timestamp regression. User prompts and the first assistant reply to each prompt must display their timestamp first. Tool calls, question cards, system notices, and similar non-conversational rows must not receive timestamps.\n\nDiagnose the regression in this repository, reproduce it with the existing tests, implement the smallest correct fix, and verify both the focused test and the full test suite. Do not modify tests. Keep the change scoped to this bug and finish with a concise diagnosis plus exact verification evidence."
+}

@@ -1,0 +1,89 @@
+{
+  "status": "pass",
+  "harness": "Prime Agent",
+  "model": "moonshotai/kimi-k3",
+  "primeAgentVersion": "0.7.1",
+  "taskId": "operator-transcript-timestamps-regression",
+  "startedAt": "2026-08-10T02:53:32.431Z",
+  "finishedAt": "2026-08-10T02:58:41.513Z",
+  "wallTimeMs": 309082,
+  "agentWallTimeMs": 272782,
+  "methodology": {
+    "targetRepositoryHistoryIsolated": true,
+    "filesystemHermetic": false,
+    "externalHistoryAccessObservedInTrace": false
+  },
+  "postRunVerification": {
+    "typecheckPassed": true,
+    "note": "Host-side tsc --noEmit was replayed from the saved patch after the primary evaluator finished."
+  },
+  "gates": {
+    "baselineFailure": true,
+    "modelIdentity": true,
+    "focusedTestPassed": true,
+    "fullSuitePassed": true,
+    "typecheckPassed": true,
+    "testUnchanged": true,
+    "scopedDiff": true
+  },
+  "scoring": {
+    "objectivePass": true,
+    "score": 100,
+    "components": {
+      "correctness": 40,
+      "tools": 20,
+      "autonomy": 15,
+      "efficiency": 15,
+      "closure": 10
+    },
+    "scoped": true
+  },
+  "changedFiles": [
+    "app/orchestrator/SessionView.tsx",
+    "app/orchestrator/Transcript.tsx"
+  ],
+  "exactHistoricalPatch": false,
+  "agentPatchSha256": "2a8cd2362f931916df6c4d2a16788a0488672e6bed7de699f210da4a28854f93",
+  "historicalPatchSha256": "dc952c70ce25be59787ea3a2767bfe490094332ef5307f4ddbdb151080725c34",
+  "finalResponse": "Done. Full suite is green.\n\n## Diagnosis\n\nThe transcript timestamp logic in `app/orchestrator/Transcript.tsx` had drifted from the intended rule in three ways, all reproduced by `tests/transcriptTimestamps.test.ts` (2 of 3 tests failing before the fix):\n\n1. **Timestamp placement** — in `MessageView`, the `<MessageTime>` element was rendered *last* in the `.who` header (after the avatar, label, badges, and meta spacer) instead of first, for both user prompts and assistant replies.\n2. **Wrong rows got timestamps** — continuation rows (`hideWho`, i.e. later prose chunks of the same assistant reply) still rendered a timestamp, and the artifact system notice (`ArtifactNoticeView`) carried one too. Meanwhile the \"first reply\" classifier `isFirstAssistantReply` (which the test imports from `Transcript.tsx`) didn't exist at all, and `SessionView`'s `hideWho` heuristic (`prev.role === \"assistant\" || prev.role === \"tool\"`) wrongly treated a reply that *opens* with tool calls as a continuation.\n\n## Fix (27 insertions / 11 deletions across 2 files, no test changes)\n\n- **`Transcript.tsx`**: added exported `isFirstAssistantReply(messages, index)` — walks back from an assistant row past non-conversational rows (tool/system), returning true only if it reaches a user prompt (or the start) before another assistant row. In `MessageView`'s user/assistant header the timestamp now renders **first** and only when `!hideWho`; queued user prompts get the same first-position timestamp. Removed the timestamp from `ArtifactNoticeView` (system notice).\n- **`SessionView.tsx`**: `hideWho` is now `m.role === \"assistant\" && !isFirstAssistantReply(s.messages, mi)`, so a first reply preceded by tool calls keeps its header and timestamp while genuine continuations collapse.\n\n## Verification evidence\n\n- `npx vitest run tests/transcriptTimestamps.test.ts` → **3 passed (3)** (was 2 failed / 1 passed).\n- `npx tsc --noEmit` → clean.\n- `npm test` (full suite) → **Test Files 64 passed (64), Tests 513 passed (513)**, 25.5s.",
+  "usage": {
+    "harness": {
+      "input": 90983,
+      "output": 7497,
+      "cacheRead": 137472,
+      "cacheWrite": 0,
+      "total": 235952
+    },
+    "harnessCost": 0.4266456,
+    "modelCalls": 17,
+    "toolCalls": 17,
+    "toolErrors": 0,
+    "openRouterSpendDelta": 0.4266456,
+    "openRouterGenerationCost": 0.4266456,
+    "generationIds": [
+      "gen-1786330419-2P83bb0GM8XQIBbh1Y9n",
+      "gen-1786330426-WnhSDiYFN2FI658Q0W9p",
+      "gen-1786330432-zN4IokdEOXdbJh43coDX",
+      "gen-1786330437-Qf5YamX4U0w2zYCLZ8yb",
+      "gen-1786330444-xrEJtlRZdLoGml92TQFh",
+      "gen-1786330449-vMvSLVZv4SHQYY1baaw8",
+      "gen-1786330453-xSWoZ328fUeTlCKrtukZ",
+      "gen-1786330484-MSulKKRbNe4C7Mpi0oZn",
+      "gen-1786330489-qMb2gexUj08q0Lxn6IiX",
+      "gen-1786330495-5n12ZUzI4syCAJH97Vs9",
+      "gen-1786330567-2zhtJtodIdEJmc0c5wzu",
+      "gen-1786330590-DTwKRcLpGhz7XwzzzS5D",
+      "gen-1786330605-d6kioH1IauSwKRxyQggo",
+      "gen-1786330630-OCQmOqlUKyld1gz1wMTm",
+      "gen-1786330638-8SMio0SxX4gaqGZOEZtp",
+      "gen-1786330670-m2EuhsKJ6RxOBNipaEC5",
+      "gen-1786330676-WOof4cTStLjTM2bvdnv6"
+    ],
+    "upstreamProviders": [
+      "Moonshot AI"
+    ]
+  },
+  "artifacts": {
+    "runDir": "/Users/geo/Claude Projects/operator/worktrees/kimi-prime-eval-20260809/evaluation/harnesses/prime-agent/real-tasks/transcript-timestamps/runs/2026-08-10T02-53-32-430Z"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "command": "npm test -- tests/transcriptTimestamps.test.ts",
+  "exitCode": 0,
+  "signal": null,
+  "stdout": "\n> agent-orchestrator@0.1.0 test\n> vitest run tests/transcriptTimestamps.test.ts\n\n\n RUN  v3.2.6 /private/var/folders/4d/rvh98q9x3_b0fqr3t5gl98pc0000gn/T/operator-prime-real-dygBFW/repo\n\n ✓ tests/transcriptTimestamps.test.ts (3 tests) 25ms\n\n Test Files  1 passed (1)\n      Tests  3 passed (3)\n   Start at  20:58:11\n   Duration  278ms (transform 57ms, setup 10ms, collect 161ms, tests 25ms, environment 0ms, prepare 25ms)\n\n",
+  "stderr": "stderr | tests/transcriptTimestamps.test.ts > transcript timestamps > puts the timestamp first on user prompts and the first assistant reply\nreact-test-renderer is deprecated. See https://react.dev/warnings/react-test-renderer\nreact-test-renderer is deprecated. See https://react.dev/warnings/react-test-renderer\nreact-test-renderer is deprecated. See https://react.dev/warnings/react-test-renderer\n\nstderr | tests/transcriptTimestamps.test.ts > transcript timestamps > does not timestamp tool calls, question cards, or system notices\nreact-test-renderer is deprecated. See https://react.dev/warnings/react-test-renderer\nreact-test-renderer is deprecated. See https://react.dev/warnings/react-test-renderer\n\n",
+  "wallTimeMs": 676,
+  "error": null
+}

@@ -1,0 +1,12 @@
+{
+  "defaultProvider": "operator-openrouter-kimi-only",
+  "defaultModel": "moonshotai/kimi-k3",
+  "defaultThinkingLevel": "high",
+  "telemetry": {
+    "enabled": false
+  },
+  "autoRefine": {
+    "enabled": false,
+    "compact": false
+  }
+}
