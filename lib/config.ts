@@ -59,6 +59,19 @@ if (configuredLiteLLMHome && !path.isAbsolute(configuredLiteLLMHome)) {
 export const LITELLM_CODEX_HOME =
   configuredLiteLLMHome || path.join(os.homedir(), ".operator", "litellm-codex");
 
+const configuredPrimeHome = process.env.LITELLM_PRIME_HOME;
+if (configuredPrimeHome && !path.isAbsolute(configuredPrimeHome)) {
+  throw new Error("LITELLM_PRIME_HOME must be an absolute path");
+}
+
+/**
+ * Task-local Prime Agent state root for metered LiteLLM-backed Prime turns.
+ * Each task gets `<home>/<task-id>/` (config + per-generation sessions), so a
+ * hard delete can retire one task's Prime state without touching any other's.
+ */
+export const LITELLM_PRIME_HOME =
+  configuredPrimeHome || path.join(os.homedir(), ".operator", "litellm-prime");
+
 /**
  * Opt-in to billing an environment-provided agent API key (ANTHROPIC_API_KEY /
  * ANTHROPIC_AUTH_TOKEN / OPENAI_API_KEY). Off by default: both entrypoints
