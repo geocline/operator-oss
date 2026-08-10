@@ -223,9 +223,17 @@ describe("mapPrimeEvent", () => {
       expect(out).toEqual([{ type: "error", content: expect.stringContaining("message_end") }]);
     });
 
-    it("an agent_start without a sessionFile produces an error and no session event", () => {
+    it("an agent_start without a sessionFile is quietly skipped (real 0.7.1 shape; the driver probes get_state)", () => {
       const { out } = run([{ type: "agent_start" }]);
-      expect(out).toEqual([{ type: "error", content: expect.stringContaining("agent_start") }]);
+      expect(out).toEqual([]);
+    });
+
+    it("non-assistant message_ends (the echoed user prompt) produce no output", () => {
+      const { out } = run([
+        { type: "message_start", message: { role: "user" } },
+        { type: "message_end", message: { role: "user", content: [{ type: "text", text: "the prompt" }] } },
+      ]);
+      expect(out).toEqual([]);
     });
 
     it("a tool_execution_end with no matching start still pairs by toolCallId", () => {

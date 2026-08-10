@@ -1,0 +1,68 @@
+{
+  "date": "2026-08-10T17:40:48.693Z",
+  "driver": "litellm-prime",
+  "prime_version": "0.7.1",
+  "alias": "operator.kimi-k3",
+  "pinned_physical_model": "openrouter/moonshotai/kimi-k3 (LiteLLM config, fallback-free, test-pinned)",
+  "turns": {
+    "fresh": true,
+    "resumed": true,
+    "aborted": true
+  },
+  "usage": {
+    "cost_usd": 0,
+    "input_tokens": 4566,
+    "output_tokens": 506,
+    "cache_read_tokens": 13376,
+    "cache_creation_tokens": 0,
+    "turns": 4,
+    "total_tokens": 18448
+  },
+  "generation_ids": [
+    "gen-1786383633-VHv8nRRYt0f6rVUXSpB2",
+    "gen-1786383636-W9rJ97eFNsz4BOBRRYxV",
+    "gen-1786383640-9UVSdR9fAz6tH7fzs2m2",
+    "gen-1786383642-dxECxRU82DIWLDrqTd2g"
+  ],
+  "session_id_sha256": "c6ebbf7fd32cd1c198be165d268c680ecb696fc9127b6fd21e2632aebac1166a",
+  "process_settlement": "no prime-agent/ipykernel processes after abort",
+  "openrouter_generations": [
+    {
+      "id": "gen-1786383633-VHv8nRRYt0f6rVUXSpB2",
+      "model": "moonshotai/kimi-k3-20260715",
+      "provider": "Modal",
+      "cost": 0.016284,
+      "prompt_tokens": 4626,
+      "completion_tokens": 223
+    },
+    {
+      "id": "gen-1786383636-W9rJ97eFNsz4BOBRRYxV",
+      "model": "moonshotai/kimi-k3-20260715",
+      "provider": "Modal",
+      "cost": 0.0026916,
+      "prompt_tokens": 4680,
+      "completion_tokens": 57
+    },
+    {
+      "id": "gen-1786383640-9UVSdR9fAz6tH7fzs2m2",
+      "model": "moonshotai/kimi-k3-20260715",
+      "provider": "Modal",
+      "cost": 0.0035868,
+      "prompt_tokens": 4722,
+      "completion_tokens": 71
+    },
+    {
+      "id": "gen-1786383642-dxECxRU82DIWLDrqTd2g",
+      "model": "moonshotai/kimi-k3-20260715",
+      "provider": "Modal",
+      "cost": 0.0027384,
+      "prompt_tokens": 4779,
+      "completion_tokens": 48
+    }
+  ],
+  "reconciliation": {
+    "total_provider_cost_usd": 0.0253008,
+    "all_physical_models_kimi": true,
+    "note": "Operator recorded cost 0 (unestimated by design); trusted cost attributed via provider generation records above."
+  }
+}

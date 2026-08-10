@@ -175,13 +175,31 @@ async function* runTurn(
       ? [guidance, userText].filter(Boolean).join("\n\n---\n\n")
       : [buildProjectContext(project, task), guidance, userText].filter(Boolean).join("\n\n---\n\n");
 
+    // Real prime-agent reports its persisted session file via get_state, not
+    // agent_start; fetch it up front so resume and the session index work.
+    let promptError: Error | null = null;
+    const sessionProbe = client
+      .request("get_state", {}, { timeoutMs: 30_000 })
+      .then((res) => {
+        const file = (res.data as { sessionFile?: unknown } | undefined)?.sessionFile;
+        if (typeof file === "string" && file.trim() && !state.sessionId) {
+          state.sessionId = file;
+          queue.push({ type: "session", sessionId: file });
+        }
+      })
+      .catch(() => {
+        // Session identity comes from the stream (fake CLI) or stays null;
+        // a failed probe alone must not kill the turn.
+      });
+
     // A failed prompt request may race the queue closing on process exit, so
     // the failure is kept aside and yielded after the drain if needed.
-    let promptError: Error | null = null;
-    client.request("prompt", { message: prompt }).catch((error: Error) => {
-      promptError = error;
-      queue.close();
-    });
+    const promptDone = sessionProbe.then(() =>
+      client!.request("prompt", { message: prompt }).catch((error: Error) => {
+        promptError = error;
+        queue.close();
+      }),
+    );
 
     let yieldedError = false;
     for await (const event of queue.drain()) {
@@ -190,6 +208,7 @@ async function* runTurn(
       if (event.type === "error") yieldedError = true;
       yield event;
     }
+    await promptDone;
     if (promptError && !yieldedError && !abortController?.signal.aborted) {
       yield { type: "error", content: (promptError as Error).message };
     }

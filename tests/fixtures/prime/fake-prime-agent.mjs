@@ -31,6 +31,18 @@ if (process.env.FAKE_PRIME_SPAWN_WORKER === "1") {
   send({ type: "worker_started", pid: worker.pid });
 }
 
+if (process.env.FAKE_PRIME_WORKER_DETACHED === "1") {
+  // A worker that escapes into its OWN process group — the same shape as the
+  // real npm wrapper re-execing the compiled binary. Group-killing the
+  // parent's group must NOT be the only cleanup mechanism.
+  const escaped = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {
+    stdio: "ignore",
+    detached: true,
+  });
+  escaped.unref();
+  send({ type: "worker_started", pid: escaped.pid, escapedGroup: true });
+}
+
 const resumeIndex = process.argv.indexOf("--resume");
 send({
   type: "agent_start",

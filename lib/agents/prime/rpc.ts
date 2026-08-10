@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 
 /**
  * Line-buffered JSONL RPC client for `prime-agent --mode rpc`.
@@ -209,6 +209,11 @@ export class PrimeRpcClient {
 
   private async performStop(reason?: string): Promise<PrimeExit> {
     if (this.exit) return this.exit;
+    // Snapshot the descendant tree while the parent is still alive: the npm
+    // wrapper re-execs the real binary in a NEW process group (own setsid), so
+    // a plain group kill misses it — and once the wrapper exits, the orphan
+    // reparents to PID 1 and the ppid chain is gone.
+    let tree = this.processTree();
     // Polite phase: RPC abort, then wait for a terminal signal from the agent.
     try {
       await this.request("abort", {}, { timeoutMs: Math.min(this.abortGraceMs, 2_000) });
@@ -219,27 +224,93 @@ export class PrimeRpcClient {
     } catch {
       // Unresponsive protocol - fall through to signals.
     }
-    if (!this.exit) {
-      this.signalGroup("SIGTERM");
+    tree = [...new Set([...tree, ...this.processTree()])];
+    if (!this.exit || this.anyAlive(tree)) {
+      this.signalTree(tree, "SIGTERM");
       await Promise.race([this.settled, delay(this.termGraceMs)]);
+      await this.waitForTreeExit(tree, this.termGraceMs);
     }
-    if (!this.exit) {
-      this.signalGroup("SIGKILL");
+    if (!this.exit || this.anyAlive(tree)) {
+      this.signalTree([...new Set([...tree, ...this.processTree()])], "SIGKILL");
       await this.settled;
+      await this.waitForTreeExit(tree, this.termGraceMs);
     }
     if (reason && !this.failure) this.failure = new Error(`Prime turn stopped: ${reason}`);
     return this.exit ?? (await this.settled);
   }
 
-  private signalGroup(signal: NodeJS.Signals): void {
-    const pid = this.child.pid;
-    if (!pid) return;
+  /** The spawned pid plus every live descendant, walked via ps ppid links. */
+  private processTree(): number[] {
+    const root = this.child.pid;
+    if (!root || process.platform === "win32") return root ? [root] : [];
     try {
-      if (process.platform !== "win32") process.kill(-pid, signal);
-      else this.child.kill(signal);
+      const out = execFileSync("ps", ["-eo", "pid=,ppid="], { encoding: "utf8" });
+      const children = new Map<number, number[]>();
+      for (const line of out.trim().split("\n")) {
+        const [pid, ppid] = line.trim().split(/\s+/).map(Number);
+        if (!Number.isInteger(pid) || !Number.isInteger(ppid)) continue;
+        if (!children.has(ppid)) children.set(ppid, []);
+        children.get(ppid)!.push(pid);
+      }
+      const acc = [root];
+      const queue = [root];
+      while (queue.length) {
+        for (const child of children.get(queue.shift()!) ?? []) {
+          acc.push(child);
+          queue.push(child);
+        }
+      }
+      return acc;
     } catch {
+      return [root];
+    }
+  }
+
+  private anyAlive(pids: number[]): boolean {
+    return pids.some((pid) => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    });
+  }
+
+  private async waitForTreeExit(pids: number[], graceMs: number): Promise<void> {
+    const deadline = Date.now() + graceMs;
+    while (Date.now() < deadline && this.anyAlive(pids)) await delay(50);
+  }
+
+  /** Signal every captured pid AND its process group — escaped groups included. */
+  private signalTree(pids: number[], signal: NodeJS.Signals): void {
+    if (process.platform === "win32") {
       try {
         this.child.kill(signal);
+      } catch {
+        // Already gone.
+      }
+      return;
+    }
+    const groups = new Set<number>();
+    for (const pid of pids) {
+      try {
+        const pgid = Number(execFileSync("ps", ["-o", "pgid=", "-p", String(pid)], { encoding: "utf8" }).trim());
+        if (Number.isInteger(pgid) && pgid > 1) groups.add(pgid);
+      } catch {
+        // Process already gone; its pid signal below is a no-op too.
+      }
+    }
+    for (const pgid of groups) {
+      try {
+        process.kill(-pgid, signal);
+      } catch {
+        // Group already gone.
+      }
+    }
+    for (const pid of pids) {
+      try {
+        process.kill(pid, signal);
       } catch {
         // Already gone.
       }

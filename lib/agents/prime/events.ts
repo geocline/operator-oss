@@ -100,10 +100,16 @@ export function mapPrimeEvent(ev: PrimeRpcEvent, state: PrimeMapState): StreamEv
   switch (ev.type) {
     case "agent_start":
       return mapAgentStart(ev, state);
-    case "message_start":
-      state.inMessage = true;
-      state.assistantText = "";
+    case "message_start": {
+      // Prime also streams the echoed user message through the same event
+      // pair; only assistant messages accumulate toward a transcript row.
+      const role = (ev.message as { role?: string } | undefined)?.role;
+      if (role === undefined || role === "assistant") {
+        state.inMessage = true;
+        state.assistantText = "";
+      }
       return [];
+    }
     case "message_update":
       return mapMessageUpdate(ev, state);
     case "message_end":
@@ -126,11 +132,11 @@ function recordUnknown(state: PrimeMapState, type: string): void {
 }
 
 function mapAgentStart(ev: PrimeRpcEvent, state: PrimeMapState): StreamEvent[] {
+  // prime-agent 0.7.1's real agent_start carries no session path — the driver
+  // fetches it via get_state and records it separately. Emit a session event
+  // only when the stream does provide one (the fake CLI and future versions).
   const sessionFile = ev.sessionFile;
-  if (typeof sessionFile !== "string" || !sessionFile.trim()) {
-    state.outcome = "error";
-    return [{ type: "error", content: "Prime agent_start did not report a session file" }];
-  }
+  if (typeof sessionFile !== "string" || !sessionFile.trim()) return [];
   state.sessionId = sessionFile;
   return [{ type: "session", sessionId: sessionFile }];
 }
@@ -148,6 +154,12 @@ function mapMessageEnd(ev: PrimeRpcEvent, state: PrimeMapState): StreamEvent[] {
     state.outcome = "error";
     state.inMessage = false;
     return [{ type: "error", content: "Prime message_end did not include a message" }];
+  }
+  // Non-assistant message_ends (the echoed user prompt) are not turn output.
+  if (message.role !== undefined && message.role !== "assistant") {
+    state.inMessage = false;
+    state.assistantText = "";
+    return [];
   }
   state.inMessage = false;
 

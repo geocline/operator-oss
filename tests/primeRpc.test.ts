@@ -164,6 +164,18 @@ describe("Prime RPC client", () => {
     expect(await waitUntil(() => !pidAlive(workerPid))).toBe(true);
   });
 
+  it("kills a worker that escaped into its own process group (npm wrapper shape)", async () => {
+    const { client } = launch({ FAKE_PRIME_WORKER_DETACHED: "1", FAKE_PRIME_EVENTS: SUCCESS_EVENTS });
+    const worker = await client.waitForEvent((e) => e.type === "worker_started");
+    const workerPid = worker.pid as number;
+    expect(pidAlive(workerPid)).toBe(true);
+    await client.request("prompt", { message: "hi" });
+    await client.waitForEvent((e) => e.type === "agent_end");
+    await client.stop();
+    expect(client.exited).toBe(true);
+    expect(await waitUntil(() => !pidAlive(workerPid))).toBe(true);
+  });
+
   it("escalates to SIGKILL when the child ignores everything after timeout", async () => {
     const { client } = launch({ FAKE_PRIME_NO_RESPONSE: "1", FAKE_PRIME_SPAWN_WORKER: "1" });
     const worker = await client.waitForEvent((e) => e.type === "worker_started");

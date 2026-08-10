@@ -118,6 +118,29 @@ Conversation Dashboard and Card Tracker a stable future discovery seam without
 copying prompts or responses into Operator's database. The full Codex transcript
 continues to live under the isolated LiteLLM Codex home.
 
+### The Prime Agent driver (`lib/agents/prime/`)
+
+`litellm-prime` is a fourth, additive route: the pinned `prime-agent` CLI
+(0.7.1, `PRIME_CLI_PATH`) spoken to over JSONL RPC (`rpc.ts`), with its events
+normalized independently of the Codex mapper (`events.ts` - no price
+estimation; cost is trusted from metering or recorded as absent). It shares the
+LiteLLM catalog/relay with `litellm-codex`, filtered to the `prime` harness
+tag; model policy is fail-closed (`policy.ts`): only the exact approved Kimi
+alias may launch, and a turn cannot settle successfully unless the terminal
+metadata proves both the requested alias and a resolved non-OpenAI/Anthropic,
+non-fallback physical identity.
+
+State is task-local under `<LITELLM_PRIME_HOME>/<task-id>/` (config +
+per-generation session dirs, 0700; `session-paths.ts`), created per turn and
+hard-deleted - symlink-safe, containment-checked - when the task is deleted.
+The child env strips every provider secret and carries only the loopback relay
+token plus the Operator tool wiring; the six Operator tools reach Prime through
+its extension API (`scripts/prime-operator-extension.ts`), which POSTs to the
+same authenticated internal endpoints as the stdio MCP bridge. Abort settles
+the full process tree: RPC abort, then SIGTERM, then SIGKILL against the
+process group, and no attribution is read while the process can still
+generate. Prime is not an OS sandbox, so capabilities expose Auto-run only.
+
 ### Internal one-shots (`lib/agents/oneshots.ts`)
 
 Routing for the internal jobs that run a turn **outside the main chat**: `/clear` handoff
