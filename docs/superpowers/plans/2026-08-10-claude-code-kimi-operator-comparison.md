@@ -16,11 +16,11 @@
 - Create: `evaluation/harnesses/claude-code/runner.test.mjs`
 - Create: `evaluation/harnesses/claude-code/runner.mjs`
 
-- [ ] **Step 1: Write failing tests for the hard model lock**
+- [x] **Step 1: Write failing tests for the hard model lock**
 
 Test that the environment builder sets all primary, small/fast, and subagent model roles to `moonshotai/kimi-k3`, uses `https://openrouter.ai/api`, explicitly blanks `ANTHROPIC_API_KEY`, and never defines a fallback.
 
-- [ ] **Step 2: Run the focused test and verify RED**
+- [x] **Step 2: Run the focused test and verify RED**
 
 Run:
 
@@ -30,7 +30,7 @@ node --test evaluation/harnesses/claude-code/runner.test.mjs
 
 Expected: failure because `runner.mjs` does not exist.
 
-- [ ] **Step 3: Implement the minimal environment builder**
+- [x] **Step 3: Implement the minimal environment builder**
 
 Return an isolated child environment containing:
 
@@ -49,7 +49,7 @@ Return an isolated child environment containing:
 }
 ```
 
-- [ ] **Step 4: Add failing tests for streamed-event parsing**
+- [x] **Step 4: Add failing tests for streamed-event parsing**
 
 Cover:
 
@@ -60,11 +60,11 @@ Cover:
 - generation/request ID extraction without accepting unrelated IDs;
 - rejection of a result that reports another model or no model evidence.
 
-- [ ] **Step 5: Verify the new tests fail for missing behavior**
+- [x] **Step 5: Verify the new tests fail for missing behavior**
 
 Run the same focused Node test and confirm the parser assertions fail.
 
-- [ ] **Step 6: Implement the minimal parser and process controls**
+- [x] **Step 6: Implement the minimal parser and process controls**
 
 Add:
 
@@ -75,7 +75,7 @@ Add:
 - SIGTERM followed by SIGKILL for the process group;
 - result parsing that retains raw events, final response, usage, tool calls, errors, session ID, and model evidence.
 
-- [ ] **Step 7: Run the focused test and verify GREEN**
+- [x] **Step 7: Run the focused test and verify GREEN**
 
 Run:
 
@@ -91,11 +91,11 @@ Expected: all Claude runner unit tests pass.
 - Create at runtime: `evaluation/harnesses/claude-code/runs/<timestamp>/`
 - Modify: `evaluation/harnesses/claude-code/runner.mjs`
 
-- [ ] **Step 1: Retrieve only the dedicated Claude evaluation key**
+- [x] **Step 1: Retrieve only the dedicated Claude evaluation key**
 
 Read macOS Keychain service `operator-harness-eval-openrouter-claude` without printing the secret. Record a redacted before-key usage snapshot.
 
-- [ ] **Step 2: Launch a safe-mode compatibility session**
+- [x] **Step 2: Launch a safe-mode compatibility session**
 
 Use:
 
@@ -109,17 +109,21 @@ claude --print --verbose --output-format stream-json
 
 Run inside a disposable fixture. Do not supply `--fallback-model`.
 
-- [ ] **Step 3: Require deterministic tool use**
+- [x] **Step 3: Require deterministic tool use**
 
 Prompt Claude Code/Kimi to read a fixture file and use Bash to compute its SHA-256, then report both its exact content and hash. Require correct tool use and final answer.
 
-- [ ] **Step 4: Reconcile model identity and cost**
+- [x] **Step 4: Reconcile model identity and cost**
 
 Use streamed request/generation identifiers when exposed. Otherwise, use the dedicated-key before/after delta and retain that limitation explicitly. Require every authoritative generation to resolve to exact or dated Kimi K3 and reject OpenAI, Anthropic, aliases, or fallback suffixes.
 
 - [ ] **Step 5: Stop before the scored run on incompatibility**
 
 If tool calls, tool results, model identity, event parsing, or per-run attribution fail, preserve the artifacts and report Claude Code/Kimi as incompatible. Do not rescue the run by changing models or enabling a fallback.
+
+This gate was not satisfied: the coding run started before interrupt/resume
+checks and complete attribution passed. The run is retained as provisional,
+unscored evidence.
 
 ### Task 3: Run the identical clean Operator task once
 
@@ -129,7 +133,7 @@ If tool calls, tool results, model identity, event parsing, or per-run attributi
 - Reuse: `evaluation/harnesses/prime-agent/real-tasks/transcript-timestamps/task.json`
 - Create at runtime: `evaluation/harnesses/claude-code/real-tasks/transcript-timestamps/runs/<timestamp>/`
 
-- [ ] **Step 1: Write failing tests for immutable-test, scope, and failure attribution**
+- [x] **Step 1: Write failing tests for immutable-test, scope, and failure attribution**
 
 Require:
 
@@ -139,7 +143,7 @@ Require:
 - the Claude process is stopped before final attribution;
 - a paid failure still records usage and cost.
 
-- [ ] **Step 2: Run the focused evaluator tests and verify RED**
+- [x] **Step 2: Run the focused evaluator tests and verify RED**
 
 Run:
 
@@ -149,7 +153,7 @@ node --test evaluation/harnesses/claude-code/runner.test.mjs evaluation/harnesse
 
 Expected: real-task tests fail because the evaluator is incomplete.
 
-- [ ] **Step 3: Implement the clean fixture and evaluator**
+- [x] **Step 3: Implement the clean fixture and evaluator**
 
 Build the same standalone archive snapshot used for Prime:
 
@@ -160,7 +164,7 @@ Build the same standalone archive snapshot used for Prime:
 - require the focused baseline to fail;
 - run one uninterrupted Claude Code/Kimi session with the exact existing prompt.
 
-- [ ] **Step 4: Capture and verify the result**
+- [x] **Step 4: Capture and verify the result**
 
 Persist:
 
@@ -172,11 +176,11 @@ Persist:
 - OpenRouter before/after snapshots and generation metadata;
 - Claude Code version and session ID.
 
-- [ ] **Step 5: Run focused evaluator tests and verify GREEN**
+- [x] **Step 5: Run focused evaluator tests and verify GREEN**
 
 Run the Node tests again and require all to pass.
 
-- [ ] **Step 6: Execute exactly one scored coding run**
+- [x] **Step 6: Execute exactly one scored coding run**
 
 Do not steer, rescue, follow up, purchase credits, or invoke another model. Stop on substitution, low balance, runaway execution, or timeout.
 
@@ -187,11 +191,11 @@ Do not steer, rescue, follow up, purchase credits, or invoke another model. Stop
 - Create: `kimi-k3-prime-vs-claude-code-comparison-2026-08-10.html`
 - Modify: `docs/superpowers/specs/2026-08-09-kimi-k3-harness-evaluation-design.md`
 
-- [ ] **Step 1: Apply the same objective score**
+- [x] **Step 1: Apply the same objective score**
 
 Use the Prime rubric unchanged: correctness 40, tools 20, autonomy 15, efficiency 15, closure 10.
 
-- [ ] **Step 2: Compare observed harness behavior**
+- [x] **Step 2: Compare observed harness behavior**
 
 Contrast:
 
@@ -208,11 +212,11 @@ Contrast:
 
 Distinguish documented capability from behavior actually observed in the run.
 
-- [ ] **Step 3: Produce Geo-facing HTML**
+- [x] **Step 3: Produce Geo-facing HTML**
 
 Create a standalone Claude report and a side-by-side Prime-versus-Claude HTML report, linking raw evidence and stating limitations. Do not claim that one task proves production superiority.
 
-- [ ] **Step 4: Verify before completion**
+- [x] **Step 4: Verify before completion**
 
 Run:
 
@@ -233,6 +237,6 @@ Then verify:
 - the dedicated Claude key’s cost delta reconciles;
 - no credits were purchased.
 
-- [ ] **Step 5: Commit only evaluation artifacts**
+- [x] **Step 5: Commit only evaluation artifacts**
 
 Commit on `eval/kimi-prime-20260809` and preserve the Prime evidence unchanged.

@@ -1,0 +1,79 @@
+diff --git a/app/orchestrator/SessionView.tsx b/app/orchestrator/SessionView.tsx
+index 8a0cb75..0d135ea 100644
+--- a/app/orchestrator/SessionView.tsx
++++ b/app/orchestrator/SessionView.tsx
+@@ -15,7 +15,7 @@ import { capsFor, agentLabel, findAgent } from "./agents";
+ import { StatusDot, Avatar, Popover, Skel } from "./shared";
+ import { Modal } from "./Modal";
+ import { jsend } from "./api";
+-import { MessageView, SessionBreak } from "./Transcript";
++import { MessageView, SessionBreak, isFirstAssistantReply } from "./Transcript";
+ import { Composer } from "./Composer";
+ import { SessionRail } from "./SessionRail";
+ import { ColResize, ColRail } from "./Layout";
+@@ -468,9 +468,10 @@ export function SessionView({ project, task, agents, messages, running, blockedB
+               {si > 0 && s.summaryBefore && <SessionBreak summary={s.summaryBefore} />}
+               <div className="session-label"><span className="ln" />Session {s.n}{si === sessions.length - 1 ? " · current" : ""}<span className="ln" /></div>
+               {s.messages.map((m, mi) => {
+-                const prev = s.messages[mi - 1];
+-                // collapse the repeated "Claude Code" header across an assistant run (text → tool → text)
+-                const hideWho = m.role === "assistant" && !!prev && (prev.role === "assistant" || prev.role === "tool");
++                // collapse the repeated "Claude Code" header across an assistant run (text → tool → text);
++                // the first prose reply to each prompt keeps its header — and its timestamp — even
++                // when tool calls streamed before it.
++                const hideWho = m.role === "assistant" && !isFirstAssistantReply(s.messages, mi);
+                 // Tool noise control: every tool call renders as its one-line
+                 // header only, Claude Code style - the conversation is prose,
+                 // the machinery is opt-in via the twirl. Errors still surface
+diff --git a/app/orchestrator/Transcript.tsx b/app/orchestrator/Transcript.tsx
+index 62a71cd..ea86c72 100644
+--- a/app/orchestrator/Transcript.tsx
++++ b/app/orchestrator/Transcript.tsx
+@@ -17,6 +17,21 @@ import {
+   type ArtifactNotice,
+ } from "@/lib/artifactNotice";
+ 
++// Timestamp placement is for conversational rows only: a user prompt leads
++// with its timestamp, and so does the agent's first prose reply to that
++// prompt — even when tool calls streamed in between (tool/system rows are
++// skipped, not treated as a boundary). Later assistant messages in the same
++// run are continuations: collapsed header, no timestamp.
++export function isFirstAssistantReply(messages: Msg[], index: number): boolean {
++  if (messages[index]?.role !== "assistant") return false;
++  for (let i = index - 1; i >= 0; i--) {
++    const role = messages[i].role;
++    if (role === "assistant") return false;
++    if (role === "user") return true;
++  }
++  return true;
++}
++
+ function MessageTime({ value }: { value?: number }) {
+   if (!value) return null;
+   const date = new Date(value);
+@@ -255,10 +270,10 @@ export const MessageView = memo(function MessageView({ m, initial, hideWho, runn
+     return (
+       <div className="msg user queued">
+         <div className="who">
++          <MessageTime value={m.createdAt} />
+           <Avatar who="user" /> You
+           <span className="badge queued-badge">queued</span>
+           <span className="msg-meta-spacer" />
+-          <MessageTime value={m.createdAt} />
+           {text && <CopyButton text={text} label="Copy message" className="msg-copy" />}
+         </div>
+         <div className="msg-body">
+@@ -349,12 +364,12 @@ export const MessageView = memo(function MessageView({ m, initial, hideWho, runn
+   return (
+     <div className={`msg ${isUser ? "user" : "assistant"} ${initial ? "initial" : ""}`}>
+       <div className={`who${hideWho ? " continued" : ""}`}>
++        {!hideWho && <MessageTime value={m.createdAt} />}
+         {!hideWho && <Avatar who={isUser ? "user" : "cc"} agent={agent} />}
+         {!hideWho ? (isUser ? "You" : "Agent") : <span className="sr-only">Agent continuation</span>}
+         {initial && <span className="badge">initial prompt</span>}
+         {m.source === "ask_answer" && <span className="badge answer-badge">answer</span>}
+         <span className="msg-meta-spacer" />
+-        <MessageTime value={m.createdAt} />
+         {text && <CopyButton text={text} label="Copy message" className="msg-copy" />}
+       </div>
+       <div className="msg-body">

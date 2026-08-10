@@ -51,10 +51,27 @@ scored comparison.
 
 ### Prime Agent
 
-Prime Agent is not installed on this machine. Its public beta supports a custom
-OpenAI-compatible provider, arbitrary model definitions, JSONL RPC, streamed
-tool events, session resume, abort, compaction, recursive agents, and continual
-harness refinement.
+Prime Agent 0.7.1 is installed on this machine. Its Kimi compatibility gates
+passed, including model identity, tool use, abort, and resume. Its first clean
+Operator coding task passed the reviewed requirements with a 100 score.
+
+### Current sequential status
+
+- Prime Agent/Kimi compatibility: complete.
+- Prime Agent/Kimi real Operator task: complete.
+- Claude Code/Kimi compatibility: incomplete. Read/Bash/model checks passed,
+  but interrupt/resume were not exercised and dedicated-key spend includes
+  unlinked charges.
+- Claude Code/Kimi real Operator task: retained as provisional, unscored
+  evidence. The unchanged automated rubric returned 100, but a supplemental
+  replay proved that it missed the published-artifact system-notice timestamp
+  requirement.
+- Codex/Kimi: pending.
+
+The observed task evidence favors Prime: it was faster, cheaper, used fewer
+calls and tokens, and covered the explicit system-notice path that Claude
+missed. Final paired ranking is withheld until Claude compatibility is
+complete. This does not complete the benchmark.
 
 ### OpenRouter access
 

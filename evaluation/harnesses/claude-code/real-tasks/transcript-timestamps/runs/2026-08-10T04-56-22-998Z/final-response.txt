@@ -1,0 +1,21 @@
+Done. Here's the summary:
+
+## Diagnosis
+
+The transcript timestamp contract — *conversational rows (user prompts, first assistant reply per prompt) lead with their timestamp; tool calls, question cards, and system notices carry none* — was broken in three coordinated ways:
+
+1. **Timestamp moved to the end of the header** (`app/orchestrator/Transcript.tsx`, `MessageView`): `<MessageTime>` rendered after `.msg-meta-spacer` (right-aligned) instead of as the first element of the `.who` header. First host child was a `span`, not `time`.
+2. **Timestamp lost its continuation gate**: `<MessageTime>` rendered unconditionally, so collapsed assistant continuations (`hideWho`) still showed a timestamp.
+3. **`isFirstAssistantReply` was deleted**, and `SessionView.tsx` computed `hideWho` as `prev.role === "assistant" || "tool"` — misclassifying the first assistant *prose* reply as a continuation whenever tools streamed first (`user → tool → assistant`), stripping its header and timestamp. The negative rule (tool/system rows) was still intact.
+
+## Fix (2 files, +22/−6, no test changes)
+
+- `Transcript.tsx`: restored exported `isFirstAssistantReply(messages, index)` — walks back from the index, skipping tool/system rows; `false` on an earlier assistant, `true` at the preceding user prompt (or transcript start). Moved `<MessageTime>` to the front of the user/assistant `.who` header, gated on `!hideWho`; same move for the queued (pending user prompt) bubble.
+- `SessionView.tsx`: `hideWho = m.role === "assistant" && !isFirstAssistantReply(s.messages, mi)` so the first prose reply to each prompt keeps its header and timestamp even when tool calls preceded it.
+
+## Verification
+
+- Reproduced before the fix: `npx vitest run tests/transcriptTimestamps.test.ts` → **2 failed, 1 passed** (`expected 'span' to be 'time'`; `isFirstAssistantReply is not a function`).
+- After the fix, focused test: **3 passed (3)**.
+- `npx tsc --noEmit` → clean.
+- Full suite `npm test` → **64 files passed, 513 tests passed**, 0 failures.

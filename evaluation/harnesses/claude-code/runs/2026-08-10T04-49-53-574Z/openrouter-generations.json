@@ -1,0 +1,30 @@
+[
+  {
+    "id": "gen-1786337395-QYEhLgD4kCat9w5IvBYh",
+    "model": "moonshotai/kimi-k3-20260715",
+    "providerName": "Moonshot AI",
+    "totalCost": 0.0418716,
+    "promptTokens": 21497,
+    "completionTokens": 124,
+    "nativePromptTokens": 20230,
+    "nativeCompletionTokens": 220,
+    "nativeReasoningTokens": 60,
+    "cacheDiscount": 0.0221184,
+    "latencyMs": 4022,
+    "generationTimeMs": 7613
+  },
+  {
+    "id": "gen-1786337403-Q7hSahqKuq1F8AsZY3fM",
+    "model": "moonshotai/kimi-k3-20260715",
+    "providerName": "Moonshot AI",
+    "totalCost": 0.0262428,
+    "promptTokens": 21595,
+    "completionTokens": 148,
+    "nativePromptTokens": 20555,
+    "nativeCompletionTokens": 219,
+    "nativeReasoningTokens": 114,
+    "cacheDiscount": 0.0387072,
+    "latencyMs": 2830,
+    "generationTimeMs": 6762
+  }
+]

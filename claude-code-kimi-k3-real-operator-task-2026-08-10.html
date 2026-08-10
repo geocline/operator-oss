@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Claude Code + Kimi K3 — Real Operator Task</title>
+  <style>
+    :root{--bg:#101116;--panel:#181a22;--ink:#f4f1e8;--muted:#aaa9b2;--line:#30333f;--green:#82d9ad;--amber:#f0c36c;--red:#ff8e88;--blue:#8ebcff}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.58 Inter,ui-sans-serif,system-ui,-apple-system,sans-serif}
+    main{max-width:1040px;margin:auto;padding:56px 24px 80px} h1{font-size:clamp(34px,6vw,68px);line-height:1.02;letter-spacing:-.045em;margin:10px 0 18px}
+    h2{font-size:24px;margin:0 0 14px} h3{font-size:16px;margin:0 0 7px}.eyebrow{color:var(--blue);text-transform:uppercase;letter-spacing:.16em;font-size:12px;font-weight:800}
+    .dek{color:#c9c7ce;font-size:19px;max-width:820px}.verdict,.card,.metric,table{background:var(--panel);border:1px solid var(--line);border-radius:14px}
+    .verdict{display:grid;grid-template-columns:1fr auto;gap:24px;padding:28px;margin:34px 0}.score{font-size:54px;font-weight:850;color:var(--amber);text-align:center}
+    .score small{display:block;font-size:11px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase}.metrics,.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+    .metric{padding:18px}.metric b{display:block;font-size:22px}.metric span{color:var(--muted);font-size:12px}.cards{grid-template-columns:repeat(2,1fr)}
+    .card{padding:20px}.pass{color:var(--green)}.warn{border-color:#7b6133;background:#211d16}.fail{color:var(--red)}
+    section{margin-top:38px} table{width:100%;border-collapse:separate;border-spacing:0;overflow:hidden}th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+    th{font-size:11px;text-transform:uppercase;letter-spacing:.11em;color:var(--muted)}tr:last-child td{border-bottom:0}code{color:#c9dcff}
+    a{color:#9cc8ff}ul{padding-left:20px}.note{color:var(--muted)}footer{margin-top:48px;color:var(--muted);font-size:12px}
+    @media(max-width:760px){.metrics,.cards{grid-template-columns:1fr 1fr}.verdict{grid-template-columns:1fr}.score{text-align:left}}
+    @media(max-width:480px){.metrics,.cards{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">Controlled harness evaluation · August 10, 2026</div>
+  <h1>Claude Code solved the main bug, but this benchmark leg is not yet eligible for ranking.</h1>
+  <p class="dek">Claude Code requested Kimi K3, and all 22 visible generations were dated Kimi on Moonshot AI. It worked without human intervention and passed the existing suite, but a post-run requirement check found that published-artifact system notices still receive timestamps. Unlinked key spend plus missing interrupt/resume gates keep the leg provisional.</p>
+
+  <div class="verdict">
+    <div>
+      <h2>Verdict: provisional and unscored</h2>
+      <p>The predeclared automated rubric remains 100; no post-hoc points were deducted. Separately, evidence review proved an explicit requirement miss. Claude compatibility is also incomplete because interrupt/resume were not exercised and $0.00348 of real-task spend is not linked to visible generation metadata.</p>
+    </div>
+    <div class="score">—<small>final score withheld</small></div>
+  </div>
+
+  <section>
+    <h2>Run at a glance</h2>
+    <div class="metrics">
+      <div class="metric"><b>$0.7963992</b><span>Dedicated-key charge</span></div>
+      <div class="metric"><b>7m 22s</b><span>Agent work time</span></div>
+      <div class="metric"><b>894,868</b><span>Harness-counted tokens</span></div>
+      <div class="metric"><b>22 / 28</b><span>Model calls / tool calls</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Controls and results</h2>
+    <table>
+      <thead><tr><th>Control</th><th>Evidence</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td>Visible model identity</td><td>22 visible generations, all <code>moonshotai/kimi-k3-20260715</code> on Moonshot AI; no fallback configured</td><td class="pass">Pass</td></tr>
+        <tr><td>Complete attribution</td><td>Dedicated-key charge exceeds visible generation sum by $0.00348</td><td class="fail">Incomplete</td></tr>
+        <tr><td>Interrupt and resume compatibility</td><td>Documented by the CLI but not exercised in this evaluation</td><td class="fail">Incomplete</td></tr>
+        <tr><td>Clean target history</td><td>One generic commit; no parent or other refs</td><td class="pass">Pass</td></tr>
+        <tr><td>No steering</td><td>One prompt, zero interventions or follow-ups</td><td class="pass">Pass</td></tr>
+        <tr><td>Existing focused test</td><td>2 failed / 1 passed before; 3 / 3 passed after</td><td class="pass">Pass</td></tr>
+        <tr><td>Full historical suite</td><td>64 files and 513 tests passed</td><td class="pass">Pass</td></tr>
+        <tr><td>TypeScript</td><td><code>tsc --noEmit</code></td><td class="pass">Pass</td></tr>
+        <tr><td>Published-artifact notice</td><td>Post-run saved-patch replay found one <code>&lt;time&gt;</code>; prompt requires none</td><td class="fail">Fail</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>What Claude Code/Kimi did well</h2>
+    <div class="cards">
+      <div class="card"><h3>Correctly found the central regression</h3><p>It restored first-reply classification through leading tool rows, moved timestamps to the leading position, and suppressed continuation timestamps.</p></div>
+      <div class="card"><h3>Kept the repair tight</h3><p>Only <code>SessionView.tsx</code> and <code>Transcript.tsx</code> changed: 22 insertions and 6 deletions. The immutable regression test was untouched.</p></div>
+      <div class="card"><h3>Verified thoroughly</h3><p>It reproduced the original failures, ran the focused test, TypeScript, the complete suite, and inspected its final diff.</p></div>
+      <div class="card"><h3>Produced a strong audit trail</h3><p>Native Read, Edit, and Bash calls make its search, modifications, and verification easy to follow. All 28 tool calls completed without error.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>The missed requirement</h2>
+    <div class="card warn">
+      <h3>Existing tests did not cover the special artifact notice</h3>
+      <p>The broken snapshot passes <code>createdAt</code> into <code>ArtifactNoticeView</code>, which renders <code>MessageTime</code>. Claude asserted that the negative system-row rule was already intact and never repaired that path. A new evaluator-only replay test fails on Claude’s saved patch and passes on Prime’s saved patch. This is a substantive completeness difference, reported outside the unchanged 100-point automated rubric.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Cost and accounting</h2>
+    <table>
+      <tbody>
+        <tr><td>Dedicated-key charge</td><td><strong>$0.7963992</strong></td></tr>
+        <tr><td>Visible generation sum</td><td>$0.7929192</td></tr>
+        <tr><td>Unlinked Claude spend</td><td>$0.00348 — prevents complete per-generation attribution</td></tr>
+        <tr><td>Claude Code’s estimate</td><td>$1.327332 — 66.7% above the actual key charge</td></tr>
+        <tr><td>Native reasoning tokens</td><td>9,353</td></tr>
+      </tbody>
+    </table>
+    <p class="note">The dedicated key is authoritative for billing. Claude Code’s custom-model estimator consistently used a higher price map in both compatibility and real-task runs.</p>
+  </section>
+
+  <section>
+    <h2>Methodology limits</h2>
+    <ul>
+      <li>The target Git repository hid the historical fix, and the trace shows no access outside the target directory. The process still inherited the host user’s filesystem permissions; this was not an OS-hermetic sandbox.</li>
+      <li>Claude Code ran in safe mode with an isolated configuration directory. Harness-native built-in tools remained enabled; personal plugins, MCP servers, hooks, memory, and fallback models were not used.</li>
+      <li>The supplementary artifact check was added after the run because the original regression test under-specified one explicit prompt requirement. It replays the saved patch and does not alter the agent’s work.</li>
+      <li>The scored coding run should not have started before interrupt/resume and complete-attribution compatibility gates passed. It is retained as useful provisional evidence, not a final ranked sample.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Evidence</h2>
+    <ul>
+      <li><a href="evaluation/harnesses/claude-code/real-tasks/transcript-timestamps/runs/2026-08-10T04-56-22-998Z/summary.json">Reviewed run summary</a></li>
+      <li><a href="evaluation/harnesses/claude-code/real-tasks/transcript-timestamps/runs/2026-08-10T04-56-22-998Z/events.jsonl">Claude Code streamed trace</a></li>
+      <li><a href="evaluation/harnesses/claude-code/real-tasks/transcript-timestamps/runs/2026-08-10T04-56-22-998Z/agent.patch">Saved agent patch</a></li>
+      <li><a href="evaluation/harnesses/claude-code/real-tasks/transcript-timestamps/runs/2026-08-10T04-56-22-998Z/host-supplemental-artifact-notice.json">Supplemental failing check</a></li>
+      <li><a href="evaluation/harnesses/claude-code/real-tasks/transcript-timestamps/runs/2026-08-10T04-56-22-998Z/openrouter-generations.json">OpenRouter generation records</a></li>
+    </ul>
+  </section>
+
+  <footer>
+    Claude Code 2.1.220 · Kimi requested; visible generations verified; hidden spend unresolved · Dedicated Claude OpenRouter key · No credits purchased · Sources:
+    <a href="https://docs.anthropic.com/en/docs/claude-code/cli-usage">Anthropic CLI reference</a> ·
+    <a href="https://openrouter.ai/docs/guides/coding-agents/claude-code-integration">OpenRouter Claude Code integration</a>
+  </footer>
+</main>
+</body>
+</html>

@@ -226,7 +226,7 @@ export function shouldRetryGenerationMetadata(status, attempt, maxAttempts = 20)
   return status === 404 && attempt < maxAttempts - 1;
 }
 
-async function openRouterGeneration(secret, generationId, { enforceIdentity = true } = {}) {
+export async function openRouterGeneration(secret, generationId, { enforceIdentity = true } = {}) {
   const url = new URL("https://openrouter.ai/api/v1/generation");
   url.searchParams.set("id", generationId);
   let response;
@@ -262,7 +262,7 @@ async function openRouterGeneration(secret, generationId, { enforceIdentity = tr
   return generation;
 }
 
-async function reconciledKeySnapshot(secret, beforeUsage, expectedDelta) {
+export async function reconciledKeySnapshot(secret, beforeUsage, expectedDelta) {
   let snapshot;
   for (let attempt = 0; attempt < 20; attempt += 1) {
     snapshot = await snapshotOpenRouterKey(secret);

@@ -1,0 +1,87 @@
+{
+  "status": "incomplete",
+  "compatibilityEligible": false,
+  "recoveredAfterParserFix": true,
+  "recoveryNote": "The compatibility inference and tools succeeded originally; recovery reparsed preserved events and waited for delayed dedicated-key metering without another model call.",
+  "harness": "Claude Code",
+  "claudeCodeVersion": "2.1.220",
+  "model": "moonshotai/kimi-k3",
+  "startedAt": "2026-08-10T04:49:53.794Z",
+  "finishedAt": "2026-08-10T04:54:12.457Z",
+  "originalEvaluatorWallTimeMs": 37334,
+  "gates": {
+    "modelIdentity": true,
+    "readTool": true,
+    "bashTool": true,
+    "deterministicAnswer": true,
+    "usageVisible": true,
+    "costVisible": true,
+    "fullyAttributed": false,
+    "interruptPassed": false,
+    "resumePassed": false
+  },
+  "finalResponse": "Both tools were used. Results:\n\n**File content (exact):**\n```\nCLAUDE-KIMI-COMPATIBILITY-7319\n```\n(Single line, terminated with a trailing newline.)\n\n**SHA-256 hash (exact):**\n```\ndcde31729590c2f4b7d22f6dd9d71b668c95bdfaffa0dbdc17d7140ea38d20a2\n```",
+  "usage": {
+    "harness": {
+      "input": 18257,
+      "output": 439,
+      "cacheRead": 22528,
+      "cacheWrite": 0,
+      "total": 41224
+    },
+    "harnessReportedCost": 0.118014,
+    "modelCalls": 2,
+    "toolCalls": 2,
+    "toolNames": [
+      "Read",
+      "Bash"
+    ],
+    "toolErrors": 0,
+    "generations": [
+      {
+        "id": "gen-1786337395-QYEhLgD4kCat9w5IvBYh",
+        "model": "moonshotai/kimi-k3-20260715",
+        "providerName": "Moonshot AI",
+        "totalCost": 0.0418716,
+        "promptTokens": 21497,
+        "completionTokens": 124,
+        "nativePromptTokens": 20230,
+        "nativeCompletionTokens": 220,
+        "nativeReasoningTokens": 60,
+        "cacheDiscount": 0.0221184,
+        "latencyMs": 4022,
+        "generationTimeMs": 7613
+      },
+      {
+        "id": "gen-1786337403-Q7hSahqKuq1F8AsZY3fM",
+        "model": "moonshotai/kimi-k3-20260715",
+        "providerName": "Moonshot AI",
+        "totalCost": 0.0262428,
+        "promptTokens": 21595,
+        "completionTokens": 148,
+        "nativePromptTokens": 20555,
+        "nativeCompletionTokens": 219,
+        "nativeReasoningTokens": 114,
+        "cacheDiscount": 0.0387072,
+        "latencyMs": 2830,
+        "generationTimeMs": 6762
+      }
+    ],
+    "generationIds": [
+      "gen-1786337395-QYEhLgD4kCat9w5IvBYh",
+      "gen-1786337403-Q7hSahqKuq1F8AsZY3fM"
+    ],
+    "upstreamProviders": [
+      "Moonshot AI"
+    ],
+    "generationCost": 0.0681144,
+    "openRouterSpendDelta": 0.0708084,
+    "unlinkedOverhead": 0.002694,
+    "fullyAttributed": false,
+    "attributionMode": "generation-records-and-dedicated-key"
+  },
+  "sessionId": "1893015c-882f-46a5-8d03-a6326db02269",
+  "artifacts": {
+    "runDir": "/Users/geo/Claude Projects/operator/worktrees/kimi-prime-eval-20260809/evaluation/harnesses/claude-code/runs/2026-08-10T04-49-53-574Z"
+  }
+}

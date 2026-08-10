@@ -23,6 +23,7 @@
     "focusedTestPassed": true,
     "fullSuitePassed": true,
     "typecheckPassed": true,
+    "supplementalArtifactNoticePassed": true,
     "testUnchanged": true,
     "scopedDiff": true
   },
@@ -37,6 +38,12 @@
       "closure": 10
     },
     "scoped": true
+  },
+  "requirementsReview": {
+    "explicitSystemNoticeRequirementSatisfied": true,
+    "finding": "The saved patch removes MessageTime from the published-artifact system notice.",
+    "supplementalEvidence": "host-supplemental-artifact-notice.json",
+    "scoreAdjustment": 0
   },
   "changedFiles": [
     "app/orchestrator/SessionView.tsx",

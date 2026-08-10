@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Kimi K3 Harness Comparison — Prime vs Claude Code</title>
+  <style>
+    :root{--paper:#f3f0e8;--ink:#17191e;--muted:#676a72;--panel:#fffdf7;--line:#cbc7bb;--prime:#135e4b;--claude:#a9482d;--accent:#243c77}
+    *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,sans-serif}
+    main{max-width:1120px;margin:auto;padding:54px 24px 84px}.eyebrow{text-transform:uppercase;letter-spacing:.16em;font-size:12px;font-weight:800;color:var(--accent)}
+    h1{font:800 clamp(38px,6vw,72px)/1.01 Georgia,serif;letter-spacing:-.04em;margin:12px 0 18px;max-width:980px}h2{font-size:25px;margin:0 0 14px}h3{font-size:16px;margin:0 0 7px}
+    .dek{font-size:20px;color:#4c4f56;max-width:880px}.verdict{margin:34px 0;padding:28px;background:var(--ink);color:#fff;border-radius:16px;display:grid;grid-template-columns:1fr auto;gap:22px}
+    .rank{font:800 44px/1 Georgia,serif;color:#9ee0c7}.rank small{font:600 11px/1.4 Inter,sans-serif;color:#bbb;display:block;text-transform:uppercase;letter-spacing:.12em;margin-top:8px}
+    section{margin-top:40px}table{width:100%;border-collapse:separate;border-spacing:0;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+    th,td{padding:13px 15px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}tr:last-child td{border-bottom:0}th{text-transform:uppercase;letter-spacing:.1em;font-size:11px;color:var(--muted)}
+    .prime{color:var(--prime);font-weight:800}.claude{color:var(--claude);font-weight:800}.winner{background:#e2f1e8}.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:13px}
+    .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:21px}.prime-card{border-top:5px solid var(--prime)}.claude-card{border-top:5px solid var(--claude)}
+    .tag{display:inline-block;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:800;background:#e5e7ee;color:#343842;margin-right:5px}
+    .observed{background:#daf0e5;color:#175c49}.documented{background:#eee4cc;color:#75551a}.pending{background:#e5e7ee;color:#535761}
+    a{color:var(--accent)}code{color:#354c86}ul{padding-left:20px}.note{color:var(--muted)}footer{margin-top:50px;color:var(--muted);font-size:12px}
+    @media(max-width:720px){.cards,.verdict{grid-template-columns:1fr}.rank{text-align:left}table{font-size:13px}th,td{padding:10px}}
+  </style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">Same requested model · Same prompt · Same broken repository</div>
+  <h1>Observed evidence favors Prime, but Claude’s leg is provisional and cannot be finally ranked.</h1>
+  <p class="dek">Prime satisfied the explicit artifact-system-notice requirement; Claude Code passed the existing suite but missed that untested path. Claude’s visible generations were all Kimi, but hidden spend and missing interrupt/resume gates mean this is not yet a fully controlled pair.</p>
+
+  <div class="verdict">
+    <div>
+      <h2>Current evidence: Prime is stronger</h2>
+      <p>Prime used fewer calls, fewer tokens, less time, and less money while finding one more required code path. Final ranking is withheld until Claude’s hidden spend is resolved and its interrupt/resume gates pass. The Codex harness leg is also still needed.</p>
+    </div>
+    <div class="rank">Prime<small>provisional evidence lead</small></div>
+  </div>
+
+  <section>
+    <h2>Measured outcome</h2>
+    <table>
+      <thead><tr><th>Metric</th><th>Prime Agent</th><th>Claude Code</th><th>Difference</th></tr></thead>
+      <tbody>
+        <tr><td>Predeclared automated rubric</td><td class="prime winner">100 · full requirements</td><td>100 · requirement miss found afterward</td><td>No post-hoc numeric deduction</td></tr>
+        <tr><td>Ranking eligibility</td><td class="prime winner">Eligible</td><td class="claude">Provisional / unscored</td><td>Hidden spend; interrupt/resume untested</td></tr>
+        <tr><td>Agent time</td><td class="prime winner">4m 33s</td><td>7m 22s</td><td>Claude 62.1% slower</td></tr>
+        <tr><td>Actual cost</td><td class="prime winner">$0.4266456</td><td>$0.7963992</td><td>Claude 86.7% more</td></tr>
+        <tr><td>Harness-counted tokens</td><td class="prime winner">235,952</td><td>894,868</td><td>Claude used 3.79×</td></tr>
+        <tr><td>Model calls</td><td class="prime winner">17</td><td>22</td><td>Claude used 29.4% more</td></tr>
+        <tr><td>Tool calls</td><td class="prime winner">17</td><td>28</td><td>Claude used 64.7% more</td></tr>
+        <tr><td>Tool errors</td><td>0</td><td>0</td><td>Tie</td></tr>
+        <tr><td>Native reasoning tokens</td><td class="prime winner">3,719</td><td>9,353</td><td>Claude used 2.52×</td></tr>
+        <tr><td>Changed files</td><td>2</td><td>2</td><td>Both scoped</td></tr>
+        <tr><td>Patch size</td><td>27 insertions / 11 deletions</td><td class="claude winner">22 / 6</td><td>Claude was textually smaller</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Where Prime looks meaningfully different</h2>
+    <div class="cards">
+      <div class="card prime-card">
+        <h3>Persistent executable IPython state</h3>
+        <span class="tag observed">Observed</span>
+        <p>Prime routes repository operations through a persistent notebook kernel. Variables, parsed data, helper functions, and intermediate state can survive across tool calls. Claude used granular Read/Edit/Bash calls; each Bash invocation was a fresh shell.</p>
+      </div>
+      <div class="card prime-card">
+        <h3>Full Kimi context declaration</h3>
+        <span class="tag observed">Observed configuration</span>
+        <p>Prime exposed Kimi’s 1,048,576-token context. Claude Code reported 200,000 tokens for the same custom model. That suggests Claude may plan or compact around a smaller window, but a direct context-pressure probe is still needed.</p>
+      </div>
+      <div class="card prime-card">
+        <h3>More efficient tool loop on this task</h3>
+        <span class="tag observed">Observed</span>
+        <p>Prime reached a more complete fix with 11 fewer tool calls, 5 fewer model calls, 62% less time, and 46% lower cost. The stateful notebook may be part of that advantage, although more paired tasks are needed to isolate cause.</p>
+      </div>
+      <div class="card prime-card">
+        <h3>Native continual harness refinement</h3>
+        <span class="tag documented">Documented · not yet tested</span>
+        <p>Prime bundles a workflow that proposes and rolls back changes to its own harness state. Claude Code offers skills, hooks, agents, and configuration. Official OpenAI documentation also describes Codex skills and scored improvement loops, so Prime’s uniqueness is not established; the Codex leg must test the practical difference.</p>
+      </div>
+      <div class="card prime-card">
+        <h3>Cleaner custom-model cost attribution</h3>
+        <span class="tag observed">Observed</span>
+        <p>Prime’s harness cost, generation sum, and key delta matched exactly. Claude Code overestimated both runs by 66.7% and incurred small key-billed overhead not linked to a streamed generation.</p>
+      </div>
+      <div class="card prime-card">
+        <h3>Better requirement coverage here</h3>
+        <span class="tag observed">Observed</span>
+        <p>Prime followed the prompt beyond what the existing tests covered and removed the artifact-notice timestamp. Claude trusted the visible tests and incorrectly concluded that system-notice handling was already intact.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Where Claude Code is stronger or more mature</h2>
+    <div class="cards">
+      <div class="card claude-card"><h3>Granular, legible tool audit</h3><span class="tag observed">Observed</span><p>Read, Edit, and Bash events clearly expose what was inspected and changed. Prime’s general-purpose notebook is powerful but less semantically explicit.</p></div>
+      <div class="card claude-card"><h3>Broad built-in tool surface</h3><span class="tag observed">Exposed, partly used</span><p>The clean session advertised dedicated editing, worktree, task, scheduling, web, skill, and subagent tools. This run used only Read, Edit, and Bash.</p></div>
+      <div class="card claude-card"><h3>Permissions and safe mode</h3><span class="tag observed">Observed configuration</span><p>Claude Code provides well-developed permission modes and a single safe-mode switch for disabling personal customizations while retaining core tools.</p></div>
+      <div class="card claude-card"><h3>Resume and interrupt UX</h3><span class="tag documented">Documented · not activated</span><p>The CLI exposes resume/continue and its event stream advertised interrupt capabilities. Prime’s abort and resume were actually exercised in compatibility testing, so Prime currently has stronger evidence—not necessarily a unique feature.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>What we can and cannot conclude</h2>
+    <table>
+      <tbody>
+        <tr><td><strong>Supported now</strong></td><td>Prime was materially more efficient and more complete in the observed regression runs.</td></tr>
+        <tr><td><strong>Promising but unproven</strong></td><td>Persistent IPython state, the full context window, and continual refinement may be durable Prime advantages.</td></tr>
+        <tr><td><strong>Not supported yet</strong></td><td>That Prime is generally superior, that it should be integrated into Operator now, or that Codex lacks the same advantages.</td></tr>
+        <tr><td><strong>Next controlled leg</strong></td><td>Run the identical clean fixture through the Codex harness with Kimi K3, then compare all three.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Evidence</h2>
+    <ul>
+      <li><a href="prime-agent-kimi-k3-real-operator-task-2026-08-09.html">Prime real-task report</a></li>
+      <li><a href="claude-code-kimi-k3-real-operator-task-2026-08-10.html">Claude Code real-task report</a></li>
+      <li><a href="evaluation/harnesses/prime-agent/real-tasks/transcript-timestamps/runs/2026-08-10T02-53-32-430Z/host-supplemental-artifact-notice.json">Prime supplemental pass</a></li>
+      <li><a href="evaluation/harnesses/claude-code/real-tasks/transcript-timestamps/runs/2026-08-10T04-56-22-998Z/host-supplemental-artifact-notice.json">Claude supplemental failure</a></li>
+    </ul>
+  </section>
+
+  <footer>
+    Prime Agent 0.7.1 vs Claude Code 2.1.220 · Same requested model; Claude hidden spend unresolved · Sequential dedicated keys · No credits purchased · Codex leg pending ·
+    <a href="https://developers.openai.com/codex/use-cases">Official OpenAI Codex use cases</a>
+  </footer>
+</main>
+</body>
+</html>
