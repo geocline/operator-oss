@@ -610,3 +610,34 @@ describe("instance service token gate", () => {
     }
   });
 });
+
+describe("agent tool surface parity", () => {
+  // Every bridge that exposes Operator tools to a non-Claude harness must
+  // register the same six shared definitions, so the surfaces never drift.
+  const NAMES = [
+    "ask_user",
+    "suggest_task",
+    "expose_service",
+    "publish_artifact",
+    "publish_workstream_update",
+    "propose_card_change",
+  ];
+
+  it("the stdio MCP bridge registers all six shared tools", () => {
+    const source = fs.readFileSync(path.join(process.cwd(), "scripts", "orch-mcp.mjs"), "utf8");
+    for (const name of ["SUGGEST_TASK", "EXPOSE_SERVICE", "PUBLISH_ARTIFACT", "ASK_USER", "PUBLISH_WORKSTREAM_UPDATE", "PROPOSE_CARD_CHANGE"]) {
+      expect(source).toContain(`${name}.name`);
+    }
+  });
+
+  it("the Prime extension registers all six shared tools", () => {
+    const source = fs.readFileSync(
+      path.join(process.cwd(), "scripts", "prime-operator-extension.ts"),
+      "utf8",
+    );
+    expect(NAMES).toHaveLength(6);
+    for (const name of ["SUGGEST_TASK", "EXPOSE_SERVICE", "PUBLISH_ARTIFACT", "ASK_USER", "PUBLISH_WORKSTREAM_UPDATE", "PROPOSE_CARD_CHANGE"]) {
+      expect(source).toContain(`${name}.name`);
+    }
+  });
+});

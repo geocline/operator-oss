@@ -121,6 +121,18 @@ export const INTERNAL_BASE_URL =
 export const ORCH_MCP_SCRIPT = path.join(process.cwd(), "scripts", "orch-mcp.mjs");
 
 /**
+ * Absolute path to the Operator tool extension the Prime driver loads with
+ * `--extension` per turn. Prime's extension host (jiti) loads the TS source
+ * directly and virtualizes its `@sinclair/typebox` import, so the file ships
+ * as-is in the runtime image (see Dockerfile).
+ */
+export const PRIME_OPERATOR_EXTENSION_PATH = path.join(
+  process.cwd(),
+  "scripts",
+  "prime-operator-extension.ts",
+);
+
+/**
  * The public origin the app is served from (e.g. https://orch.example.com when
  * behind a tunnel/reverse proxy). Used by the client to build absolute
  * ws(s):// URLs. Empty = same-origin via window.location, which is correct for
