@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Session Workspace and Access Controls — Design</title>
+<style>body{max-width:920px;margin:38px auto;padding:0 28px;color:#16222c;font:16px/1.55 system-ui,sans-serif}h1{font-size:36px;line-height:1.1}h2{margin-top:34px}code{background:#eef2f4;padding:2px 5px;border-radius:4px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #d6dfe4;padding:9px;vertical-align:top;text-align:left}th{background:#edf2f5}.decision{border-left:5px solid #146e4e;background:#edf8f1;padding:15px 18px}.warn{border-left:5px solid #a26508;background:#fff7e8;padding:15px 18px}</style></head><body>
+<h1>Session Workspace and Agent Access Controls</h1>
+<p><strong>Date:</strong> August 10, 2026<br><strong>Status:</strong> Approved interaction design; awaiting Geo’s review of this written specification.</p>
+<div class="decision"><strong>Goal:</strong> Every new Operator session starts visibly and intentionally in the project folder with full agent power. Workspace location and agent access are independent choices, editable from the mobile New/Edit session sheet before the first turn.</div>
+
+<h2>Product behavior</h2>
+<table><thead><tr><th>Control</th><th>Default</th><th>Alternatives</th><th>Meaning</th></tr></thead><tbody>
+<tr><td>Workspace</td><td>Project folder</td><td>Isolated worktree</td><td>Controls the exact working directory where the harness reads and edits files. It does not change tool permissions.</td></tr>
+<tr><td>Agent access</td><td>Full power</td><td>Harness-supported restricted modes</td><td>Controls tool/command permissions. It does not change the working directory.</td></tr>
+</tbody></table>
+<p>The controls appear as two compact rows in an <strong>Execution</strong> section. Each row shows the effective choice and uses a native mobile-friendly select. A one-line summary states the exact outcome, for example: “Runs directly in <code>/Users/geo/Claude Projects/operator</code> with unrestricted harness permissions.”</p>
+
+<h2>Where the controls appear</h2>
+<ul>
+<li><strong>New task:</strong> visible before “Start session immediately,” so a task cannot start with hidden defaults.</li>
+<li><strong>Edit task:</strong> visible for every task before its first turn, not only agent-suggested tasks.</li>
+<li><strong>Started task:</strong> workspace becomes immutable because moving a live session to another directory breaks resume semantics. Agent access remains adjustable for later turns through the existing session control and Edit task.</li>
+</ul>
+
+<h2>Persistence and migration</h2>
+<p>Add <code>tasks.workspace_mode</code> with values <code>direct</code> and <code>worktree</code>. New tasks created through Operator persist <code>direct</code>. The project-level <code>run_in_repo</code> setting no longer silently determines a task’s location; it can remain as a legacy/project-default setting during migration, but every task stores its own explicit choice.</p>
+<p>Migration preserves active work:</p>
+<ul>
+<li>Tasks with a nonempty <code>worktree_path</code> backfill to <code>worktree</code>.</li>
+<li>Tasks without a worktree backfill to <code>direct</code>.</li>
+<li>No existing worktree is moved or deleted.</li>
+</ul>
+<p>New tasks explicitly persist <code>permission_mode = "bypassPermissions"</code>, so an unrelated app-level default cannot quietly turn a new full-power session into plan/restricted mode.</p>
+
+<h2>Harness mappings</h2>
+<table><thead><tr><th>Harness</th><th>Full power</th><th>Restricted modes</th></tr></thead><tbody>
+<tr><td>Claude Code</td><td><code>bypassPermissions</code></td><td><code>acceptEdits</code>, <code>plan</code></td></tr>
+<tr><td>Codex</td><td><code>danger-full-access</code> + approvals never + network enabled</td><td><code>plan</code> → read-only + no network</td></tr>
+<tr><td>LiteLLM through Codex</td><td>Same Codex mapping</td><td>Same Codex mapping</td></tr>
+<tr><td>Prime Agent</td><td>Current host-permission Auto-run</td><td>None until Prime exposes a real restricted mode</td></tr>
+<tr><td>Grok Build (future)</td><td><code>--always-approve</code> / yolo</td><td>Grok permission profiles if intentionally selected</td></tr>
+</tbody></table>
+<div class="warn"><strong>Plain-language rule:</strong> “Full power” must mean the strongest mode the chosen harness actually supports. Operator must not label Codex <code>workspace-write</code> as full power.</div>
+
+<h2>Server enforcement</h2>
+<ul>
+<li>The task creation API validates and persists both controls.</li>
+<li>The task patch API allows <code>workspace_mode</code> changes only while <code>started = 0</code> and no worktree exists.</li>
+<li>The first-message route creates a worktree only when <code>workspace_mode = "worktree"</code>; otherwise it leaves <code>worktree_path</code> empty and the driver receives <code>project.repo_path</code>.</li>
+<li>Invalid workspace or permission values fail closed with a readable 400 response.</li>
+<li>Changing harness before the first turn revalidates the selected access mode; unsupported modes reset visibly to Full power rather than producing a broken launch.</li>
+</ul>
+
+<h2>Testing</h2>
+<ul>
+<li>Database migration and backfill tests.</li>
+<li>Task creation defaults: direct + explicit full power.</li>
+<li>First-message tests proving direct mode never creates a worktree and worktree mode does.</li>
+<li>API tests proving workspace cannot change after start.</li>
+<li>Driver tests proving Codex Full power uses <code>danger-full-access</code>.</li>
+<li>Mobile component tests proving both controls render, remain independent, persist their selections, and show the correct summary.</li>
+</ul>
+
+<h2>Out of scope</h2>
+<p>This feature does not add Grok Build, change model routing, delete existing worktrees, or redesign the entire task modal. It changes the execution controls and their runtime truth only.</p>
+</body></html>
