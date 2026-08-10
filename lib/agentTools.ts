@@ -536,7 +536,7 @@ async function deliverOutboxEvent(
     );
     return {
       status: "rejected",
-      text: "The tracker rejected this card-facing item. Nothing was posted.",
+      text: `The tracker rejected this card-facing item. Nothing was posted. Reason: ${delivery.error}.`,
       eventId: claimed.id,
     };
   }

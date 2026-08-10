@@ -150,8 +150,31 @@ function failureForStatus(
     ...(remoteState ? { remoteState } : {}),
     error: retryable
       ? "tracker delivery is temporarily unavailable"
-      : "tracker rejected the card-facing request",
+      : `tracker rejected the card-facing request${rejectionDetail(safeBody)}`,
   };
+}
+
+// Compact summary of WHY the tracker rejected a request, so the agent can fix
+// the content instead of guessing. The tracker's free-text `error` may embed
+// rejected content, so it is never retained — only structured violation
+// codes/fields (enum-like identifiers such as "internal_identity in
+// attachments[0].content"), each vetted against a strict charset.
+const SAFE_VIOLATION_TOKEN = /^[A-Za-z0-9_.\[\]-]{1,64}$/;
+function rejectionDetail(safeBody: Record<string, unknown> | null): string {
+  if (!safeBody || !Array.isArray(safeBody.violations)) return "";
+  const violations = safeBody.violations
+    .filter(
+      (v): v is { code: string; field: string } =>
+        !!v &&
+        typeof v === "object" &&
+        typeof (v as { code?: unknown }).code === "string" &&
+        typeof (v as { field?: unknown }).field === "string" &&
+        SAFE_VIOLATION_TOKEN.test((v as { code: string }).code) &&
+        SAFE_VIOLATION_TOKEN.test((v as { field: string }).field),
+    )
+    .slice(0, 5)
+    .map((v) => `${v.code} in ${v.field}`);
+  return violations.length ? ` (${violations.join("; ")})` : "";
 }
 
 function remoteStateFrom(value: unknown): RemoteWorkstreamState | null {

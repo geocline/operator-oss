@@ -52,6 +52,13 @@ function orchestratorMcpConfig(project: Project, task: Task): CodexOptions["conf
         // default per-tool-call timeout (60s) would kill the parked call, so
         // raise it to ~1 day (mirrors the Claude driver's PreToolUse hook cap).
         tool_timeout_sec: 86_400,
+        // Codex >=0.142 approval-gates MCP tool calls ("auto" consults tool
+        // annotations; un-annotated tools need approval). Headless runs have
+        // no reviewer, so an unapproved tool dies instantly with "user
+        // cancelled MCP tool call". Pre-approve the whole orchestrator server:
+        // its tools are ours, and the risky ones already route through the
+        // tracker's own validation.
+        default_tools_approval_mode: "approve",
         tools: {
           publish_workstream_update: { approval_mode: "approve" },
           propose_card_change: { approval_mode: "approve" },
