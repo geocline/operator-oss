@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Field Manual No. 01 - Git &amp; Workspaces</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F2EBDF;
+    --paper-2:#EAE1D2;
+    --ink:#1C1913;
+    --ink-2:#4A4438;
+    --ink-3:#8A8071;
+    --rust:#C2603C;
+    --rust-deep:#9B3A2A;
+    --slate:#2F4858;
+    --moss:#5A6B4A;
+    --rule:#CFC3AF;
+    --shadow:6px 6px 0 rgba(28,25,19,.08);
+  }
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;
+    background:var(--paper);
+    background-image:
+      radial-gradient(ellipse at 12% -10%, rgba(194,96,60,.10), transparent 55%),
+      radial-gradient(ellipse at 92% 4%, rgba(47,72,88,.09), transparent 45%);
+    color:var(--ink);
+    font-family:"IBM Plex Sans", ui-sans-serif, sans-serif;
+    font-size:15px;
+    line-height:1.5;
+  }
+  /* paper grain */
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:99;opacity:.30;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)' opacity='.42'/%3E%3C/svg%3E");
+    mix-blend-mode:multiply;
+  }
+
+  .sheet{
+    max-width:1180px;margin:0 auto;padding:34px 40px 70px;position:relative;
+  }
+  /* engineering margin rule */
+  .sheet::before{
+    content:"";position:absolute;left:22px;top:0;bottom:0;width:1px;
+    background:repeating-linear-gradient(to bottom, var(--rule) 0 8px, transparent 8px 14px);
+  }
+
+  /* ---------- masthead ---------- */
+  .masthead{
+    display:grid;grid-template-columns:1fr auto;align-items:end;gap:18px;
+    border-bottom:3px double var(--ink);padding-bottom:14px;margin-bottom:8px;
+  }
+  .eyebrow{
+    font-family:"IBM Plex Mono", monospace;font-size:11px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--rust-deep);margin-bottom:6px;
+  }
+  h1{
+    font-family:"Fraunces", Georgia, serif;font-weight:900;
+    font-size:clamp(38px,6.2vw,74px);line-height:.92;margin:0;letter-spacing:-.02em;
+    font-variation-settings:"opsz" 120,"SOFT" 40;
+  }
+  h1 em{font-style:italic;color:var(--rust);font-weight:400}
+  .stamp{
+    font-family:"IBM Plex Mono", monospace;font-size:10.5px;line-height:1.7;
+    text-align:right;color:var(--ink-2);border:1.5px solid var(--ink);
+    padding:8px 12px;transform:rotate(-1.2deg);background:var(--paper-2);
+    box-shadow:var(--shadow);
+  }
+  .stamp b{display:block;font-size:12px;letter-spacing:.1em;color:var(--rust-deep)}
+  .dek{
+    font-family:"Fraunces", Georgia, serif;font-size:18px;font-style:italic;
+    color:var(--ink-2);max-width:62ch;margin:14px 0 30px;
+  }
+
+  /* ---------- layout ---------- */
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:24px}
+  .col-7{grid-column:span 7}
+  .col-5{grid-column:span 5}
+  .col-6{grid-column:span 6}
+  .col-12{grid-column:span 12}
+  @media (max-width:900px){.col-7,.col-5,.col-6{grid-column:span 12}}
+
+  section{margin-bottom:8px}
+  .sec-head{display:flex;align-items:baseline;gap:12px;margin:34px 0 14px}
+  .num{
+    font-family:"IBM Plex Mono", monospace;font-size:11px;font-weight:600;
+    color:var(--paper);background:var(--ink);width:24px;height:24px;flex:0 0 24px;
+    display:grid;place-items:center;border-radius:50%;transform:translateY(-2px);
+  }
+  h2{
+    font-family:"Fraunces", Georgia, serif;font-weight:600;font-size:27px;
+    margin:0;letter-spacing:-.01em;
+  }
+  .sec-head .rule{flex:1;height:1px;background:var(--rule);transform:translateY(-6px)}
+
+  p{margin:0 0 12px;max-width:70ch}
+  .lede{font-size:16px}
+  strong{font-weight:600}
+  .mono{font-family:"IBM Plex Mono", monospace;font-size:.88em;background:var(--paper-2);
+    padding:1px 5px;border:1px solid var(--rule);white-space:nowrap}
+
+  /* ---------- flow diagram ---------- */
+  .flow{
+    border:1.5px solid var(--ink);background:var(--paper-2);padding:22px 20px 18px;
+    box-shadow:var(--shadow);position:relative;
+  }
+  .flow-track{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
+  .stage{
+    flex:1 1 150px;min-width:132px;border:1.5px solid var(--ink);background:var(--paper);
+    padding:12px 12px 13px;position:relative;
+  }
+  .stage.remote{border-color:var(--slate);background:rgba(47,72,88,.07)}
+  .stage h3{
+    font-family:"IBM Plex Mono", monospace;font-size:10.5px;letter-spacing:.13em;
+    text-transform:uppercase;margin:0 0 7px;color:var(--rust-deep);
+  }
+  .stage.remote h3{color:var(--slate)}
+  .stage .what{font-family:"Fraunces",Georgia,serif;font-size:17px;line-height:1.2;margin:0 0 6px}
+  .stage .why{font-size:12.5px;color:var(--ink-2);line-height:1.4;margin:0}
+  .arrow{
+    flex:0 0 84px;display:grid;place-items:center;gap:3px;padding:0 4px;text-align:center;
+  }
+  .arrow .cmd{
+    font-family:"IBM Plex Mono", monospace;font-size:10.5px;color:var(--ink);
+    background:var(--rust);color:#fff;padding:2px 6px;white-space:nowrap;
+  }
+  .arrow .glyph{font-size:22px;color:var(--rust);line-height:1}
+  .flow-back{
+    margin-top:14px;padding-top:12px;border-top:1px dashed var(--rule);
+    font-size:12.5px;color:var(--ink-2);display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+  }
+  .flow-back .glyph{color:var(--slate);font-size:18px}
+
+  /* ---------- glossary ---------- */
+  table{border-collapse:collapse;width:100%;font-size:13.5px}
+  th{
+    font-family:"IBM Plex Mono", monospace;font-size:10px;letter-spacing:.14em;
+    text-transform:uppercase;text-align:left;color:var(--ink-3);
+    border-bottom:1.5px solid var(--ink);padding:0 10px 6px 0;font-weight:500;
+  }
+  td{border-bottom:1px solid var(--rule);padding:9px 10px 9px 0;vertical-align:top}
+  tr:last-child td{border-bottom:1.5px solid var(--ink)}
+  tbody tr{transition:background .15s ease}
+  tbody tr:hover{background:rgba(194,96,60,.07)}
+  .term{
+    font-family:"IBM Plex Mono", monospace;font-weight:600;color:var(--rust-deep);
+    white-space:nowrap;font-size:13px;
+  }
+  .plain{font-family:"Fraunces",Georgia,serif;font-size:14.5px;line-height:1.35}
+  td.tiny{color:var(--ink-2);font-size:12.5px}
+
+  /* ---------- trees ---------- */
+  .lanes{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media (max-width:780px){.lanes{grid-template-columns:1fr}}
+  .lane{border:1.5px solid var(--ink);background:var(--paper-2);padding:16px 16px 14px;position:relative;box-shadow:var(--shadow)}
+  .lane.alt{border-style:dashed;background:rgba(90,107,74,.08)}
+  .lane .tag{
+    position:absolute;top:-11px;left:14px;background:var(--ink);color:var(--paper);
+    font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.14em;
+    text-transform:uppercase;padding:3px 9px;
+  }
+  .lane.alt .tag{background:var(--moss)}
+  .lane h4{font-family:"Fraunces",Georgia,serif;font-size:19px;margin:8px 0 4px;font-weight:600}
+  .lane .sub{font-size:12.5px;color:var(--ink-2);margin:0 0 12px}
+  .lane ul{margin:0;padding-left:17px;font-size:13.5px;line-height:1.55}
+  .lane li{margin-bottom:5px}
+  .lane li::marker{color:var(--rust)}
+
+  .treeart{
+    font-family:"IBM Plex Mono", monospace;font-size:12px;line-height:1.55;
+    white-space:pre;color:var(--ink-2);background:var(--paper);
+    border:1px solid var(--rule);padding:12px;margin:14px 0 0;overflow-x:auto;
+  }
+  .treeart b{color:var(--rust-deep);font-weight:600}
+  .treeart i{color:var(--moss);font-style:normal;font-weight:600}
+
+  /* ---------- callouts ---------- */
+  .callout{
+    border-left:4px solid var(--rust);background:rgba(194,96,60,.09);
+    padding:14px 16px;font-size:13.5px;line-height:1.5;
+  }
+  .callout.warn{border-left-color:var(--rust-deep);background:rgba(155,58,42,.11)}
+  .callout.calm{border-left-color:var(--slate);background:rgba(47,72,88,.08)}
+  .callout b{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.12em;
+    text-transform:uppercase;display:block;margin-bottom:5px;color:var(--rust-deep)}
+  .callout.calm b{color:var(--slate)}
+
+  /* ---------- risk ladder ---------- */
+  .ladder{display:grid;gap:0;border:1.5px solid var(--ink);box-shadow:var(--shadow)}
+  .rung{display:grid;grid-template-columns:104px 1fr;gap:0;border-bottom:1px solid var(--rule);background:var(--paper-2)}
+  .rung:last-child{border-bottom:0}
+  .rung .level{
+    font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+    display:grid;place-items:center;text-align:center;padding:11px 6px;color:#fff;line-height:1.3;
+  }
+  .rung.safe .level{background:var(--moss)}
+  .rung.care .level{background:var(--rust)}
+  .rung.stop .level{background:var(--rust-deep)}
+  .rung .body{padding:11px 14px;font-size:13.5px}
+  .rung .body b{font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--ink)}
+
+  /* ---------- operator map ---------- */
+  .map{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:14px}
+  .card{
+    border:1.5px solid var(--ink);background:var(--paper-2);padding:14px 15px;position:relative;
+  }
+  .card .ui{
+    font-family:"IBM Plex Sans",sans-serif;font-weight:600;font-size:14.5px;margin:0 0 3px;
+  }
+  .card .eq{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--rust-deep);margin:0 0 7px}
+  .card p{font-size:12.5px;color:var(--ink-2);margin:0;line-height:1.45}
+
+  /* ---------- footer ---------- */
+  footer{
+    margin-top:44px;border-top:3px double var(--ink);padding-top:12px;
+    display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;
+    font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--ink-3);
+  }
+
+  /* ---------- entrance ---------- */
+  @media (prefers-reduced-motion:no-preference){
+    .masthead,.dek,section,footer{animation:rise .6s cubic-bezier(.22,1,.36,1) both}
+    section:nth-of-type(1){animation-delay:.05s}
+    section:nth-of-type(2){animation-delay:.10s}
+    section:nth-of-type(3){animation-delay:.15s}
+    section:nth-of-type(4){animation-delay:.20s}
+    section:nth-of-type(5){animation-delay:.25s}
+    section:nth-of-type(6){animation-delay:.30s}
+    footer{animation-delay:.35s}
+    @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  }
+
+  /* ---------- print ---------- */
+  @page{size:letter portrait;margin:11mm}
+  @media print{
+    body{background:#fff;font-size:9.2pt;line-height:1.36;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    body::before{display:none}
+    .sheet{max-width:none;padding:0;margin:0}
+    .sheet::before{display:none}
+    *{box-shadow:none !important;animation:none !important}
+    h1{font-size:33pt}
+    .dek{font-size:10.5pt;margin:8px 0 12px}
+    .sec-head{margin:13px 0 7px}
+    h2{font-size:14pt}
+    .grid{gap:12px}
+    section,.lane,.flow,.ladder,table,.card{break-inside:avoid}
+    .stage .why,.card p,td.tiny{font-size:8.2pt}
+    table{font-size:8.4pt}
+    td{padding:5px 8px 5px 0}
+    .treeart{font-size:7.6pt}
+    footer{margin-top:16px}
+    .no-print{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <header class="masthead">
+    <div>
+      <div class="eyebrow">Operator Field Manual &middot; No. 01</div>
+      <h1>Git, <em>plainly</em><br>put.</h1>
+    </div>
+    <div class="stamp">
+      <b>For: Geo</b>
+      Rev. 2026-08-11<br>
+      Scope: commits, diffs,<br>branches, worktrees<br>
+      Keep at desk
+    </div>
+  </header>
+
+  <p class="dek">Everything below is one idea wearing different hats: your work lives in a few
+  places at once, and each command moves it from one place to the next. Nothing here is exotic.
+  Most of it is filing.</p>
+
+  <!-- 1 -->
+  <section>
+    <div class="sec-head"><span class="num">1</span><h2>The four places your work lives</h2><span class="rule"></span></div>
+    <p class="lede">Read this left to right. Work starts on your machine and only becomes shared at the last step.
+    Each arrow is the command that pushes it one box to the right.</p>
+
+    <div class="flow">
+      <div class="flow-track">
+        <div class="stage">
+          <h3>Place 1</h3>
+          <p class="what">Your folder</p>
+          <p class="why">The actual files, right now. Edit, save, break, fix. Nobody sees this but you.</p>
+        </div>
+        <div class="arrow"><span class="glyph">&rarr;</span><span class="cmd">git add</span></div>
+        <div class="stage">
+          <h3>Place 2</h3>
+          <p class="what">The staging pile</p>
+          <p class="why">The changes you have selected to save. A waiting room, so one save can hold 3 files and ignore 5 others.</p>
+        </div>
+        <div class="arrow"><span class="glyph">&rarr;</span><span class="cmd">git commit</span></div>
+        <div class="stage">
+          <h3>Place 3</h3>
+          <p class="what">History, on your machine</p>
+          <p class="why">A permanent, labeled snapshot with a message. Still 100% private. This is your undo point.</p>
+        </div>
+        <div class="arrow"><span class="glyph">&rarr;</span><span class="cmd">git push</span></div>
+        <div class="stage remote">
+          <h3>Place 4</h3>
+          <p class="what">GitHub, shared</p>
+          <p class="why">The copy other people (and other machines) can see. This is the moment work becomes public to your team.</p>
+        </div>
+      </div>
+      <div class="flow-back">
+        <span class="glyph">&larr;</span>
+        <span><b>Coming back the other way:</b> <span class="mono">git pull</span> brings other people's commits down into your folder.
+        <span class="mono">git clone</span> is just the very first pull, when you have nothing yet.</span>
+      </div>
+    </div>
+
+    <div class="grid" style="margin-top:18px">
+      <div class="col-7">
+        <div class="callout">
+          <b>So what is a commit?</b>
+          A commit is a dated, labeled snapshot of the project filed into its history, <strong>on your computer only</strong>.
+          It publishes nothing. It emails nobody. It is the thing that lets you say "put it back the way it was on Tuesday"
+          and actually get it. Committing often is free. Not committing is what costs you.
+        </div>
+      </div>
+      <div class="col-5">
+        <div class="callout calm">
+          <b>And a push?</b>
+          Push takes the commits you already made and uploads them to GitHub. That is the step with social consequences,
+          which is why I never commit or push for you unless you say so in that message.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section>
+    <div class="sec-head"><span class="num">2</span><h2>The words, translated</h2><span class="rule"></span></div>
+    <div class="grid">
+      <div class="col-12">
+        <table>
+          <thead>
+            <tr><th style="width:140px">Word</th><th style="width:32%">What it actually means</th><th>When you hear it</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="term">diff</td><td class="plain">The list of exactly what changed, line by line.</td><td class="tiny">"Check the diff" = look at what I changed before you accept it. Red lines were removed, green lines were added.</td></tr>
+            <tr><td class="term">commit</td><td class="plain">Save a labeled snapshot into local history.</td><td class="tiny">Also used as a noun: "that commit broke it" means that one snapshot.</td></tr>
+            <tr><td class="term">commit message</td><td class="plain">The label on the snapshot.</td><td class="tiny">Good ones say why, not what. The diff already says what.</td></tr>
+            <tr><td class="term">branch</td><td class="plain">A separate line of work, started from a copy of the main one.</td><td class="tiny">"main" is the trunk, the real version. A branch is a side track you can abandon with no damage.</td></tr>
+            <tr><td class="term">merge</td><td class="plain">Fold one branch's commits back into another.</td><td class="tiny">The moment side work becomes real work.</td></tr>
+            <tr><td class="term">conflict</td><td class="plain">Two branches changed the same lines, so git refuses to guess.</td><td class="tiny">Not a disaster. Somebody (or an agent) picks the right result and the merge continues.</td></tr>
+            <tr><td class="term">push</td><td class="plain">Upload your commits to GitHub.</td><td class="tiny">Your work is now visible to everyone with access.</td></tr>
+            <tr><td class="term">pull</td><td class="plain">Download everyone else's commits into your copy.</td><td class="tiny">Do it before starting something big, so you build on current code.</td></tr>
+            <tr><td class="term">remote / origin</td><td class="plain">The shared copy on GitHub. "origin" is just its nickname.</td><td class="tiny">"push to origin" = send it to GitHub.</td></tr>
+            <tr><td class="term">pull request (PR)</td><td class="plain">A formal "please review my branch and merge it" on GitHub.</td><td class="tiny">A discussion page wrapped around a diff. Nothing merges until someone approves.</td></tr>
+            <tr><td class="term">worktree</td><td class="plain">A second folder holding the same project, on its own branch.</td><td class="tiny">Lets two people or two agents work at once without stepping on each other. See section 3.</td></tr>
+            <tr><td class="term">stash</td><td class="plain">A temporary shelf for half-done work.</td><td class="tiny">Used to get your desk clear for five minutes, then put back.</td></tr>
+            <tr><td class="term">revert</td><td class="plain">A new commit that undoes an old one.</td><td class="tiny">The safe undo. History keeps both, so the record stays honest.</td></tr>
+            <tr><td class="term">reset --hard</td><td class="plain">Throw uncommitted work away, permanently.</td><td class="tiny">The unsafe undo. There is no bin to fish it out of.</td></tr>
+            <tr><td class="term">HEAD</td><td class="plain">"Where you are standing right now" in the history.</td><td class="tiny">Mostly appears in error messages. Usually means the latest commit on your branch.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section>
+    <div class="sec-head"><span class="num">3</span><h2>Trees: two desks, one project</h2><span class="rule"></span></div>
+    <p class="lede">A worktree is a second checkout of the same repository, in its own folder, on its own branch.
+    Same project, same history, separate files. That is the entire trick, and it is what makes it safe to run several
+    agents on one codebase at the same time.</p>
+
+    <div class="lanes">
+      <div class="lane">
+        <span class="tag">Operator default</span>
+        <h4>Project folder</h4>
+        <p class="sub">Called "direct". The agent edits your real repository.</p>
+        <ul>
+          <li>Changes appear in your editor <strong>immediately</strong>.</li>
+          <li>No branch, no diff tab, no merge step. It is simply done.</li>
+          <li>Undo is ordinary git: revert the file, or reset it.</li>
+          <li><strong>Pick this</strong> when you asked for something and you want it done.</li>
+        </ul>
+      </div>
+      <div class="lane alt">
+        <span class="tag">Opt in per task</span>
+        <h4>Isolated worktree</h4>
+        <p class="sub">A private copy under ~/.agent-orchestrator/worktrees.</p>
+        <ul>
+          <li>Your repo stays untouched until you press merge.</li>
+          <li>The task's <strong>DIFF tab</strong> shows exactly what it did.</li>
+          <li>Deleting the task throws the work away cleanly.</li>
+          <li><strong>Pick this</strong> for parallel tasks, risky rewrites, or anything you may bin.</li>
+        </ul>
+      </div>
+    </div>
+
+<pre class="treeart">  your project (main)
+  |
+  |__ <b>~/Claude Projects/operator</b>          <- the real thing. "Project folder" tasks edit this.
+  |
+  |__ <i>~/.agent-orchestrator/worktrees/ab12</i>  <- task A's own copy, branch task/ab12
+  |
+  |__ <i>~/.agent-orchestrator/worktrees/cd34</i>  <- task B's own copy, branch task/cd34
+                                          merge lands these back into main
+</pre>
+
+    <div class="grid" style="margin-top:18px">
+      <div class="col-6">
+        <div class="callout warn">
+          <b>The one rule that matters</b>
+          Two "Project folder" tasks running at the same time in the same project share one set of files, and nothing stops them
+          overwriting each other. Rule of thumb: <strong>one direct session per project at a time</strong>. Anything running
+          alongside it should be an isolated worktree.
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="callout calm">
+          <b>Fixed at launch</b>
+          A task's workspace cannot change once its session starts, because its files and branch already exist.
+          If you picked wrong, make a new task. Existing worktree tasks were migrated as they were and behave exactly as before.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 -->
+  <section>
+    <div class="sec-head"><span class="num">4</span><h2>What the Operator buttons really do</h2><span class="rule"></span></div>
+    <div class="map">
+      <div class="card">
+        <p class="ui">Workspace: Project folder</p>
+        <p class="eq">= no worktree, edit in place</p>
+        <p>The agent's cwd is your repo. What it writes is what you have.</p>
+      </div>
+      <div class="card">
+        <p class="ui">Workspace: Isolated worktree</p>
+        <p class="eq">= git worktree add + new branch</p>
+        <p>Created on the task's first message, from your project's base branch.</p>
+      </div>
+      <div class="card">
+        <p class="ui">DIFF tab</p>
+        <p class="eq">= git diff</p>
+        <p>Only shown for worktree tasks. Direct tasks have nothing pending to show.</p>
+      </div>
+      <div class="card">
+        <p class="ui">Merge</p>
+        <p class="eq">= git merge into your base branch</p>
+        <p>Takes the task's branch and folds it into the project. Conflicts can be handed back to the agent to resolve.</p>
+      </div>
+      <div class="card">
+        <p class="ui">Sync / "caught up to main"</p>
+        <p class="eq">= git pull, but only when trivial</p>
+        <p>Before a follow-up turn, a clean worktree is fast-forwarded onto the base branch so the agent builds on current code.</p>
+      </div>
+      <div class="card">
+        <p class="ui">Agent access: Full power</p>
+        <p class="eq">= no approval prompts</p>
+        <p>The agent runs commands and edits without asking. Plan mode is the read-only opposite: it proposes and touches nothing.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section>
+    <div class="sec-head"><span class="num">5</span><h2>How scared to be</h2><span class="rule"></span></div>
+    <div class="ladder">
+      <div class="rung safe">
+        <div class="level">Free<br>Do it often</div>
+        <div class="body"><b>commit</b>, <b>branch</b>, <b>diff</b>, <b>stash</b>, making a worktree. All local, all reversible.
+        A commit is the cheapest insurance in software. Committing before you try something is how you make trying something safe.</div>
+      </div>
+      <div class="rung care">
+        <div class="level">Visible<br>Think first</div>
+        <div class="body"><b>push</b>, <b>merge</b>, <b>opening a PR</b>. Now other people see it or depend on it. Still fixable,
+        but fixing it happens in public and someone may have already pulled your work.</div>
+      </div>
+      <div class="rung stop">
+        <div class="level">Sharp<br>Ask first</div>
+        <div class="body"><b>reset --hard</b> throws away uncommitted work with no recovery.
+        <b>push --force</b> rewrites shared history and can delete a colleague's commits.
+        <b>Deleting a task</b> in Operator is a hard delete: no undo, no bin.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section>
+    <div class="sec-head"><span class="num">6</span><h2>The five you would ever type</h2><span class="rule"></span></div>
+    <div class="grid">
+      <div class="col-7">
+        <table>
+          <thead><tr><th style="width:190px">Command</th><th>Reads as</th></tr></thead>
+          <tbody>
+            <tr><td class="term">git status</td><td class="tiny">"What have I changed, and what is waiting to be saved?" Always safe. Start here when lost.</td></tr>
+            <tr><td class="term">git diff</td><td class="tiny">"Show me the actual edits." Always safe.</td></tr>
+            <tr><td class="term">git log --oneline</td><td class="tiny">"Show me the last snapshots and their labels."</td></tr>
+            <tr><td class="term">git checkout -- .</td><td class="tiny">"Throw away my unsaved edits and go back to the last commit." Sharp: it is a real delete.</td></tr>
+            <tr><td class="term">git push</td><td class="tiny">"Send my commits to GitHub."</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="col-5">
+        <div class="callout">
+          <b>Honestly though</b>
+          You do not need to type any of these. Ask in plain words: "what changed?", "save this with a message about why",
+          "put it back the way it was this morning". The words in this sheet exist so that when the answer comes back
+          mentioning a commit or a branch, you know exactly which of the four places is being talked about.
+        </div>
+        <div class="callout calm" style="margin-top:14px">
+          <b>Standing rule</b>
+          Nothing gets committed or pushed on your behalf unless you ask for it in that message. Approving it once does not
+          approve it next time.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Operator Field Manual No. 01</span>
+    <span>Git &amp; Workspaces</span>
+    <span>Print at letter, portrait</span>
+  </footer>
+</div>
+</body>
+</html>
