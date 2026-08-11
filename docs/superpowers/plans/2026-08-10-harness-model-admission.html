@@ -1,0 +1,77 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Harness Model Admission Implementation Plan</title></head><body>
+<h1>Harness Model Admission Implementation Plan</h1>
+<blockquote><strong>For agentic workers:</strong> REQUIRED SUB-SKILL: use executing-plans and implement every task test-first.</blockquote>
+<p><strong>Goal:</strong> Present only Harness → Model → Strength, offer every model proven compatible with that harness, and keep LiteLLM invisible as routing infrastructure.</p>
+<p><strong>Architecture:</strong> Preserve concrete route/harness drivers internally, but add a public harness catalog that merges their model options. Each model option carries its internal driver ID. Selection resolves the hidden driver automatically. LiteLLM admission metadata gates which pairs enter the public catalog.</p>
+<p><strong>Tech stack:</strong> Next.js/React/TypeScript, Claude Agent SDK, Codex SDK, Prime JSONL RPC, LiteLLM HTTP relay, Vitest.</p><hr>
+
+<h2>Task 1: Add admission evidence to the LiteLLM catalog</h2>
+<p><strong>Files:</strong> modify <code>lib/agents/litellm/types.ts</code>, <code>lib/agents/litellm/catalog.ts</code>; test <code>tests/litellmCatalog.test.ts</code>.</p>
+<ol>
+<li>Add failing parser tests for per-harness admission records containing status, tested harness version/revision, timestamp, requested alias, and resolved model.</li>
+<li>Verify models are exposed only for harness pairs with <code>status: "passed"</code>; failed/missing pairs remain invisible for that harness.</li>
+<li>Run the focused test; expect failure under the old <code>harnesses</code>-only parser.</li>
+<li>Implement the typed evidence parser and derive <code>harnesses</code> from passed records. Preserve clear per-model parse errors.</li>
+<li>Run the focused test; expect pass.</li>
+</ol>
+
+<h2>Task 2: Generalize Prime to every Prime-vetted model</h2>
+<p><strong>Files:</strong> modify <code>lib/agents/prime/policy.ts</code>, <code>lib/agents/prime/driver.ts</code>; test <code>tests/primePolicy.test.ts</code>, <code>tests/primeDriver.test.ts</code>.</p>
+<ol>
+<li>Replace Kimi-only expectations with failing tests that accept two Prime-vetted aliases and reject an alias absent from the Prime catalog.</li>
+<li>Run focused tests; expect the hard-coded constant to fail the new case.</li>
+<li>Replace <code>APPROVED_PRIME_MODEL</code> with catalog membership enforcement for the <code>prime</code> harness. Keep exact alias selection, relay credential isolation, and no fallback.</li>
+<li>Run focused tests; expect pass.</li>
+</ol>
+
+<h2>Task 3: Build the public harness catalog</h2>
+<p><strong>Files:</strong> create <code>lib/agents/harness-catalog.ts</code>; modify <code>lib/agents/types.ts</code>, <code>app/api/agents/route.ts</code>, <code>app/orchestrator/types.ts</code>, <code>app/orchestrator/agents.ts</code>; test <code>tests/agentDriver.test.ts</code>, <code>tests/litellmAgentUi.test.ts</code>, <code>tests/primeAgentUi.test.ts</code>.</p>
+<ol>
+<li>Add failing API tests asserting only Claude Code, Codex, and Prime Agent appear as harness choices and no label starts with LiteLLM.</li>
+<li>Add failing tests asserting Codex’s model list contains native and admitted LiteLLM models, each with an internal <code>driverId</code>; Prime models point to <code>litellm-prime</code>.</li>
+<li>Run focused tests; verify the current fourth driver is the failure.</li>
+<li>Add optional <code>driverId</code> and source-group metadata to model options. Build public descriptors by merging internal drivers under canonical harness IDs.</li>
+<li>Change <code>GET /api/agents</code> to return public harness descriptors while retaining connection/account truth from their underlying drivers.</li>
+<li>Run focused tests; expect pass.</li>
+</ol>
+
+<h2>Task 4: Make model selection choose the hidden driver</h2>
+<p><strong>Files:</strong> modify <code>app/orchestrator/launchConfig.ts</code>, <code>app/orchestrator/modals.tsx</code>, <code>app/orchestrator/useOrchestrator.ts</code>, task POST/PATCH validation as required; test <code>tests/editTaskModal.test.ts</code>, <code>tests/launchConfig.test.ts</code>, <code>tests/agentSwitch.test.ts</code>.</p>
+<ol>
+<li>Add failing tests for exactly three visible controls: Harness, Model, Thinking strength. Assert no route/source control exists.</li>
+<li>Add failing tests proving selecting a LiteLLM model under Codex persists <code>agent: "litellm-codex"</code>, while selecting a native model persists <code>agent: "codex"</code>; the displayed Harness remains Codex.</li>
+<li>Run focused tests and verify failures.</li>
+<li>Teach launch selection helpers to canonicalize an internal driver to its public harness and resolve the internal driver from the chosen model’s <code>driverId</code>.</li>
+<li>Update New/Edit task payloads so model selection atomically persists the correct hidden driver, model, and compatible strength.</li>
+<li>Run focused tests; expect pass.</li>
+</ol>
+
+<h2>Task 5: Add the Claude/LiteLLM internal adapter</h2>
+<p><strong>Files:</strong> create <code>lib/agents/litellm-claude/driver.ts</code> and focused policy/environment helper(s); modify registry/capability maps; test with a deterministic fake Claude transport in <code>tests/litellmClaudeDriver.test.ts</code>.</p>
+<ol>
+<li>Add failing tests proving the driver uses the selected admitted alias, the loopback relay, an isolated Claude config directory, the task working directory, and sanitized credentials.</li>
+<li>Add failing event tests for assistant/tool/ask/usage/resume/abort parity.</li>
+<li>Run tests and verify the driver is missing.</li>
+<li>Extract only the reusable Claude turn runner needed by native and managed routes; do not duplicate the full native driver. Inject route-specific environment/model/auth while preserving Operator MCP hooks.</li>
+<li>Register the internal driver but expose its models only beneath public Claude Code.</li>
+<li>Run focused tests; expect pass.</li>
+</ol>
+
+<h2>Task 6: Add explicit admission tooling</h2>
+<p><strong>Files:</strong> create <code>scripts/vet-litellm-model.ts</code> and a fixture/evidence schema helper; add tests under <code>tests/modelAdmission.test.ts</code>; document in <code>README.md</code>.</p>
+<ol>
+<li>Add failing tests for identity, basic turn, tool loop, Operator bridge, resume, stop, usage, and repository edit evidence reducers.</li>
+<li>Implement a command that runs requested harness-model pairs against disposable fixtures and writes a sanitized JSON evidence file. It must never mutate the LiteLLM catalog automatically.</li>
+<li>Add a command mode that prints the exact catalog metadata to approve after all gates pass.</li>
+<li>Run focused tests; expect pass.</li>
+</ol>
+
+<h2>Task 7: Verify model-routing build</h2>
+<ol>
+<li>Run all focused catalog, Prime, Claude adapter, API, and modal tests.</li>
+<li>Run <code>npm run typecheck</code> and <code>npm test</code>.</li>
+<li>Run the opt-in live admission suite against each currently configured candidate model; models without a pass remain hidden for that harness.</li>
+<li>Run <code>npm run build</code> and build-trace check.</li>
+<li>Inspect the mobile launch sheet: only Harness, Model, Strength; no LiteLLM harness or route selector.</li>
+</ol>
+</body></html>

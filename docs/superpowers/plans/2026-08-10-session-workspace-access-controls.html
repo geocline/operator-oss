@@ -1,0 +1,58 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Session Workspace and Access Controls Implementation Plan</title></head><body>
+<h1>Session Workspace and Access Controls Implementation Plan</h1>
+<blockquote><strong>For agentic workers:</strong> REQUIRED SUB-SKILL: use executing-plans and implement every task test-first.</blockquote>
+<p><strong>Goal:</strong> Give every new Operator task explicit, independent Workspace and Agent access settings, defaulting to Project folder and Full power.</p>
+<p><strong>Architecture:</strong> Persist workspace intent on the task rather than inferring it from a project at first-message time. Reuse <code>permission_mode</code> for access, but persist the full-power choice explicitly. Render both controls in the New/Edit task sheets and make Codex full power truthful by using <code>danger-full-access</code>.</p>
+<p><strong>Tech stack:</strong> Next.js 16, React 19, TypeScript, SQLite/better-sqlite3, Vitest.</p><hr>
+
+<h2>Task 1: Persist per-task workspace mode</h2>
+<p><strong>Files:</strong> modify <code>lib/db.ts</code>, <code>lib/types.ts</code>, <code>app/orchestrator/types.ts</code>, <code>lib/store.ts</code>; test <code>tests/repoDirect.test.ts</code>.</p>
+<ol>
+<li>Add a failing test proving a new task stores <code>workspace_mode: "direct"</code> and an existing task with a worktree migrates to <code>worktree</code>.</li>
+<li>Run <code>npm test -- tests/repoDirect.test.ts</code>; expect failure because the field does not exist.</li>
+<li>Add <code>workspace_mode TEXT NOT NULL DEFAULT 'direct'</code> to the task schema and migration. On first addition, backfill rows with nonempty <code>worktree_path</code> to <code>worktree</code>.</li>
+<li>Add <code>workspace_mode: "direct" | "worktree"</code> to server/client task types, task creation input, SQL insert, and <code>updateTask</code>.</li>
+<li>Run the focused test; expect pass.</li>
+</ol>
+
+<h2>Task 2: Enforce workspace selection in task APIs</h2>
+<p><strong>Files:</strong> modify <code>app/api/tasks/route.ts</code>, <code>app/api/tasks/[id]/route.ts</code>, <code>app/api/tasks/[id]/messages/route.ts</code>; test <code>tests/repoDirect.test.ts</code> and <code>tests/apiHelpers.test.ts</code> if route helpers are reused.</p>
+<ol>
+<li>Add failing route tests proving task creation defaults to <code>direct</code>, accepts <code>worktree</code>, rejects unknown values, and rejects changing workspace after <code>started = 1</code>.</li>
+<li>Add a failing first-message test proving worktree creation is controlled only by <code>task.workspace_mode</code>, not <code>project.run_in_repo</code>.</li>
+<li>Run the focused tests and verify the expected failures.</li>
+<li>Validate <code>workspace_mode</code> at POST/PATCH boundaries. Permit PATCH only before start and before a worktree exists.</li>
+<li>Change first-message setup to call <code>ensureWorktree</code> only for <code>workspace_mode === "worktree"</code>.</li>
+<li>Run focused tests; expect pass.</li>
+</ol>
+
+<h2>Task 3: Make full-power access explicit and truthful</h2>
+<p><strong>Files:</strong> modify <code>lib/agents/codex/driver.ts</code>, <code>lib/agents/litellm/driver.ts</code>, their capability copy if labels require it; test <code>tests/agentDriver.test.ts</code> and <code>tests/litellmDriver.test.ts</code>.</p>
+<ol>
+<li>Add failing tests asserting <code>bypassPermissions</code> maps to <code>sandboxMode: "danger-full-access"</code>, approvals never, and network enabled for native and LiteLLM-backed Codex.</li>
+<li>Run the focused tests; expect <code>workspace-write</code> mismatch.</li>
+<li>Change only the full-power mapping; preserve Plan mode as read-only/no-network.</li>
+<li>Run focused tests; expect pass.</li>
+</ol>
+
+<h2>Task 4: Add compact controls to New/Edit task sheets</h2>
+<p><strong>Files:</strong> modify <code>app/orchestrator/modals.tsx</code>, <code>app/orchestrator/useOrchestrator.ts</code>, <code>app/globals.css</code>; test <code>tests/editTaskModal.test.ts</code> and create/extend a NewTask modal test.</p>
+<ol>
+<li>Add failing component tests asserting labels <code>Workspace</code> and <code>Agent access</code>, defaults <code>direct</code>/<code>bypassPermissions</code>, independent changes, and a summary naming the real project folder.</li>
+<li>Add a failing test proving Workspace is disabled after first start while Agent access remains selectable.</li>
+<li>Run tests and verify failures are caused by missing controls.</li>
+<li>Create a focused <code>ExecutionControls</code> component inside the modal module (or a small sibling if extraction improves clarity). Use two compact rows and native selects. Source access options from the selected harness capabilities; rename <code>bypassPermissions</code> visually to <code>Full power</code>.</li>
+<li>Extend NewTask and EditTask patch/create payloads with <code>workspace_mode</code> and <code>permission_mode</code>. New tasks explicitly send full power.</li>
+<li>Add responsive CSS matching the approved phone mockup without changing the rest of the modal.</li>
+<li>Run focused component tests; expect pass.</li>
+</ol>
+
+<h2>Task 5: Verify the complete execution-control build</h2>
+<ol>
+<li>Run <code>npm test -- tests/repoDirect.test.ts tests/editTaskModal.test.ts tests/litellmDriver.test.ts tests/agentDriver.test.ts</code>.</li>
+<li>Run <code>npm run typecheck</code>.</li>
+<li>Run <code>npm test</code>.</li>
+<li>Run <code>npm run build</code>.</li>
+<li>Inspect the mobile Edit task sheet in the running app at phone width and confirm both selects plus summary fit without horizontal scrolling.</li>
+</ol>
+</body></html>
