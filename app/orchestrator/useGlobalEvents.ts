@@ -12,7 +12,7 @@ import type { ProjectRow, TaskRow } from "./types";
 // This is what clears spinners and updates
 // the "needs you" badges for tasks whose transcript stream isn't open — only
 // the selected task has one (useTaskStream) — replacing the old 10s poll.
-export function useGlobalEvents({ selProjRef, setTaskRunning, setTasks, setProjects, loadTasks, reconcileRunning, refreshAgents }: {
+export function useGlobalEvents({ selProjRef, setTaskRunning, setTasks, setProjects, loadTasks, reconcileRunning, refreshAgents, onLifecycle }: {
   selProjRef: MutableRefObject<string | null>;
   setTaskRunning: (id: string, on: boolean) => void;
   setTasks: React.Dispatch<React.SetStateAction<TaskRow[]>>;
@@ -20,12 +20,20 @@ export function useGlobalEvents({ selProjRef, setTaskRunning, setTasks, setProje
   loadTasks: (projectId: string, selectFirst?: boolean) => Promise<void>;
   reconcileRunning: () => Promise<void>;
   refreshAgents: () => Promise<void>;
+  /**
+   * Every event, before any state patching, for consumers that care about the
+   * transition rather than the resulting state - notifications, above all. It
+   * hangs off this hook rather than taking its own subscription so there stays
+   * exactly one stream per tab (see sharedEvents.ts on the connection budget).
+   */
+  onLifecycle?: (ev: GlobalWireEvent) => void;
 }) {
   // Apply one lifecycle event. The payload is a fresh snapshot of the task
   // row's running/awaiting_input/status (read after the runner persisted it),
   // so applying it is idempotent — overlaps with the selected task's own
   // stream, which fires for the same boundaries, are harmless.
   const handle = (ev: GlobalWireEvent) => {
+    onLifecycle?.(ev);
     // An agent's login died or came back. Refetch the shared agents bundle
     // rather than patching state locally, so the reconnect banner, the Settings
     // cards, and the New-task picker all read one server-side truth. Rare event

@@ -1,6 +1,8 @@
-import { getTask, countAwaiting } from "@/lib/store";
+import { getTask, getProject, countAwaiting } from "@/lib/store";
 import { subscribeGlobal, type BusEvent, type GlobalTaskWireEvent, type GlobalWireEvent } from "@/lib/events";
 import { sseOpened, sseClosed } from "@/lib/idle";
+import { isAuthFailure } from "@/lib/authFailure";
+import { isUsageLimit } from "@/lib/usageLimit";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -30,9 +32,25 @@ function coarse(ev: BusEvent): GlobalTaskWireEvent["event"] | null {
       return "turn_end";
     case "task_updated":
       return "task_updated";
+    case "error":
+      // A failed turn is a lifecycle boundary too: it is the moment work stopped
+      // without finishing, which is exactly when someone away from the screen
+      // wants to hear about it.
+      return "turn_failed";
     default:
       return null;
   }
+}
+
+/**
+ * Which recoverable failure this was. The runner already classifies these to
+ * choose a transcript recovery notice; repeating the classification here keeps
+ * provider error text server-side and hands the client a small enum instead.
+ */
+function failureKind(text: string): "auth" | "limit" | "error" {
+  if (isAuthFailure(text)) return "auth";
+  if (isUsageLimit(text)) return "limit";
+  return "error";
 }
 
 /**
@@ -96,6 +114,12 @@ export async function GET(req: Request) {
           awaiting_input: !!t.awaiting_input,
           status: t.status,
           awaiting_count: countAwaiting(t.project_id),
+          title: t.title,
+          projectName: getProject(t.project_id)?.name ?? "",
+          agent: t.agent,
+          ...(event === "turn_failed" && ev.type === "error"
+            ? { failure: failureKind(ev.content) }
+            : {}),
         };
         send(payload);
       });

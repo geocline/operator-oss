@@ -109,6 +109,7 @@ export default function Orchestrator() {
       : !project ? null
       : task ? `${project.name} / ${task.title}`
       : project.name,
+    o.needsYouTotal,
   );
   const [needsYouOpen, setNeedsYouOpen] = useState(false);
   // Focus mode: hide the projects/tasks columns so the selected session fills

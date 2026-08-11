@@ -9,7 +9,19 @@ import { WorktreePrune } from "./WorktreePrune";
 import { AgentConnect } from "./AgentConnect";
 import { LoadNote } from "./shared";
 import { jget } from "./api";
+import { notifyPermission, playChime, requestNotifyPermission } from "./notifications";
 import type { AgentInfoT, AgentsResponseT } from "./types";
+
+// The notification switches, in the order they matter when you are away from
+// the screen. Keys are the flat Settings booleans (see ./types.ts).
+type NotifyKey = Extract<keyof Settings, `notify${string}`>;
+const NOTIFY_TOGGLES: { key: NotifyKey; label: string; sub: string }[] = [
+  { key: "notifyQuestion", label: "Questions", sub: "An agent asked you something mid-turn" },
+  { key: "notifyFinished", label: "Finished turns", sub: "An agent stopped and handed back to you" },
+  { key: "notifyFailed", label: "Failures", sub: "A turn died, or an agent hit its usage limit" },
+  { key: "notifyAgent", label: "Login expired", sub: "An agent needs reconnecting before anything can run" },
+  { key: "notifySound", label: "Sound", sub: "Play a chime alongside the banner" },
+];
 
 // Account / session panel. Shows who's signed in to this instance and a Logout
 // control — but only when an origin provider is actually gating the box (first-
@@ -158,6 +170,10 @@ export function SettingsView({ settings, setSetting, appDefaults, setAppDefault,
   const caps = capsFor(agents, editAgent);
   // Agent-scoped default, with legacy un-suffixed keys as a fallback (mirrors the
   // driver's resolution) so pre-existing settings still show as selected.
+  // Permission is browser state, not app state, so it is read on mount and only
+  // ever changes here (the prompt) or in the browser's own site settings.
+  const [notifPerm, setNotifPerm] = useState<NotificationPermission | "unsupported">("default");
+  useEffect(() => { setNotifPerm(notifyPermission()); }, []);
   const modelVal = appDefaults[`default_model:${editAgent}`] ?? appDefaults.default_model ?? null;
   const reasoningVal = appDefaults[`default_reasoning:${editAgent}`] ?? appDefaults.default_reasoning ?? null;
   const permissionVal = appDefaults[`default_permission_mode:${editAgent}`] ?? appDefaults.default_permission_mode ?? null;
@@ -252,6 +268,51 @@ export function SettingsView({ settings, setSetting, appDefaults, setAppDefault,
                   <div className="hlp" style={{ marginTop: 8 }}>
                     Shows a banner when any provider window reaches this percentage of its limit. Defaults: on, 80%.
                   </div>
+                </div>
+
+                <div className="field">
+                  <div className="lab">{Icon.flag()} Notifications</div>
+                  <div className="hlp" style={{ marginTop: 0, marginBottom: 10 }}>
+                    Desktop notifications for every project at once, not just the one on screen. The ones that need a
+                    decision stay on screen until you dismiss them. Nothing fires for the task you are already looking at.
+                  </div>
+                  {notifPerm === "unsupported" ? (
+                    <div className="hlp" style={{ margin: 0 }}>This browser does not support notifications.</div>
+                  ) : notifPerm === "denied" ? (
+                    <div className="hlp" style={{ margin: 0, color: "var(--amber)" }}>
+                      Blocked for this site. Re-allow notifications in your browser&apos;s site settings, then reload.
+                    </div>
+                  ) : notifPerm === "default" ? (
+                    <button
+                      className="btn btn-line"
+                      style={{ alignSelf: "flex-start" }}
+                      onClick={async () => setNotifPerm(await requestNotifyPermission())}
+                    >
+                      {Icon.spark()} Turn on notifications
+                    </button>
+                  ) : (
+                    <>
+                      <div className="hlp" style={{ margin: "0 0 10px", display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ color: "var(--green, var(--accent))", display: "inline-flex" }}>{Icon.check()}</span>
+                        On for this browser.
+                      </div>
+                      <div className="seg" style={{ flexWrap: "wrap", maxWidth: 560 }}>
+                        {NOTIFY_TOGGLES.map((t) => (
+                          <button
+                            key={t.key}
+                            className={settings[t.key] !== false ? "on" : ""}
+                            title={t.sub}
+                            onClick={() => setSetting(t.key, settings[t.key] === false)}
+                          >
+                            {t.label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="hlp" style={{ marginTop: 8 }}>
+                        Highlighted means on. <button className="btn btn-ghost btn-sm" onClick={() => playChime()}>Play the sound</button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </>
             )}

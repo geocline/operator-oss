@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Priority, Status, AskQuestion, AskAnswers } from "@/lib/types";
+import type { GlobalWireEvent } from "@/lib/events";
 import type { ResolveResult } from "../TaskChanges";
 import { jget, jsend, saveTaskEdit } from "./api";
 import { isAwaiting, blockerTitles, formatAnswersText } from "./format";
@@ -10,6 +11,7 @@ import { DEFAULT_SETTINGS, EMPTY_AGENTS, type AgentsBundle, type OnboardingT, ty
 import { agentLabel, driverForModel, publicHarnessId } from "./agents";
 import { useTaskStream } from "./useTaskStream";
 import { useGlobalEvents } from "./useGlobalEvents";
+import { describeEvent, notifyEnabled, showNotification } from "./notifications";
 import { usePrefs } from "./usePrefs";
 import { useRecaps } from "./useRecaps";
 
@@ -158,8 +160,14 @@ export function useOrchestrator() {
   });
   // Always-open global lifecycle stream (GET /api/events): keeps spinners,
   // project badges, and the "N need you" pill live for tasks whose transcript
-  // stream ISN'T open — only the selected task has one.
-  useGlobalEvents({ selProjRef, setTaskRunning, setTasks, setProjects, loadTasks, reconcileRunning, refreshAgents });
+  // stream ISN'T open — only the selected task has one. It also feeds the
+  // notifier, through a ref because that callback is declared below (it needs
+  // settings + agents) while the subscription has to be set up here.
+  const lifecycleRef = useRef<(ev: GlobalWireEvent) => void>(() => {});
+  useGlobalEvents({
+    selProjRef, setTaskRunning, setTasks, setProjects, loadTasks, reconcileRunning, refreshAgents,
+    onLifecycle: (ev) => lifecycleRef.current(ev),
+  });
   const messages = selTask ? msgsByTask[selTask] ?? [] : [];
   // No entry yet for the selected task = its SSE snapshot hasn't arrived — the
   // session view shows a transcript skeleton instead of an empty chat flash.
@@ -264,29 +272,32 @@ export function useOrchestrator() {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, []);
 
-  // Browser notification when a task newly needs you — the payoff for the
-  // permission asked for during onboarding. Fires on the awaiting transition
-  // (a turn ending mid-task OR Claude parking on a question), for any task in
-  // the current project. We seed the "already notified" set without firing so a
-  // page load / project switch doesn't alert for tasks that were already
-  // waiting, and skip the task you're actively looking at.
-  const notifiedRef = useRef<Set<string> | null>(null);
-  useEffect(() => { notifiedRef.current = null; }, [selProj]); // re-seed per project; declared before the firing effect so it runs first
-  useEffect(() => {
-    const ids = new Set(liveAwaiting.map((t) => t.id));
-    if (notifiedRef.current === null) { notifiedRef.current = ids; return; }
-    const seen = notifiedRef.current;
-    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
-      for (const t of liveAwaiting) {
-        if (seen.has(t.id)) continue;
-        // You're already staring at it — no need to interrupt.
-        if (t.id === selTask && document.visibilityState === "visible") continue;
-        const n = new Notification(`${agentLabel(agents, t.agent)} needs your input`, { body: t.title, tag: `await-${t.id}` });
-        n.onclick = () => { window.focus(); setSelTask(t.id); n.close(); };
-      }
-    }
-    notifiedRef.current = ids;
-  }, [liveAwaiting, selTask, agents]);
+  // OS notifications, driven by the GLOBAL lifecycle stream so they cover every
+  // task in every project - the previous version read this project's rows only,
+  // which meant an agent waiting in any other project was silent. The mapping
+  // from event to banner lives in ./notifications.ts; this only decides whether
+  // an event is worth interrupting for RIGHT NOW.
+  const notifyRef = useRef({ settings, agents, selTask });
+  useEffect(() => { notifyRef.current = { settings, agents, selTask }; });
+  const onLifecycle = useCallback((ev: GlobalWireEvent) => {
+    const { settings: s, agents: a, selTask: sel } = notifyRef.current;
+    // Already looking at it, with the window in front: the screen IS the
+    // notification. Anything in another task or another project still fires.
+    if (
+      ev.type === "task" &&
+      ev.taskId === sel &&
+      typeof document !== "undefined" &&
+      document.visibilityState === "visible" &&
+      document.hasFocus()
+    ) return;
+    const req = describeEvent(ev, (id) => agentLabel(a, id));
+    if (!req || !notifyEnabled(s, req.kind)) return;
+    showNotification(req, { sound: s.notifySound !== false, onOpen: goToTaskRef.current });
+  }, []);
+  // goToTask is defined further down; the ref keeps this callback stable so the
+  // event subscription never churns.
+  const goToTaskRef = useRef<(projectId: string, taskId: string) => void>(() => {});
+  useEffect(() => { lifecycleRef.current = onLifecycle; }, [onLifecycle]);
 
   // Persist a server-backed app default and adopt the server's echoed-back state.
   const setAppDefault = async (key: string, value: string | null) => {
@@ -407,6 +418,9 @@ export function useOrchestrator() {
     setSelProj(projectId);
     setSelTask(taskId);
   };
+  // Clicking a notification banner opens the task it is about, in whichever
+  // project that is.
+  useEffect(() => { goToTaskRef.current = goToTask; });
 
   // Optional `agent` hands the task to another driver across the clear
   // boundary (same worktree, fresh context seeded with the summary) - the

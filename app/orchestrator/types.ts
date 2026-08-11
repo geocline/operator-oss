@@ -287,8 +287,24 @@ export interface Settings {
   // "Recommend /clear when context is high" feature reads these.
   clearThresholdPct: number;    // 0–100, % of the context window
   clearThresholdTokens: number; // absolute token count
+  // Which lifecycle events raise an OS notification (app/orchestrator/notifications.ts).
+  // All default ON: the previous layer notified for one event, in one project,
+  // behind a permission prompt shown once, which is indistinguishable from off.
+  notifyQuestion: boolean;  // an agent asked you something mid-turn
+  notifyFinished: boolean;  // a turn ended and handed back to you
+  notifyFailed: boolean;    // a turn died, or an agent hit its usage limit
+  notifyAgent: boolean;     // an agent login expired and needs reconnecting
+  notifySound: boolean;     // play a chime alongside the banner
 }
-export const DEFAULT_SETTINGS: Settings = { clearThresholdPct: 75, clearThresholdTokens: 150_000 };
+export const DEFAULT_SETTINGS: Settings = {
+  clearThresholdPct: 75,
+  clearThresholdTokens: 150_000,
+  notifyQuestion: true,
+  notifyFinished: true,
+  notifyFailed: true,
+  notifyAgent: true,
+  notifySound: true,
+};
 
 // Persisted sidebar layout — column widths and collapsed (hidden) state, so the
 // user can carve out more room for the chat and have it stick across reloads.

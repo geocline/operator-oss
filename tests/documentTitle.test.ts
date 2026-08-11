@@ -3,8 +3,8 @@ import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDocumentTitle } from "@/app/orchestrator/useDocumentTitle";
 
-function TitleHarness({ title }: { title: string | null }) {
-  useDocumentTitle(title);
+function TitleHarness({ title, needsYou }: { title: string | null; needsYou?: number }) {
+  useDocumentTitle(title, needsYou);
   return null;
 }
 
@@ -33,5 +33,20 @@ describe("Operator document title", () => {
       renderer.update(React.createElement(TitleHarness, { title: null }));
     });
     expect(document.title).toBe("Operator");
+  });
+
+  // A notification banner can be missed; a tab strip cannot. The count leads so
+  // it survives the truncation a crowded strip applies from the right.
+  it("leads with the waiting count, and drops it once nothing is waiting", async () => {
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(React.createElement(TitleHarness, { title: "WR2", needsYou: 3 }));
+    });
+    expect(document.title).toBe("(3) WR2 - Operator");
+
+    await act(async () => {
+      renderer.update(React.createElement(TitleHarness, { title: "WR2", needsYou: 0 }));
+    });
+    expect(document.title).toBe("WR2 - Operator");
   });
 });

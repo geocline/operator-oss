@@ -29,7 +29,22 @@ export type BusEvent = TaskStreamEvent | TaskMutationEvent;
 // deletion event. Defined here — beside the bus events that produce them —
 // rather than in lib/types.ts.
 export type GlobalTaskWireEvent = Omit<GlobalTaskEvent, "event"> & {
-  event: GlobalTaskEvent["event"] | "task_updated";
+  event: GlobalTaskEvent["event"] | "task_updated" | "turn_failed";
+  /**
+   * Enough to describe the event without holding the row. A client only keeps
+   * the SELECTED project's tasks in state, so for every other project this is
+   * the only way to say WHICH task in WHICH project just changed — without it,
+   * cross-project notifications can't be written at all.
+   */
+  title: string;
+  projectName: string;
+  agent: string;
+  /**
+   * turn_failed only: which of the three recoverable failures this was, so the
+   * client can pick the right recovery wording (reconnect / wait for the reset /
+   * open the task) instead of parsing provider error text in the browser.
+   */
+  failure?: "auth" | "limit" | "error";
 };
 export type TaskDeletedWireEvent = {
   type: "task_deleted";
