@@ -72,10 +72,17 @@ export function suggestLaunchConfiguration(
   agent = task.agent,
 ): LaunchConfigurationSelection {
   const capabilities = findAgent(agents, agent)?.capabilities;
+  // The task's own choice wins; then the app-level default (Settings → Run
+  // defaults); only then the harness's first entry, which is its most capable
+  // and most expensive model.
+  const defaultModel =
+    appDefaults[`default_model:${agent}`] ?? appDefaults.default_model;
   const model =
     capabilities?.models.some((option) => option.value === task.model)
       ? task.model!
-      : capabilities?.models[0]?.value ?? "";
+      : capabilities?.models.some((option) => option.value === defaultModel)
+        ? defaultModel!
+        : capabilities?.models[0]?.value ?? "";
   const reasoningChoices = reasoningChoicesFor(agents, agent, model);
   const validReasoning = new Set(
     reasoningChoices.map((option) => option.value),

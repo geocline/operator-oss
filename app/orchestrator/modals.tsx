@@ -113,20 +113,49 @@ function ExecutionControls({
   );
 }
 
-export function NewTaskModal({ project, agents, tasks, onClose, onCreate, onOpenSetup }: { project: ProjectRow; agents: AgentsBundle; tasks: TaskRow[]; onClose: () => void; onCreate: (i: { title: string; desc: string; priority: Priority; agent: string; model: string; reasoning: string; startNow: boolean; depends_on: string[]; workspace_mode: WorkspaceMode; permission_mode: string }) => void; onOpenSetup?: () => void }) {
+export function NewTaskModal({ project, agents, tasks, appDefaults = {}, onClose, onCreate, onOpenSetup }: { project: ProjectRow; agents: AgentsBundle; tasks: TaskRow[]; appDefaults?: Record<string, string>; onClose: () => void; onCreate: (i: { title: string; desc: string; priority: Priority; agent: string; model: string; reasoning: string; startNow: boolean; depends_on: string[]; workspace_mode: WorkspaceMode; permission_mode: string }) => void; onOpenSetup?: () => void }) {
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
   const [priority, setPriority] = useState<Priority>("med");
   const [agent, setAgent] = useState(() => defaultAgentFor(agents, project.default_agent));
-  const initialCapabilities = findAgent(agents, agent)?.capabilities;
-  const [model, setModel] = useState(initialCapabilities?.models[0]?.value ?? "");
-  const [reasoning, setReasoning] = useState(
-    initialCapabilities?.reasoningOptions.find((option) => option.value === "think")?.value
-      ?? initialCapabilities?.reasoningOptions[0]?.value
-      ?? "",
-  );
+  // App-level default for one run control, agent-scoped first — the same
+  // resolution the server applies on create (lib/agents/launchConfig.ts).
+  const appDefault = (key: string, agentId: string) => appDefaults[`${key}:${agentId}`] ?? appDefaults[key];
+  // Where this task's run controls start: the app-level default whenever the
+  // harness still offers it (Settings → Run defaults), else the harness's own
+  // first entry — which is its most capable, most expensive model, so leaving
+  // that as the only default is what made every new task a frontier session.
+  const launchDefaultsFor = (agentId: string, forModel?: string) => {
+    const capabilities = findAgent(agents, agentId)?.capabilities;
+    const models = capabilities?.models ?? [];
+    const wantModel = appDefault("default_model", agentId);
+    const nextModel = forModel
+      ?? (models.some((option) => option.value === wantModel) ? wantModel! : models[0]?.value ?? "");
+    const selected = models.find((option) => option.value === nextModel);
+    const choices = reasoningChoicesFor(agents, agentId, nextModel);
+    const wantReasoning = appDefault("default_reasoning", agentId);
+    const modes = (capabilities?.permissionModes ?? []).filter(
+      (option) => !selected?.permissionValues || selected.permissionValues.includes(option.value),
+    );
+    const wantPermission = appDefault("default_permission_mode", agentId);
+    return {
+      model: nextModel,
+      reasoning:
+        choices.find((option) => option.value === wantReasoning)?.value
+        ?? choices.find((option) => option.value === "think")?.value
+        ?? choices[0]?.value
+        ?? "",
+      permission:
+        modes.find((option) => option.value === wantPermission)?.value
+        ?? modes.find((option) => option.value === "bypassPermissions")?.value
+        ?? modes[0]?.value
+        ?? "bypassPermissions",
+    };
+  };
+  const [model, setModel] = useState(() => launchDefaultsFor(agent).model);
+  const [reasoning, setReasoning] = useState(() => launchDefaultsFor(agent).reasoning);
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("direct");
-  const [permissionMode, setPermissionMode] = useState("bypassPermissions");
+  const [permissionMode, setPermissionMode] = useState(() => launchDefaultsFor(agent).permission);
   const [startNow, setStartNow] = useState(false);
   const [deps, setDeps] = useState<string[]>([]);
   const ref = useRef<HTMLInputElement>(null);
@@ -137,30 +166,22 @@ export function NewTaskModal({ project, agents, tasks, onClose, onCreate, onOpen
   useEffect(() => {
     const capabilities = findAgent(agents, agent)?.capabilities;
     if (!capabilities || capabilities.models.some((option) => option.value === model)) return;
-    const nextModel = capabilities.models[0]?.value ?? "";
-    setModel(nextModel);
-    const choices = reasoningChoicesFor(agents, agent, nextModel);
-    setReasoning(choices.find((option) => option.value === "think")?.value ?? choices[0]?.value ?? "");
-  }, [agents, agent, model]);
+    const next = launchDefaultsFor(agent);
+    setModel(next.model);
+    setReasoning(next.reasoning);
+    setPermissionMode(next.permission);
+    // launchDefaultsFor reads only `agents`/`appDefaults`, both in the dep list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agents, agent, model, appDefaults]);
   const pickAgent = (id: string) => {
     touched.current = true;
     setAgent(id);
-    const capabilities = findAgent(agents, id)?.capabilities;
-    const nextModel = capabilities?.models[0]?.value ?? "";
-    setModel(nextModel);
-    const reasoningOptions = reasoningChoicesFor(agents, id, nextModel);
-    setReasoning(
-      reasoningOptions.find((option) => option.value === "think")?.value
-      ?? reasoningOptions[0]?.value
-      ?? "",
-    );
+    const next = launchDefaultsFor(id);
+    setModel(next.model);
+    setReasoning(next.reasoning);
     const modes = findAgent(agents, id)?.capabilities.permissionModes ?? [];
     if (!modes.some((option) => option.value === permissionMode)) {
-      setPermissionMode(
-        modes.find((option) => option.value === "bypassPermissions")?.value ??
-        modes[0]?.value ??
-        "bypassPermissions",
-      );
+      setPermissionMode(next.permission);
     }
   };
   // A task with unfinished blockers can't start now, so the two options are exclusive.
@@ -225,20 +246,19 @@ export function NewTaskModal({ project, agents, tasks, onClose, onCreate, onOpen
             <select aria-label="Model" value={model} onChange={(event) => {
               const nextModel = event.target.value;
               setModel(nextModel);
+              // Only the choices the new model can't honor are re-seeded, so an
+              // explicit pick survives a model switch.
+              const next = launchDefaultsFor(agent, nextModel);
               const nextOption = modelOptions.find((option) => option.value === nextModel);
               const allowedPermissions = (selAgent?.capabilities.permissionModes ?? []).filter(
                 (option) => !nextOption?.permissionValues || nextOption.permissionValues.includes(option.value),
               );
               if (!allowedPermissions.some((option) => option.value === permissionMode)) {
-                setPermissionMode(
-                  allowedPermissions.find((option) => option.value === "bypassPermissions")?.value
-                  ?? allowedPermissions[0]?.value
-                  ?? "bypassPermissions",
-                );
+                setPermissionMode(next.permission);
               }
               const choices = reasoningChoicesFor(agents, agent, nextModel);
               if (!choices.some((option) => option.value === reasoning)) {
-                setReasoning(choices.find((option) => option.value === "think")?.value ?? choices[0]?.value ?? "");
+                setReasoning(next.reasoning);
               }
             }}>
               {modelOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -313,7 +333,13 @@ export function EditTaskModal({
   const [model, setModel] = useState(initialLaunchConfig.model);
   const [reasoning, setReasoning] = useState(initialLaunchConfig.reasoning);
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>(task.workspace_mode);
-  const [permissionMode, setPermissionMode] = useState(task.permission_mode ?? "bypassPermissions");
+  // The task's own choice, else the app-level default for its harness, else auto-run.
+  const [permissionMode, setPermissionMode] = useState(
+    task.permission_mode
+      ?? appDefaults[`default_permission_mode:${task.agent}`]
+      ?? appDefaults.default_permission_mode
+      ?? "bypassPermissions",
+  );
   const [confirmDel, setConfirmDel] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);

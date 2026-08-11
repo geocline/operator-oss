@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createTask, getProject, listAllTasksLite } from "@/lib/store";
 import { track } from "@/lib/analytics";
 import { getCapabilities, isKnownAgent } from "@/lib/agents/capabilities";
-import { validateLaunchConfiguration } from "@/lib/agents/launchConfig";
+import { resolvedRunDefault, validateLaunchConfiguration } from "@/lib/agents/launchConfig";
 
 export const dynamic = "force-dynamic";
 
@@ -28,19 +28,27 @@ export async function POST(req: Request) {
   if (!isKnownAgent(agent)) {
     return NextResponse.json({ error: `unknown harness "${agent}"` }, { status: 400 });
   }
+  // A control the caller didn't send falls back to the app-level default
+  // (Settings → Run defaults) before the built-in — otherwise those settings
+  // would be unreachable, since a task row now always stores explicit values.
+  // resolvedRunDefault has already dropped anything this harness can't run.
   const permissionMode =
     typeof body.permission_mode === "string"
       ? body.permission_mode
-      : "bypassPermissions";
+      : resolvedRunDefault("default_permission_mode", agent) ?? "bypassPermissions";
   if (!getCapabilities(agent).permissionModes.some((mode) => mode.value === permissionMode)) {
     return NextResponse.json(
       { error: `permission_mode "${permissionMode}" is unsupported by this harness` },
       { status: 400 },
     );
   }
-  const model = typeof body.model === "string" ? body.model : null;
-  const reasoning = typeof body.reasoning === "string" ? body.reasoning : null;
-  if (model || reasoning) {
+  const model = typeof body.model === "string" ? body.model : resolvedRunDefault("default_model", agent);
+  const reasoning =
+    typeof body.reasoning === "string" ? body.reasoning : resolvedRunDefault("default_reasoning", agent);
+  // Only what the CALLER sent is validated as a pair: an app default is already
+  // known-good on its own, and demanding its counterpart be set too would turn
+  // one configured default into a 400 on every task creation.
+  if (typeof body.model === "string" || typeof body.reasoning === "string") {
     const configError = validateLaunchConfiguration({ agent, model, reasoning });
     if (configError) {
       return NextResponse.json({ error: configError }, { status: 400 });

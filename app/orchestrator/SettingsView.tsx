@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Icon } from "../icons";
-import { DEFAULT_SETTINGS, reasoningOptions, permissionOptions, type Settings, type AgentsBundle } from "./types";
+import { DEFAULT_SETTINGS, modelOptions, reasoningOptions, permissionOptions, type Settings, type AgentsBundle } from "./types";
 import { capsFor } from "./agents";
 import { GitHubSettings } from "./github";
 import { WorktreePrune } from "./WorktreePrune";
@@ -158,6 +158,7 @@ export function SettingsView({ settings, setSetting, appDefaults, setAppDefault,
   const caps = capsFor(agents, editAgent);
   // Agent-scoped default, with legacy un-suffixed keys as a fallback (mirrors the
   // driver's resolution) so pre-existing settings still show as selected.
+  const modelVal = appDefaults[`default_model:${editAgent}`] ?? appDefaults.default_model ?? null;
   const reasoningVal = appDefaults[`default_reasoning:${editAgent}`] ?? appDefaults.default_reasoning ?? null;
   const permissionVal = appDefaults[`default_permission_mode:${editAgent}`] ?? appDefaults.default_permission_mode ?? null;
   const multiAgent = agents.agents.length > 1;
@@ -300,7 +301,7 @@ export function SettingsView({ settings, setSetting, appDefaults, setAppDefault,
                   <div className="field">
                     <div className="lab">Run defaults for</div>
                     <div className="hlp" style={{ marginTop: 0, marginBottom: 10 }}>
-                      Each agent carries its own reasoning &amp; permission defaults — pick which to edit.
+                      Each agent carries its own model, reasoning &amp; permission defaults — pick which to edit.
                     </div>
                     <div className="seg" style={{ flexWrap: "wrap", maxWidth: 520 }}>
                       {agents.agents.map((a) => (
@@ -309,6 +310,24 @@ export function SettingsView({ settings, setSetting, appDefaults, setAppDefault,
                     </div>
                   </div>
                 )}
+                <div className="field">
+                  <div className="lab">{Icon.spark()} Default model</div>
+                  <div className="hlp" style={{ marginTop: 0, marginBottom: 10 }}>
+                    The model a new task starts on. <strong>Default</strong> means the agent&apos;s first listed model, which is its most capable and most expensive one — pick a cheaper model here to stop routine work landing there. Per-task choices always override this.
+                  </div>
+                  <select
+                    aria-label="Default model"
+                    style={{ maxWidth: 520 }}
+                    value={modelVal ?? ""}
+                    onChange={(e) => setAppDefault(`default_model:${editAgent}`, e.target.value || null)}
+                  >
+                    {modelOptions(caps).map((m) => (
+                      <option key={m.value ?? "default"} value={m.value ?? ""}>
+                        {m.label}{m.value ? ` — ${m.sub}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <div className="field">
                   <div className="lab">{Icon.spark()} Default reasoning level</div>
                   <div className="hlp" style={{ marginTop: 0, marginBottom: 10 }}>

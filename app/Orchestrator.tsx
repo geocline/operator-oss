@@ -595,7 +595,7 @@ export default function Orchestrator() {
         )}
       </div>
 
-      {o.modal === "task" && project && <NewTaskModal project={project} agents={o.agents} tasks={o.realTasks} onClose={() => o.setModal(null)} onCreate={o.createTask} onOpenSetup={o.rerunOnboarding} />}
+      {o.modal === "task" && project && <NewTaskModal project={project} agents={o.agents} tasks={o.realTasks} appDefaults={o.appDefaults} onClose={() => o.setModal(null)} onCreate={o.createTask} onOpenSetup={o.rerunOnboarding} />}
       {o.editId && o.tasks.find((t) => t.id === o.editId) && (
         <EditTaskModal
           task={o.tasks.find((t) => t.id === o.editId)!}

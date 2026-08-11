@@ -104,4 +104,46 @@ describe("NewTaskModal execution controls", () => {
       permission_mode: "plan",
     }));
   });
+
+  // Without this the pickers always open on the harness's first model (its most
+  // capable and most expensive) and auto-run, and Settings → Run defaults is
+  // decoration — a task row now always stores explicit controls, so nothing
+  // downstream can apply them later.
+  it("opens on the app-level run defaults when they are set", async () => {
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(React.createElement(NewTaskModal, {
+        project,
+        agents,
+        tasks: [],
+        appDefaults: {
+          "default_model:claude": "sonnet",
+          "default_reasoning:claude": "think_hard",
+          default_permission_mode: "plan",
+        },
+        onClose: vi.fn(),
+        onCreate: vi.fn(),
+      }));
+    });
+
+    expect(renderer.root.findByProps({ "aria-label": "Model" }).props.value).toBe("sonnet");
+    expect(renderer.root.findByProps({ "aria-label": "Thinking strength" }).props.value).toBe("think_hard");
+    expect(renderer.root.findByProps({ "aria-label": "Agent access" }).props.value).toBe("plan");
+  });
+
+  it("ignores a default model the harness no longer offers", async () => {
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(React.createElement(NewTaskModal, {
+        project,
+        agents,
+        tasks: [],
+        appDefaults: { "default_model:claude": "retired-model" },
+        onClose: vi.fn(),
+        onCreate: vi.fn(),
+      }));
+    });
+
+    expect(renderer.root.findByProps({ "aria-label": "Model" }).props.value).toBe("fable");
+  });
 });

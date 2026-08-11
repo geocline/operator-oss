@@ -8,7 +8,7 @@ import { abortTurn, hasTurn } from "@/lib/abort";
 import { publishGlobal } from "@/lib/events";
 import { queueManualWorkstreamCompletion } from "@/lib/workstreams/worker";
 import { getCapabilities, isKnownAgent } from "@/lib/agents/capabilities";
-import { validateLaunchConfiguration } from "@/lib/agents/launchConfig";
+import { resolvedRunDefault, validateLaunchConfiguration } from "@/lib/agents/launchConfig";
 import type { Task } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -104,7 +104,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       if (!("model" in body)) allowed.model = null;
       if (!("reasoning" in body)) allowed.reasoning = null;
       if (!("permission_mode" in body)) {
-        allowed.permission_mode = "bypassPermissions";
+        // The NEW agent's app-level default (Settings → Run defaults), not a
+        // blanket auto-run: a switch must never silently widen what the task is
+        // allowed to do. Falls back to auto-run when nothing is configured.
+        allowed.permission_mode =
+          resolvedRunDefault("default_permission_mode", next) ?? "bypassPermissions";
       }
       allowed.resolved_model = null;
     }
