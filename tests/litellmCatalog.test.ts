@@ -10,14 +10,32 @@ import {
 import { getCapabilities, isKnownAgent, knownAgentIds } from "@/lib/agents/capabilities";
 import { liteLLMCapabilities } from "@/lib/agents/litellm/capabilities";
 
-const valid = (overrides: Record<string, unknown> = {}) => ({
-  model_name: "operator.frontier",
+const admission = (
+  harness: "codex" | "claude" | "prime",
+  requestedAlias: string,
+  overrides: Record<string, unknown> = {},
+) => ({
+  harness,
+  status: "passed",
+  harness_version: `${harness}-2026.08`,
+  test_revision: "operator-admission-v1",
+  tested_at: "2026-08-10T12:00:00.000Z",
+  requested_alias: requestedAlias,
+  resolved_model: "provider/physical-model",
+  ...overrides,
+});
+
+const valid = (
+  overrides: Record<string, unknown> = {},
+  modelName = "operator.frontier",
+) => ({
+  model_name: modelName,
   model_info: {
     operator: {
       enabled: true,
       label: "Operator Frontier",
       kind: "coding",
-      harnesses: ["codex"],
+      admissions: [admission("codex", modelName)],
       description: "Quality-first",
       context_window: 1_000_000,
       sort_order: 10,
@@ -48,6 +66,15 @@ describe("Operator-tagged LiteLLM catalog", () => {
         description: "Quality-first",
         kind: "coding",
         harnesses: ["codex"],
+        admissions: [{
+          harness: "codex",
+          status: "passed",
+          harnessVersion: "codex-2026.08",
+          testRevision: "operator-admission-v1",
+          testedAt: "2026-08-10T12:00:00.000Z",
+          requestedAlias: "operator.frontier",
+          resolvedModel: "provider/physical-model",
+        }],
         contextWindow: 1_000_000,
         reasoningOptions: [],
         sortOrder: 10,
@@ -64,7 +91,7 @@ describe("Operator-tagged LiteLLM catalog", () => {
         valid({ enabled: false }),
         valid({ kind: "image" }),
         valid({ label: "" }),
-        { ...valid(), model_name: "operator.good" },
+        valid({}, "operator.good"),
       ],
     });
     expect(result.models.map((m) => m.value)).toEqual(["operator.good"]);
@@ -76,15 +103,88 @@ describe("Operator-tagged LiteLLM catalog", () => {
   it("deduplicates names, validates harnesses, and sorts deterministically", () => {
     const result = parseLiteLLMModelInfo({
       data: [
-        { ...valid({ label: "Zulu", sort_order: 20 }), model_name: "operator.z" },
-        { ...valid({ label: "Alpha", harnesses: ["codex", "claude"], sort_order: 20 }), model_name: "operator.a" },
-        { ...valid({ label: "Duplicate" }), model_name: "operator.a" },
-        { ...valid({ harnesses: ["unknown"] }), model_name: "operator.bad" },
+        valid({ label: "Zulu", sort_order: 20 }, "operator.z"),
+        valid({
+          label: "Alpha",
+          admissions: [
+            admission("codex", "operator.a"),
+            admission("claude", "operator.a"),
+          ],
+          sort_order: 20,
+        }, "operator.a"),
+        valid({ label: "Duplicate" }, "operator.a"),
+        valid({ admissions: [] }, "operator.bad"),
       ],
     });
     expect(result.models.map((m) => m.value)).toEqual(["operator.a", "operator.z"]);
     expect(result.models[0].harnesses).toEqual(["codex", "claude"]);
     expect(result.errors.map((e) => e.model)).toEqual(["operator.a", "operator.bad"]);
+  });
+
+  it("derives harness compatibility only from passing admission evidence", () => {
+    const result = parseLiteLLMModelInfo({
+      data: [
+        valid({
+          // A claimed legacy harness must not bypass evidence.
+          harnesses: ["codex", "claude", "prime"],
+          admissions: [
+            admission("codex", "operator.mixed"),
+            admission("claude", "operator.mixed", { status: "failed" }),
+          ],
+        }, "operator.mixed"),
+      ],
+    });
+
+    expect(result.models).toEqual([
+      expect.objectContaining({
+        value: "operator.mixed",
+        harnesses: ["codex"],
+        admissions: [
+          expect.objectContaining({ harness: "codex", status: "passed" }),
+          expect.objectContaining({ harness: "claude", status: "failed" }),
+        ],
+      }),
+    ]);
+  });
+
+  it("keeps failed and missing admission pairs invisible", () => {
+    const result = parseLiteLLMModelInfo({
+      data: [
+        valid({
+          admissions: [admission("prime", "operator.failed", { status: "failed" })],
+        }, "operator.failed"),
+        valid({ admissions: undefined, harnesses: ["codex"] }, "operator.claimed-only"),
+      ],
+    });
+
+    expect(result.models).toEqual([]);
+    expect(result.errors).toEqual([
+      {
+        model: "operator.claimed-only",
+        error: "operator.admissions must be an array of harness admission records",
+      },
+    ]);
+  });
+
+  it("reports malformed admission evidence without exposing its harness pair", () => {
+    const result = parseLiteLLMModelInfo({
+      data: [
+        valid({
+          admissions: [
+            admission("codex", "operator.invalid", { tested_at: "yesterday" }),
+            admission("claude", "operator.invalid", { requested_alias: "operator.somewhere-else" }),
+            admission("prime", "operator.invalid", { harness_version: "" }),
+          ],
+        }, "operator.invalid"),
+      ],
+    });
+
+    expect(result.models).toEqual([]);
+    expect(result.errors).toEqual([
+      { model: "operator.invalid", error: "operator.admissions[0].tested_at must be an ISO-8601 timestamp" },
+      { model: "operator.invalid", error: "operator.admissions[1].requested_alias must equal model_name" },
+      { model: "operator.invalid", error: "operator.admissions[2].harness_version must be nonempty" },
+    ]);
   });
 
   it("replaces the in-memory snapshot and resolves exact harness compatibility", () => {
@@ -99,10 +199,22 @@ describe("Operator-tagged LiteLLM catalog", () => {
   it("accepts prime and mixed harness tags and rejects unknown strings", () => {
     const result = parseLiteLLMModelInfo({
       data: [
-        { ...valid({ harnesses: ["prime"] }), model_name: "operator.kimi-k3" },
-        { ...valid({ harnesses: ["codex", "prime"] }), model_name: "operator.dual" },
-        { ...valid({ harnesses: ["prime", "prime", "openrouter"] }), model_name: "operator.dedupe" },
-        { ...valid({ harnesses: ["openrouter", "gpt"] }), model_name: "operator.bad" },
+        valid({ admissions: [admission("prime", "operator.kimi-k3")] }, "operator.kimi-k3"),
+        valid({
+          admissions: [
+            admission("codex", "operator.dual"),
+            admission("prime", "operator.dual"),
+          ],
+        }, "operator.dual"),
+        valid({
+          admissions: [
+            admission("prime", "operator.dedupe"),
+            admission("prime", "operator.dedupe"),
+          ],
+        }, "operator.dedupe"),
+        valid({
+          admissions: [{ ...admission("codex", "operator.bad"), harness: "openrouter" }],
+        }, "operator.bad"),
       ],
     });
     expect(result.models.map((m) => [m.value, m.harnesses])).toEqual([
@@ -111,7 +223,8 @@ describe("Operator-tagged LiteLLM catalog", () => {
       ["operator.kimi-k3", ["prime"]],
     ]);
     expect(result.errors).toEqual([
-      { model: "operator.bad", error: "operator.harnesses must include codex, claude, or prime" },
+      { model: "operator.dedupe", error: "operator.admissions must not repeat harness prime" },
+      { model: "operator.bad", error: "operator.admissions[0].harness must be codex, claude, or prime" },
     ]);
     expect(JSON.stringify(result)).not.toMatch(/provider-secret|private\/provider-model|litellm_params/);
   });
@@ -120,8 +233,11 @@ describe("Operator-tagged LiteLLM catalog", () => {
     replaceLiteLLMCatalog({
       ...parseLiteLLMModelInfo({
         data: [
-          { ...valid(), model_name: "operator.codex-only" },
-          { ...valid({ harnesses: ["prime"], label: "Kimi K3" }), model_name: "operator.kimi-k3" },
+          valid({}, "operator.codex-only"),
+          valid({
+            admissions: [admission("prime", "operator.kimi-k3")],
+            label: "Kimi K3",
+          }, "operator.kimi-k3"),
         ],
       }),
       refreshedAt: "2026-08-10T12:00:00.000Z",
@@ -137,7 +253,9 @@ describe("Operator-tagged LiteLLM catalog", () => {
   it("exposes Auto-run-only, metered-cost capabilities for prime", () => {
     replaceLiteLLMCatalog({
       ...parseLiteLLMModelInfo({
-        data: [{ ...valid({ harnesses: ["prime"] }), model_name: "operator.kimi-k3" }],
+        data: [valid({
+          admissions: [admission("prime", "operator.kimi-k3")],
+        }, "operator.kimi-k3")],
       }),
       refreshedAt: "2026-08-10T12:00:00.000Z",
       stale: false,

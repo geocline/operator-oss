@@ -36,7 +36,7 @@ type RunControls = {
 function runControls(mode: string | null): RunControls {
   return mode === "plan"
     ? { sandboxMode: "read-only", approvalPolicy: "never", networkAccessEnabled: false }
-    : { sandboxMode: "workspace-write", approvalPolicy: "never", networkAccessEnabled: true };
+    : { sandboxMode: "danger-full-access", approvalPolicy: "never", networkAccessEnabled: true };
 }
 
 function orchestratorMcpConfig(

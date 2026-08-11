@@ -16,6 +16,7 @@ import type { AgentDriver } from "./types";
 import { claudeDriver } from "./claude/driver";
 import { codexDriver } from "./codex/driver";
 import { liteLLMCodexDriver } from "./litellm/driver";
+import { liteLLMClaudeDriver } from "./litellm-claude/driver";
 import { primeAgentDriver } from "./prime/driver";
 
 export { DEFAULT_AGENT } from "./capabilities";
@@ -30,6 +31,7 @@ function drivers(): Record<string, AgentDriver> {
     [claudeDriver.id]: claudeDriver,
     [codexDriver.id]: codexDriver,
     [liteLLMCodexDriver.id]: liteLLMCodexDriver,
+    [liteLLMClaudeDriver.id]: liteLLMClaudeDriver,
     [primeAgentDriver.id]: primeAgentDriver,
   };
   return DRIVERS;

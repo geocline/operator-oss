@@ -5,8 +5,8 @@ import type { Status } from "@/lib/types";
 import { Icon } from "../icons";
 import { isAwaiting, relTime } from "./format";
 import { SEARCH_MIN, type ProjectRow, type TaskRow, type AgentsBundle, type TaskView } from "./types";
-import { agentLabel, findAgent } from "./agents";
-import { launchConfigurationSummary, needsLaunchConfiguration } from "./launchConfig";
+import { agentLabel } from "./agents";
+import { launchConfigurationSummary, launchModelReady, needsLaunchConfiguration } from "./launchConfig";
 import { StatusDot, PriPill, SearchBar, AgentBadge } from "./shared";
 
 // The kanban alternative to the grouped task list (layout from the Claude
@@ -267,8 +267,8 @@ export function TaskBoard({ tasks, suggested, agents, selTaskId, running, blocke
                           ) : (
                             <button
                               className="go"
-                              disabled={!findAgent(agents, t.agent)?.authenticated}
-                              title={!findAgent(agents, t.agent)?.authenticated ? `${agentLabel(agents, t.agent)} is not connected` : undefined}
+                              disabled={!launchModelReady(t, agents)}
+                              title={!launchModelReady(t, agents) ? `${agentLabel(agents, t.agent)} is not connected for this model` : undefined}
                               onClick={() => onStartSuggestion(t.id)}
                             >
                               {Icon.play()} Start

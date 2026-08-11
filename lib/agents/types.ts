@@ -20,11 +20,17 @@ export interface AgentModelOption {
   value: string;
   label: string;
   sub: string; // short picker subtitle, e.g. "most capable"
+  /** Internal runner selected for this model. Omitted means the public harness id. */
+  driverId?: string;
+  /** Whether this model's internal route is currently usable. */
+  authenticated?: boolean;
   contextWindow: number;
   contextWindowKnown?: boolean;
   group?: string;
   /** Optional reasoning preset values supported by this exact model. Omitted means every agent-level option. */
   reasoningValues?: string[];
+  /** Optional permission values supported by this internal route. Omitted means every harness-level option. */
+  permissionValues?: string[];
 }
 
 // A reasoning preset / permission mode a driver supports. `value` is what's

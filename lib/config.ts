@@ -59,6 +59,15 @@ if (configuredLiteLLMHome && !path.isAbsolute(configuredLiteLLMHome)) {
 export const LITELLM_CODEX_HOME =
   configuredLiteLLMHome || path.join(os.homedir(), ".operator", "litellm-codex");
 
+const configuredLiteLLMClaudeHome = process.env.LITELLM_CLAUDE_HOME;
+if (configuredLiteLLMClaudeHome && !path.isAbsolute(configuredLiteLLMClaudeHome)) {
+  throw new Error("LITELLM_CLAUDE_HOME must be an absolute path");
+}
+
+/** Separate task-local Claude Code config/session root for LiteLLM-backed turns. */
+export const LITELLM_CLAUDE_HOME =
+  configuredLiteLLMClaudeHome || path.join(os.homedir(), ".operator", "litellm-claude");
+
 const configuredPrimeHome = process.env.LITELLM_PRIME_HOME;
 if (configuredPrimeHome && !path.isAbsolute(configuredPrimeHome)) {
   throw new Error("LITELLM_PRIME_HOME must be an absolute path");

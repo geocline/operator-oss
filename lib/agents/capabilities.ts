@@ -25,6 +25,7 @@ const CAPABILITIES: Record<string, AgentCapabilities> = {
   claude: CLAUDE_CAPABILITIES,
   codex: CODEX_CAPABILITIES,
   "litellm-codex": liteLLMCapabilities(),
+  "litellm-claude": liteLLMCapabilities("claude"),
   "litellm-prime": liteLLMCapabilities("prime"),
 };
 
@@ -33,6 +34,7 @@ const CAPABILITIES: Record<string, AgentCapabilities> = {
  * should still resolve to something). */
 export function getCapabilities(id: string | null | undefined): AgentCapabilities {
   if (id === "litellm-codex") return liteLLMCapabilities();
+  if (id === "litellm-claude") return liteLLMCapabilities("claude");
   if (id === "litellm-prime") return liteLLMCapabilities("prime");
   return (id && CAPABILITIES[id]) || CAPABILITIES[DEFAULT_AGENT];
 }

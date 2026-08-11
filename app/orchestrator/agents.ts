@@ -4,8 +4,20 @@
 // no client edits. Pure functions (no React) so any module can import them.
 import type { AgentsBundle, AgentInfo, AgentCapabilities } from "./types";
 
+export function publicHarnessId(id: string | null | undefined): string | null | undefined {
+  if (id === "litellm-codex") return "codex";
+  if (id === "litellm-claude") return "claude";
+  return id;
+}
+
 export function findAgent(bundle: AgentsBundle, id: string | null | undefined): AgentInfo | undefined {
-  return bundle.agents.find((a) => a.id === id);
+  const publicId = publicHarnessId(id);
+  return bundle.agents.find((a) => a.id === publicId);
+}
+
+export function driverForModel(bundle: AgentsBundle, harnessId: string, model: string): string {
+  return findAgent(bundle, harnessId)?.capabilities.models.find((option) => option.value === model)?.driverId
+    ?? harnessId;
 }
 
 // The human name for an agent id, e.g. "Claude Code" / "Codex". Falls back to

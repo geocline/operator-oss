@@ -23,7 +23,12 @@ vi.mock("@/lib/agents/claude/driver", () => ({
 // spawned `codex` process is replaced by a fake thread that replays recorded
 // JSONL ThreadEvents. That pins BOTH drivers to the same StreamEvent → runner
 // contract from opposite ends of the seam.
-const { codexRun } = vi.hoisted(() => ({ codexRun: { events: [] as unknown[] } }));
+const { codexRun } = vi.hoisted(() => ({
+  codexRun: {
+    events: [] as unknown[],
+    threadOptions: null as Record<string, unknown> | null,
+  },
+}));
 
 vi.mock("@openai/codex-sdk", () => {
   class FakeThread {
@@ -51,10 +56,12 @@ vi.mock("@openai/codex-sdk", () => {
     }
   }
   class Codex {
-    startThread() {
+    startThread(options: Record<string, unknown>) {
+      codexRun.threadOptions = options;
       return new FakeThread();
     }
-    resumeThread(id: string) {
+    resumeThread(id: string, options: Record<string, unknown>) {
+      codexRun.threadOptions = options;
       return new FakeThread(id);
     }
   }
@@ -104,6 +111,7 @@ function loadCodexFixture(name: string): unknown[] {
 beforeEach(() => {
   runTurnMock.mockReset();
   codexRun.events = [];
+  codexRun.threadOptions = null;
 });
 
 describe("agent registry", () => {
@@ -362,6 +370,12 @@ describe("codex driver contract through the runner", () => {
     const { events, done } = collectEvents(task.id);
     await startResumeTurn(task, project, "go");
     await done;
+
+    expect(codexRun.threadOptions).toMatchObject({
+      sandboxMode: "danger-full-access",
+      approvalPolicy: "never",
+      networkAccessEnabled: true,
+    });
 
     // The opaque codex thread id is persisted verbatim into session_id (the same
     // column a Claude session id lands in) and the task settles like any turn.

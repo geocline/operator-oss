@@ -193,7 +193,7 @@ export function SessionRail({ project, task, sessions, running, onResolveWithAI,
   // Repo-direct tasks (project "run in folder" toggle, no worktree of their own)
   // have no isolated branch to diff or merge — hide the tab entirely. Tasks that
   // predate the toggle keep their worktree, so worktree_path is the source of truth.
-  const showDiff = !(project.run_in_repo && !task.worktree_path);
+  const showDiff = task.workspace_mode === "worktree" || Boolean(task.worktree_path);
   const [tab, setTab] = useState<Tab>(showDiff ? "diff" : "notes");
   useEffect(() => { if (!showDiff && tab === "diff") setTab("notes"); }, [showDiff, tab]);
   const Tab = ({ id, label }: { id: Tab; label: string }) => (

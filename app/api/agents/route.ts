@@ -3,6 +3,7 @@ import { listDrivers, DEFAULT_AGENT } from "@/lib/agents/registry";
 import { getSetting } from "@/lib/store";
 import { getAgentConnection, getAgentAuthBroken } from "@/lib/agents/connections";
 import { hydrateLiteLLMCatalog } from "@/lib/agents/litellm/catalog-store";
+import type { AgentDriver } from "@/lib/agents/types";
 
 export const dynamic = "force-dynamic";
 
@@ -16,39 +17,68 @@ export const dynamic = "force-dynamic";
 // page load. `authenticated` mirrors `connected` for the run-control pickers.
 export async function GET() {
   hydrateLiteLLMCatalog();
+  const drivers = listDrivers();
+  const byId = new Map(drivers.map((driver) => [driver.id, driver]));
+  const publicDrivers = drivers.filter((driver) => driver.id !== "litellm-codex" && driver.id !== "litellm-claude");
+
+  const publicDescriptor = (driver: AgentDriver) => {
+    const gatewayId = driver.id === "claude"
+      ? "litellm-claude"
+      : driver.id === "codex"
+        ? "litellm-codex"
+        : null;
+    const gateway = gatewayId ? byId.get(gatewayId) : null;
+    const conn = getAgentConnection(driver.id);
+    const managed = driver.capabilities.connectionStyle === "managed_endpoint";
+    const managedConnected = managed && driver.capabilities.models.length > 0;
+    const keyed = !!driver.apiKey?.has();
+    const nativeConnected = managedConnected || keyed || !!conn;
+    const gatewayModels = gateway?.capabilities.models.map((model) => ({
+      ...model,
+      driverId: gateway.id,
+      authenticated: true,
+      permissionValues: gateway.capabilities.permissionModes.map((mode) => mode.value),
+    })) ?? [];
+    const capabilities = gateway
+      ? {
+          ...driver.capabilities,
+          models: [
+            ...driver.capabilities.models.map((model) => ({
+              ...model,
+              authenticated: nativeConnected,
+            })),
+            ...gatewayModels,
+          ],
+          managedCatalogPath: gateway.capabilities.managedCatalogPath,
+        }
+      : driver.capabilities;
+
+    const gatewayConnected = gatewayModels.length > 0;
+    return {
+      id: driver.id,
+      label: driver.label,
+      capabilities,
+      connected: managedConnected || gatewayConnected || keyed || !!conn,
+      authenticated: managedConnected || gatewayConnected || keyed || !!conn,
+      account: managedConnected
+        ? { email: null, plan: "LiteLLM", method: "managed_endpoint" as const }
+        : keyed
+        ? { email: null, plan: "API", method: "api_key" as const }
+        : conn
+          ? { email: conn.email, plan: conn.plan, method: conn.method }
+          : null,
+      authBroken: getAgentAuthBroken(driver.id),
+    };
+  };
+
   return NextResponse.json({
     // The app-level default agent (Settings → Run defaults) is the client's
     // ultimate fallback when a project hasn't set its own; unset → the built-in.
-    default: getSetting("default_agent") || DEFAULT_AGENT,
-    agents: listDrivers().map((d) => {
-      const conn = getAgentConnection(d.id);
-      const managed = d.capabilities.connectionStyle === "managed_endpoint";
-      const managedConnected = managed && d.capabilities.models.length > 0;
-      // Effective-credential overlay (issue #4): the settings record says how
-      // the user CONNECTED, but a live API key (persisted 0600 file, or env via
-      // the ORCH_ALLOW_API_KEY_ENV opt-in) is what turns actually bill — it
-      // outranks a stored subscription login, so report it, not the record.
-      const keyed = !!d.apiKey?.has();
-      return {
-        id: d.id,
-        label: d.label,
-        capabilities: d.capabilities,
-        connected: managedConnected || keyed || !!conn,
-        authenticated: managedConnected || keyed || !!conn,
-        account: managedConnected
-          ? { email: null, plan: "LiteLLM", method: "managed_endpoint" as const }
-          : keyed
-          ? { email: null, plan: "API", method: "api_key" as const }
-          : conn
-            ? { email: conn.email, plan: conn.plan, method: conn.method }
-            : null,
-        // Connected on record, but its credentials died in flight (expired OAuth
-        // session, revoked key) — set by the runner when a turn fails on auth
-        // (lib/authFailure.ts) and cleared by the next successful turn or
-        // reconnect. Drives the titlebar reconnect banner; a tab that missed the
-        // live event picks it up here on load / SSE reconnect.
-        authBroken: getAgentAuthBroken(d.id),
-      };
-    }),
+    default: getSetting("default_agent") === "litellm-codex"
+      ? "codex"
+      : getSetting("default_agent") === "litellm-claude"
+        ? "claude"
+        : getSetting("default_agent") || DEFAULT_AGENT,
+    agents: publicDrivers.map(publicDescriptor),
   });
 }

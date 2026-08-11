@@ -117,7 +117,9 @@ describe("LiteLLM Codex harness driver", () => {
     expect(captures.threadOptions).toMatchObject({
       model: "operator.frontier",
       modelReasoningEffort: "medium",
-      sandboxMode: "workspace-write",
+      sandboxMode: "danger-full-access",
+      approvalPolicy: "never",
+      networkAccessEnabled: true,
     });
     expect(events).toEqual(expect.arrayContaining([
       { type: "model", model: "operator.frontier" },

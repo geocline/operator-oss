@@ -66,6 +66,7 @@ export function init(db: Database.Database) {
       resolved_model TEXT,
       reasoning   TEXT,
       permission_mode TEXT,
+      workspace_mode TEXT NOT NULL DEFAULT 'direct',
       launch_config_required INTEGER NOT NULL DEFAULT 0,
       launch_config_confirmed_at INTEGER NOT NULL DEFAULT 0,
       session_id  TEXT,
@@ -464,6 +465,10 @@ export function migrate(db: Database.Database) {
   // Per-task run controls (added after model selection): thinking preset + permission mode.
   if (!taskCols.includes("reasoning")) db.exec("ALTER TABLE tasks ADD COLUMN reasoning TEXT");
   if (!taskCols.includes("permission_mode")) db.exec("ALTER TABLE tasks ADD COLUMN permission_mode TEXT");
+  if (!taskCols.includes("workspace_mode")) {
+    db.exec("ALTER TABLE tasks ADD COLUMN workspace_mode TEXT NOT NULL DEFAULT 'direct'");
+    db.exec("UPDATE tasks SET workspace_mode = 'worktree' WHERE worktree_path != ''");
+  }
   if (!taskCols.includes("launch_config_required")) {
     db.exec("ALTER TABLE tasks ADD COLUMN launch_config_required INTEGER NOT NULL DEFAULT 0");
     db.exec("UPDATE tasks SET launch_config_required = 1 WHERE suggested = 1 AND started = 0");

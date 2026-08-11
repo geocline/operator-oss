@@ -21,7 +21,15 @@ const payload = {
         enabled: true,
         label: "Operator Frontier",
         kind: "coding",
-        harnesses: ["codex"],
+        admissions: [{
+          harness: "codex",
+          status: "passed",
+          harness_version: "test",
+          test_revision: "fixture",
+          tested_at: "2026-08-10T00:00:00.000Z",
+          requested_alias: "operator.frontier",
+          resolved_model: "private/model",
+        }],
       },
     },
     litellm_params: { api_key: "never-persist", model: "private/model" },
@@ -44,7 +52,9 @@ describe("LiteLLM catalog persistence", () => {
     );
     expect(result.models.map((m) => m.value)).toEqual(["operator.frontier"]);
     const stored = getSetting(SETTING)!;
-    expect(stored).not.toMatch(/never-persist|private\/model|litellm_params/);
+    // Admission evidence intentionally keeps the resolved physical model, but
+    // never provider credentials or the raw LiteLLM routing object.
+    expect(stored).not.toMatch(/never-persist|litellm_params/);
 
     replaceLiteLLMCatalog({ models: [], errors: [], refreshedAt: null, stale: false });
     expect(hydrateLiteLLMCatalog().models[0].value).toBe("operator.frontier");
@@ -72,6 +82,25 @@ describe("LiteLLM catalog persistence", () => {
 
   it("ignores corrupt persisted state", () => {
     setSetting(SETTING, "{not json");
+    expect(hydrateLiteLLMCatalog().models).toEqual([]);
+  });
+
+  it("drops cached models that do not carry valid passed admission evidence", () => {
+    setSetting(SETTING, JSON.stringify({
+      models: [{
+        value: "operator.unvetted",
+        label: "Unvetted",
+        description: "",
+        kind: "coding",
+        harnesses: ["claude", "codex", "prime"],
+        contextWindow: 200_000,
+        reasoningOptions: [],
+        sortOrder: 1,
+      }],
+      errors: [],
+      refreshedAt: "2026-08-10T00:00:00.000Z",
+      stale: false,
+    }));
     expect(hydrateLiteLLMCatalog().models).toEqual([]);
   });
 });

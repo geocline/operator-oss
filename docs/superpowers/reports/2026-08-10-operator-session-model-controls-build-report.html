@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Operator Session &amp; Model Controls — Build Report</title>
+  <style>
+    :root{color-scheme:dark;--bg:#090b10;--panel:#11151d;--line:#293141;--text:#eef2f7;--muted:#9ca8b8;--accent:#f1a45b;--good:#65d49a}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:16px/1.55 system-ui,-apple-system,sans-serif}
+    main{width:min(940px,calc(100% - 28px));margin:36px auto 64px} h1{font-size:clamp(30px,7vw,52px);line-height:1.02;margin:0 0 12px}
+    h2{font-size:19px;margin:0 0 12px} p{margin:0 0 14px}.lede{color:var(--muted);font-size:18px;max-width:760px}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:28px 0}
+    section{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px}.wide{grid-column:1/-1}
+    ul{margin:0;padding-left:20px}li+li{margin-top:8px}.ok{color:var(--good);font-weight:700}.accent{color:var(--accent)}
+    code{font:13px ui-monospace,SFMono-Regular,Menlo,monospace;color:#d9e4f2}
+    .flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-weight:750}.flow span{padding:7px 10px;border:1px solid var(--line);border-radius:9px;background:#171c25}.flow i{color:var(--accent)}
+    @media(max-width:650px){main{margin-top:22px}.grid{grid-template-columns:1fr}.wide{grid-column:auto}section{padding:16px}}
+  </style>
+</head>
+<body>
+<main>
+  <p class="accent">OPERATOR • BUILD REPORT • 2026-08-10</p>
+  <h1>Sessions now start the way Geo expects.</h1>
+  <p class="lede">Harness, model, and strength are separate choices. Workspace and agent access are separate choices. LiteLLM is routing infrastructure, never a fourth harness.</p>
+
+  <div class="grid">
+    <section class="wide">
+      <h2>Visible launch flow</h2>
+      <div class="flow"><span>Harness</span><i>→</i><span>Model</span><i>→</i><span>Thinking strength</span></div>
+      <p style="margin-top:14px;color:var(--muted)">The visible harnesses are Claude Code, Codex, and Prime Agent. A vetted gateway model appears inside the compatible harness and resolves its internal route automatically.</p>
+    </section>
+
+    <section>
+      <h2>Session execution</h2>
+      <ul>
+        <li>Default workspace: <strong>Project folder</strong></li>
+        <li>Optional workspace: isolated worktree</li>
+        <li>Default agent access: <strong>Full power</strong></li>
+        <li>Workspace and access remain independent controls</li>
+        <li>Workspace locks after launch; access remains editable</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Harness behavior</h2>
+      <ul>
+        <li>Codex Full power maps to <code>danger-full-access</code>, network on, approvals never</li>
+        <li>Claude Code can run admitted gateway aliases through its normal SDK</li>
+        <li>Prime accepts every model admitted specifically for Prime</li>
+        <li>Started sessions cannot silently cross from one internal runner to another</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Admission rule</h2>
+      <ul>
+        <li>Each exact alias needs per-harness evidence</li>
+        <li>Evidence records harness version, test revision, timestamp, requested alias, and resolved model</li>
+        <li>Only <code>status: passed</code> makes a model selectable</li>
+        <li>Cached catalogs are revalidated during hydration</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Claude gateway isolation</h2>
+      <ul>
+        <li>Task-local <code>CLAUDE_CONFIG_DIR</code></li>
+        <li>Disposable relay credential</li>
+        <li>Native and ambient credentials scrubbed before launch</li>
+        <li>All Claude background-model aliases pinned to the admitted alias</li>
+        <li>Native Claude subscription sessions are unchanged</li>
+      </ul>
+    </section>
+
+    <section class="wide">
+      <h2>Verification</h2>
+      <p><span class="ok">PASS</span> Full Vitest suite, TypeScript typecheck, production Next.js build, and whitespace validation.</p>
+      <p style="color:var(--muted)">The live Prime acceptance test remains opt-in because it requires a running gateway and real provider configuration. The production build retains one pre-existing Turbopack warning about dynamic Prime CLI path tracing.</p>
+    </section>
+  </div>
+</main>
+</body>
+</html>

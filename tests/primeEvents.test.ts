@@ -43,6 +43,18 @@ const VALID_MESSAGE_END = (overrides: Record<string, unknown> = {}) => ({
 });
 
 describe("mapPrimeEvent", () => {
+  it("rejects a physical identity that differs from the model recorded by admission", () => {
+    const state = newPrimeState("operator.kimi-k3", "moonshotai/kimi-k3");
+    const out = [
+      ...mapPrimeEvent(
+        VALID_MESSAGE_END({ resolvedModel: "moonshotai/other-model" }) as PrimeRpcEvent,
+        state,
+      ),
+      ...mapPrimeEvent({ type: "agent_end" }, state),
+    ];
+    expect(out.some((event) => event.type === "error")).toBe(true);
+    expect(out.some((event) => event.type === "done")).toBe(false);
+  });
   it("1. agent_start emits a session event with the opaque session id", () => {
     const { out } = run([{ type: "agent_start", sessionFile: "/tmp/fake-prime/session.jsonl" }]);
     expect(out).toEqual([{ type: "session", sessionId: "/tmp/fake-prime/session.jsonl" }]);
@@ -179,16 +191,16 @@ describe("mapPrimeEvent", () => {
       expect(badProvider.out.some((e) => e.type === "done")).toBe(false);
     });
 
-    it("rejects an identity that reads as OpenAI", () => {
+    it("accepts an OpenAI identity when the exact alias was admitted for Prime", () => {
       const { out } = run([VALID_MESSAGE_END({ resolvedModel: "gpt-4.1-mini" }) as PrimeRpcEvent, { type: "agent_end" }]);
-      expect(out.some((e) => e.type === "error")).toBe(true);
-      expect(out.some((e) => e.type === "done")).toBe(false);
+      expect(out.some((e) => e.type === "error")).toBe(false);
+      expect(out.some((e) => e.type === "done")).toBe(true);
     });
 
-    it("rejects an identity that reads as Anthropic", () => {
+    it("accepts an Anthropic identity when the exact alias was admitted for Prime", () => {
       const { out } = run([VALID_MESSAGE_END({ resolvedModel: "claude-3-5-sonnet" }) as PrimeRpcEvent, { type: "agent_end" }]);
-      expect(out.some((e) => e.type === "error")).toBe(true);
-      expect(out.some((e) => e.type === "done")).toBe(false);
+      expect(out.some((e) => e.type === "error")).toBe(false);
+      expect(out.some((e) => e.type === "done")).toBe(true);
     });
 
     it("rejects a fallback-suffixed identity", () => {

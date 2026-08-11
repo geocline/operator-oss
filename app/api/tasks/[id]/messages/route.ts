@@ -138,12 +138,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       // ""). Best-effort: a git hiccup must not block the run. Mutating `fresh` so the
       // runner uses the new cwd. Safe to await while holding the claim: that's the
       // point — a second POST landing in this window queues instead of double-running.
-      // Projects with "Run tasks directly in the project folder" enabled skip
-      // isolation entirely: worktree_path stays "" and the runner falls back to
-      // repo_path. A task that already has a worktree (created before the
-      // toggle) keeps it — flipping the setting never strands existing work.
-      const skipWorktree = !!project.run_in_repo && !fresh.worktree_path;
-      if (!skipWorktree && (!fresh.worktree_path || !fs.existsSync(fresh.worktree_path))) {
+      // Workspace is a per-task launch choice. Direct sessions always run in
+      // project.repo_path; isolated tasks create or reattach their own worktree.
+      // Existing worktree tasks were backfilled to "worktree" by the migration.
+      if (
+        fresh.workspace_mode === "worktree" &&
+        (!fresh.worktree_path || !fs.existsSync(fresh.worktree_path))
+      ) {
         try {
           const wt = await ensureWorktree(project.repo_path, fresh.id, project.branch);
           if (wt) {

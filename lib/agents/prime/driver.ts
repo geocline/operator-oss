@@ -22,7 +22,7 @@ import { ensurePrimeTaskDirs } from "./session-paths";
 /**
  * The litellm-prime driver: Prime Agent as a pinned external CLI over JSONL
  * RPC, billing through Operator's loopback LiteLLM relay against the exact
- * approved Kimi alias. Additive next to native Claude/Codex and litellm-codex;
+ * exact Prime-vetted model alias. Additive next to native Claude/Codex;
  * see docs/superpowers/specs/2026-08-10-prime-agent-operator-integration-design.md.
  *
  * Prime is NOT an OS sandbox — the child runs with the Operator process's host
@@ -117,7 +117,7 @@ async function* runTurn(
   if (!selected) {
     yield {
       type: "error",
-      content: `Prime model "${task.model || "(none)"}" is unavailable in the LiteLLM catalog. Refresh the catalog and select the approved Kimi model.`,
+      content: `Prime model "${task.model || "(none)"}" is not currently vetted. Refresh models and choose an available Prime model.`,
     };
     yield { type: "done", sessionId: task.session_id };
     return;
@@ -141,7 +141,10 @@ async function* runTurn(
   }
 
   let client: PrimeRpcClient | null = null;
-  const state = newPrimeState(selected.value);
+  const expectedResolvedModel = selected.admissions?.find(
+    (admission) => admission.harness === "prime" && admission.status === "passed",
+  )?.resolvedModel;
+  const state = newPrimeState(selected.value, expectedResolvedModel);
   const queue = makeQueue<StreamEvent>();
   let agentEnded = false;
   let sawUsage = false;

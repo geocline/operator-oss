@@ -7,7 +7,7 @@ import { jget, jsend, saveTaskEdit } from "./api";
 import { isAwaiting, blockerTitles, formatAnswersText } from "./format";
 import { loadPersist, readUrlSel } from "./persist";
 import { DEFAULT_SETTINGS, EMPTY_AGENTS, type AgentsBundle, type OnboardingT, type ProjectRow, type TaskRow } from "./types";
-import { agentLabel } from "./agents";
+import { agentLabel, driverForModel, publicHarnessId } from "./agents";
 import { useTaskStream } from "./useTaskStream";
 import { useGlobalEvents } from "./useGlobalEvents";
 import { usePrefs } from "./usePrefs";
@@ -452,7 +452,12 @@ export function useOrchestrator() {
   };
   const setModel = async (m: string | null) => {
     if (!task) return;
-    const fresh = await jsend<TaskRow>(`/api/tasks/${task.id}`, "PATCH", { model: m });
+    const harness = publicHarnessId(task.agent) ?? task.agent;
+    const driver = m ? driverForModel(agents, harness, m) : task.agent;
+    const fresh = await jsend<TaskRow>(`/api/tasks/${task.id}`, "PATCH", {
+      model: m,
+      ...(task.started === 0 && driver !== task.agent ? { agent: driver } : {}),
+    });
     setTasks((prev) => prev.map((x) => (x.id === task.id ? { ...x, ...fresh } : x)));
   };
   // Move a not-yet-started task to another agent. The server rejects this once
@@ -474,9 +479,19 @@ export function useOrchestrator() {
     setTasks((prev) => prev.map((x) => (x.id === task.id ? { ...x, ...fresh } : x)));
   };
 
-  const createTask = async (input: { title: string; desc: string; priority: Priority; agent: string; startNow: boolean; depends_on: string[] }) => {
+  const createTask = async (input: { title: string; desc: string; priority: Priority; agent: string; model: string; reasoning: string; startNow: boolean; depends_on: string[]; workspace_mode: "direct" | "worktree"; permission_mode: string }) => {
     if (!project) return;
-    const t = await jsend<TaskRow>("/api/tasks", "POST", { project_id: project.id, title: input.title, description: input.desc, priority: input.priority, agent: input.agent });
+    const t = await jsend<TaskRow>("/api/tasks", "POST", {
+      project_id: project.id,
+      title: input.title,
+      description: input.desc,
+      priority: input.priority,
+      agent: input.agent,
+      model: input.model,
+      reasoning: input.reasoning,
+      workspace_mode: input.workspace_mode,
+      permission_mode: input.permission_mode,
+    });
     // Dependencies are an edit-after-create step (the task id doesn't exist until now).
     if (input.depends_on.length) await jsend(`/api/tasks/${t.id}`, "PATCH", { depends_on: input.depends_on });
     await loadTasks(project.id, false);

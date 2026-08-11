@@ -1,10 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-// Per-project "Run tasks directly in the project folder" (projects.run_in_repo):
-// tasks skip worktree isolation entirely — worktree_path stays "", the agent
-// session runs in project.repo_path, and the diff/sync/merge surfaces report
-// non-isolated instead of erroring. Drives a scripted fake driver through the
-// real routes + runner, like tests/turnRace.test.ts.
+// Per-task workspace mode: every task explicitly chooses the real project folder
+// or an isolated worktree. Drives a scripted fake driver through the real routes
+// + runner, like tests/turnRace.test.ts.
 const { runTurnMock } = vi.hoisted(() => ({ runTurnMock: vi.fn() }));
 
 vi.mock("@/lib/agents/claude/driver", () => ({
@@ -20,6 +18,8 @@ import type { Task } from "@/lib/types";
 import { createProject, createTask, getTask, updateProject } from "@/lib/store";
 import { subscribe } from "@/lib/events";
 import { POST as messagesPost } from "@/app/api/tasks/[id]/messages/route";
+import { PATCH as taskPatch } from "@/app/api/tasks/[id]/route";
+import { POST as tasksPost } from "@/app/api/tasks/route";
 import { POST as mergePost } from "@/app/api/tasks/[id]/merge/route";
 import { POST as mergePreparePost } from "@/app/api/tasks/[id]/merge/prepare/route";
 import { GET as syncGet, POST as syncPost } from "@/app/api/tasks/[id]/sync/route";
@@ -60,25 +60,102 @@ beforeEach(() => {
   runTurnMock.mockReset();
 });
 
-describe("run_in_repo projects", () => {
-  it("defaults ON: new projects run tasks directly in the repo", async () => {
+describe("task workspace mode", () => {
+  it("validates workspace mode at task creation", async () => {
+    const project = createProject({ name: "CreateValidation", repo_path: await makeRepo() });
+    const invalid = await tasksPost(new Request("http://test/tasks", {
+      method: "POST",
+      body: JSON.stringify({
+        project_id: project.id,
+        title: "Bad",
+        workspace_mode: "mystery",
+      }),
+    }));
+    expect(invalid.status).toBe(400);
+
+    const invalidAccess = await tasksPost(new Request("http://test/tasks", {
+      method: "POST",
+      body: JSON.stringify({
+        project_id: project.id,
+        title: "Bad access",
+        agent: "codex",
+        permission_mode: "made-up",
+      }),
+    }));
+    expect(invalidAccess.status).toBe(400);
+
+    const valid = await tasksPost(new Request("http://test/tasks", {
+      method: "POST",
+      body: JSON.stringify({
+        project_id: project.id,
+        title: "Good",
+        workspace_mode: "worktree",
+        permission_mode: "bypassPermissions",
+      }),
+    }));
+    expect(valid.status).toBe(201);
+    expect(await valid.json()).toMatchObject({
+      workspace_mode: "worktree",
+      permission_mode: "bypassPermissions",
+    });
+  });
+
+  it("allows workspace changes before start and rejects them after start", async () => {
+    const project = createProject({ name: "PatchValidation", repo_path: await makeRepo() });
+    const task = createTask({ project_id: project.id, title: "T" });
+    const before = await taskPatch(new Request("http://test/task", {
+      method: "PATCH",
+      body: JSON.stringify({ workspace_mode: "worktree" }),
+    }), { params: Promise.resolve({ id: task.id }) });
+    expect(before.status).toBe(200);
+    expect(await before.json()).toMatchObject({ workspace_mode: "worktree" });
+
+    const invalidAccess = await taskPatch(new Request("http://test/task", {
+      method: "PATCH",
+      body: JSON.stringify({ permission_mode: "made-up" }),
+    }), { params: Promise.resolve({ id: task.id }) });
+    expect(invalidAccess.status).toBe(400);
+
+    await runOneTurn(task.id);
+    const after = await taskPatch(new Request("http://test/task", {
+      method: "PATCH",
+      body: JSON.stringify({ workspace_mode: "direct" }),
+    }), { params: Promise.resolve({ id: task.id }) });
+    expect(after.status).toBe(409);
+  });
+
+  it("defaults new tasks to direct workspace and explicit full-power access", async () => {
     const project = createProject({ name: "Default", repo_path: await makeRepo() });
-    expect(project.run_in_repo).toBe(1);
     const task = createTask({ project_id: project.id, title: "T", description: "d" });
+    expect(task.workspace_mode).toBe("direct");
+    expect(task.permission_mode).toBe("bypassPermissions");
     await runOneTurn(task.id);
     const after = getTask(task.id)!;
     expect(after.worktree_path).toBe("");
     expect(after.work_branch).toBe("");
   });
 
-  it("opting out restores per-task worktree isolation", async () => {
-    const project = createProject({ name: "OptOut", repo_path: await makeRepo(), run_in_repo: 0 });
-    expect(project.run_in_repo).toBe(0);
-    const task = createTask({ project_id: project.id, title: "T", description: "d" });
+  it("creates isolation only when the task explicitly requests a worktree", async () => {
+    const project = createProject({ name: "Isolated", repo_path: await makeRepo(), run_in_repo: 1 });
+    const task = createTask({
+      project_id: project.id,
+      title: "T",
+      description: "d",
+      workspace_mode: "worktree",
+    });
+    expect(task.workspace_mode).toBe("worktree");
     await runOneTurn(task.id);
     const after = getTask(task.id)!;
     expect(after.worktree_path).not.toBe("");
     expect(after.work_branch).not.toBe("");
+  });
+
+  it("does not let the legacy project toggle silently isolate a new task", async () => {
+    const project = createProject({ name: "LegacyProjectDefault", repo_path: await makeRepo(), run_in_repo: 0 });
+    const task = createTask({ project_id: project.id, title: "T", description: "d" });
+    expect(task.workspace_mode).toBe("direct");
+    await runOneTurn(task.id);
+    expect(getTask(task.id)!.worktree_path).toBe("");
   });
 
   it("skips worktree creation and runs the session in repo_path", async () => {
@@ -133,9 +210,14 @@ describe("run_in_repo projects", () => {
     expect(diffBody.workspacePath).toBe(project.repo_path);
   });
 
-  it("a task that already has a worktree keeps it after the toggle flips on", async () => {
+  it("a task that already has a worktree keeps it after the project toggle flips", async () => {
     const project = createProject({ name: "Grandfather", repo_path: await makeRepo(), run_in_repo: 0 });
-    const task = createTask({ project_id: project.id, title: "T", description: "d" });
+    const task = createTask({
+      project_id: project.id,
+      title: "T",
+      description: "d",
+      workspace_mode: "worktree",
+    });
     await runOneTurn(task.id);
     const isolated = getTask(task.id)!;
     expect(isolated.worktree_path).not.toBe("");

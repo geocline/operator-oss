@@ -1,6 +1,6 @@
 // Client-side shapes + UI constants shared across the orchestrator modules.
 // Pure data only (no React / no Icon) so any module can import freely.
-import type { Priority, Status } from "@/lib/types";
+import type { Priority, Status, WorkspaceMode } from "@/lib/types";
 
 // ---------- client shapes ----------
 export interface ProjectRow {
@@ -16,7 +16,7 @@ export interface ProjectRow {
   setup_command: string;
   test_command: string;
   default_agent: string; // agent driver new tasks in this project default to (lib/agents/registry.ts)
-  run_in_repo: number; // 1 = new tasks skip worktree isolation and run directly in repo_path
+  run_in_repo: number; // legacy project preference; task.workspace_mode is authoritative
   port: number;
   deprecated: number;
   seeded: number; // 1 = built-in "Welcome" tutorial project (coach marks + post-merge nudge)
@@ -38,6 +38,7 @@ export interface TaskRow {
   resolved_model: string | null;
   reasoning: string | null; // thinking preset; null = inherit default
   permission_mode: string | null; // run permission; null = bypassPermissions (default)
+  workspace_mode: WorkspaceMode; // direct project folder or isolated git worktree
   launch_config_required: number;
   launch_config_confirmed_at: number;
   session_id: string | null;
@@ -221,7 +222,7 @@ export const PRIORITIES: Priority[] = ["hi", "med", "lo"];
 // capability descriptor (models / reasoning / permission modes it supports, plus
 // feature flags) served by GET /api/agents. The client renders every picker from
 // this data, so a task's controls always match the agent it runs under.
-export interface AgentModelOption { value: string; label: string; sub: string; contextWindow: number; contextWindowKnown?: boolean; group?: string; reasoningValues?: string[] }
+export interface AgentModelOption { value: string; label: string; sub: string; driverId?: string; authenticated?: boolean; contextWindow: number; contextWindowKnown?: boolean; group?: string; reasoningValues?: string[]; permissionValues?: string[] }
 export interface AgentPickerOption { value: string; label: string; sub: string }
 export interface AgentCapabilities {
   models: AgentModelOption[];

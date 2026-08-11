@@ -104,27 +104,21 @@ describe("buildPrimeHarnessEnv", () => {
 });
 
 describe("Prime model policy", () => {
-  it("accepts only the exact approved alias", () => {
+  it("accepts any exact alias that has already passed Prime catalog admission", () => {
     expect(APPROVED_PRIME_MODEL).toBe("operator.kimi-k3");
     expect(() => assertPrimeModelAllowed("operator.kimi-k3")).not.toThrow();
+    expect(() => assertPrimeModelAllowed("operator.frontier")).not.toThrow();
+    expect(() => assertPrimeModelAllowed("openai/gpt-5.5")).not.toThrow();
   });
 
-  it("rejects absent, unknown, provider, fallback, and qualified values", () => {
+  it("rejects absent and fallback-qualified values", () => {
     for (const bad of [
       undefined,
       null,
       "",
       "  ",
-      "operator.frontier",
-      "gpt-5.5",
-      "openai/gpt-5.5",
-      "claude-opus-5",
-      "anthropic/claude-opus-5",
       "operator.kimi-k3:fallback",
       "operator.kimi-k3/fallback",
-      "openrouter/moonshotai/kimi-k3",
-      "OPERATOR.KIMI-K3",
-      " operator.kimi-k3 ",
     ]) {
       expect(() => assertPrimeModelAllowed(bad as string)).toThrow();
     }

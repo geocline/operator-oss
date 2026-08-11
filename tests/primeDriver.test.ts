@@ -23,7 +23,15 @@ const KIMI = {
       enabled: true,
       label: "Kimi K3",
       kind: "coding",
-      harnesses: ["prime"],
+      admissions: [{
+        harness: "prime",
+        status: "passed",
+        harness_version: "prime-agent-test",
+        test_revision: "fixture",
+        tested_at: "2026-08-10T00:00:00.000Z",
+        requested_alias: "operator.kimi-k3",
+        resolved_model: "moonshotai/kimi-k3",
+      }],
       description: "Approved Kimi alias",
       context_window: 1_048_576,
       sort_order: 5,
@@ -95,7 +103,7 @@ describe("litellm-prime turns", () => {
     updateTask(task.id, { model: "operator.frontier" });
     const events = await collectTurn(getTask(task.id)!, project, "go");
     expect(events[0].type).toBe("error");
-    expect((events[0] as { content: string }).content).toMatch(/unavailable|catalog/i);
+    expect((events[0] as { content: string }).content).toMatch(/unavailable|catalog|not currently vetted/i);
     expect(events.at(-1)?.type).toBe("done");
   });
 

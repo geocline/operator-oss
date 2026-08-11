@@ -11,8 +11,8 @@ import {
   type ProjectRow, type TaskRow, type Msg, type SyncStatusResp, type AgentsBundle,
   type WorkstreamLinkT,
 } from "./types";
-import { capsFor, agentLabel, findAgent } from "./agents";
-import { needsLaunchConfiguration } from "./launchConfig";
+import { capsFor, agentLabel, findAgent, publicHarnessId } from "./agents";
+import { launchModelReady, needsLaunchConfiguration } from "./launchConfig";
 import { StatusDot, Avatar, Popover, Skel } from "./shared";
 import { Modal } from "./Modal";
 import { jsend } from "./api";
@@ -352,7 +352,15 @@ export function SessionView({ project, task, agents, messages, running, blockedB
   // Run-control pickers + feature gates come from this task's agent capabilities,
   // never a hardcoded list — so the options always match the agent it runs under.
   const caps = capsFor(agents, task.agent);
-  const models = modelOptions(caps);
+  const visibleCaps = caps && task.started === 1
+    ? {
+        ...caps,
+        models: caps.models.filter((model) =>
+          (model.driverId ?? publicHarnessId(task.agent)) === task.agent,
+        ),
+      }
+    : caps;
+  const models = modelOptions(visibleCaps);
   const reasoningOpts = reasoningOptions(caps);
   const permissionOpts = permissionOptions(caps);
   const managedCatalogPath = caps?.managedCatalogPath ?? `/api/agents/${task.agent}/models/refresh`;
@@ -613,16 +621,16 @@ export function SessionView({ project, task, agents, messages, running, blockedB
               </button>
               {modelOpen && (
                 <Popover onClose={() => setModelOpen(false)}>
-                  {caps?.connectionStyle === "managed_endpoint" && (
+                  {caps?.managedCatalogPath && (
                     <>
-                      <div className="pop-sec">LiteLLM</div>
+                      <div className="pop-sec">Vetted models</div>
                       <button
                         type="button"
                         className="pop-item"
                         onClick={() => void refreshLiteLLMModels()}
                         disabled={modelRefreshing}
                       >
-                        {modelRefreshing ? "Refreshing…" : "Refresh LiteLLM models"}
+                        {modelRefreshing ? "Refreshing…" : "Refresh vetted models"}
                       </button>
                     </>
                   )}
@@ -739,7 +747,7 @@ export function SessionView({ project, task, agents, messages, running, blockedB
         )}
 
         {!hasSession ? (
-          <TaskHero task={task} project={project} agents={agents} onStart={onStart} onEdit={onEdit} running={running} blockedBy={blockedBy} agentReady={findAgent(agents, task.agent)?.authenticated ?? false} />
+          <TaskHero task={task} project={project} agents={agents} onStart={onStart} onEdit={onEdit} running={running} blockedBy={blockedBy} agentReady={launchModelReady(task, agents)} />
         ) : !mobile ? (
           // Desktop: transcript beside the DIFF / PREVIEW / CONTEXT rail. The
           // zero-width seam between them holds the drag handle (a 0px grid track),

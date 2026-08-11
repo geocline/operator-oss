@@ -10,7 +10,7 @@ import {
   removeArtifactFilesForProject,
   removeArtifactFilesForTask,
 } from "./artifacts";
-import type { Project, Task, Message, PendingMessage, Summary, TaskNote, Session, Priority, Status, MsgRole, TurnUsage, UsageTotals } from "./types";
+import type { Project, Task, Message, PendingMessage, Summary, TaskNote, Session, Priority, Status, MsgRole, TurnUsage, UsageTotals, WorkspaceMode } from "./types";
 
 // ---------- projects ----------
 
@@ -520,6 +520,10 @@ export function createTask(input: {
   priority?: Priority;
   suggested?: boolean;
   agent?: string;
+  model?: string | null;
+  reasoning?: string | null;
+  workspace_mode?: WorkspaceMode;
+  permission_mode?: string | null;
 }): Task {
   const now = Date.now();
   const id = nanoid();
@@ -532,8 +536,8 @@ export function createTask(input: {
   ).n;
   getDb()
     .prepare(
-      `INSERT INTO tasks (id, project_id, title, description, priority, status, suggested, agent, launch_config_required, position, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 'not_started', ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO tasks (id, project_id, title, description, priority, status, suggested, agent, model, reasoning, permission_mode, workspace_mode, launch_config_required, position, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       id,
@@ -541,8 +545,13 @@ export function createTask(input: {
       input.title,
       input.description ?? "",
       input.priority ?? "med",
+      "not_started",
       input.suggested ? 1 : 0,
       agent,
+      input.model ?? null,
+      input.reasoning ?? null,
+      input.permission_mode ?? "bypassPermissions",
+      input.workspace_mode ?? "direct",
       input.suggested ? 1 : 0,
       position,
       now,
@@ -569,7 +578,7 @@ export function updateTask(id: string, patch: Partial<Task>): Task | undefined {
   const n = { ...cur, ...patch, updated_at: Date.now() };
   getDb()
     .prepare(
-      `UPDATE tasks SET title=?, description=?, priority=?, status=?, suggested=?, agent=?, model=?, resolved_model=?, reasoning=?, permission_mode=?,
+      `UPDATE tasks SET title=?, description=?, priority=?, status=?, suggested=?, agent=?, model=?, resolved_model=?, reasoning=?, permission_mode=?, workspace_mode=?,
         launch_config_required=?, launch_config_confirmed_at=?, session_id=?, worktree_path=?, work_branch=?, base_sha=?, merged_at=?, pr_url=?,
         generation=?, started=?, running=?, awaiting_input=?, updated_at=? WHERE id=?`
     )
@@ -584,6 +593,7 @@ export function updateTask(id: string, patch: Partial<Task>): Task | undefined {
       n.resolved_model ?? null,
       n.reasoning ?? null,
       n.permission_mode ?? null,
+      n.workspace_mode,
       n.launch_config_required,
       n.launch_config_confirmed_at,
       n.session_id,

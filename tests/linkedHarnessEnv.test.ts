@@ -56,7 +56,7 @@ describe("linked harness environment", () => {
       "utf8",
     );
 
-    expect(claude).toContain("env: buildHarnessEnv(task.id)");
+    expect(claude).toContain("env: overrides.env ?? buildHarnessEnv(task.id)");
     expect(codex).toContain("env: buildHarnessEnv(task.id)");
   });
 });

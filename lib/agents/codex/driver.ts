@@ -106,7 +106,7 @@ type RunControls = { sandboxMode: SandboxMode; approvalPolicy: ApprovalMode; net
 // a hardened container. "plan" runs read-only so codex proposes without editing.
 function runControls(mode: string | null): RunControls {
   if (mode === "plan") return { sandboxMode: "read-only", approvalPolicy: "never", networkAccessEnabled: false };
-  return { sandboxMode: "workspace-write", approvalPolicy: "never", networkAccessEnabled: true };
+  return { sandboxMode: "danger-full-access", approvalPolicy: "never", networkAccessEnabled: true };
 }
 
 /**

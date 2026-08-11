@@ -1,21 +1,14 @@
 import { buildHarnessEnv } from "../shared";
 
-/**
- * Hard policy: Prime may run only the exact approved Kimi alias. Never an
- * OpenAI or Anthropic model, never a provider-qualified or fallback-suffixed
- * value. Enforced before launch and re-checked against the resolved physical
- * identity before a turn may complete successfully.
- */
+/** Legacy default retained for old sessions; catalog admission is authoritative. */
 export const APPROVED_PRIME_MODEL = "operator.kimi-k3";
 
 export function assertPrimeModelAllowed(model: string | null | undefined): void {
   if (typeof model !== "string" || !model.trim()) {
     throw new Error("Prime turns require an explicit model; none was provided");
   }
-  if (model !== APPROVED_PRIME_MODEL) {
-    throw new Error(
-      `Prime may only run the approved alias "${APPROVED_PRIME_MODEL}"; got "${model}"`,
-    );
+  if (/[-/:]fallback\b/i.test(model)) {
+    throw new Error(`Prime model alias "${model}" may not use a fallback route`);
   }
 }
 

@@ -3,7 +3,7 @@ import type {
   AgentsBundle,
   TaskRow,
 } from "./types";
-import { findAgent } from "./agents";
+import { findAgent, publicHarnessId } from "./agents";
 
 export type LaunchConfigurationSelection = {
   agent: string;
@@ -39,6 +39,12 @@ export function launchConfigurationSummary(
   );
   if (!harness || !model || !reasoning) return null;
   return `${harness.label} · ${model.label} · ${reasoning.label}`;
+}
+
+export function launchModelReady(task: TaskRow, agents: AgentsBundle): boolean {
+  const harness = findAgent(agents, task.agent);
+  const model = harness?.capabilities.models.find((option) => option.value === task.model);
+  return model?.authenticated ?? harness?.authenticated ?? false;
 }
 
 export function reasoningChoicesFor(
@@ -89,5 +95,5 @@ export function suggestLaunchConfiguration(
     (validReasoning.has("think") ? "think" : null) ??
     reasoningChoices[0]?.value ??
     "";
-  return { agent, model, reasoning };
+  return { agent: publicHarnessId(agent) ?? agent, model, reasoning };
 }

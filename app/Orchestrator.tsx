@@ -602,6 +602,9 @@ export default function Orchestrator() {
           tasks={o.realTasks}
           agents={o.agents}
           appDefaults={o.appDefaults}
+          projectRepoPath={o.projects.find(
+            (p) => p.id === o.tasks.find((t) => t.id === o.editId)!.project_id,
+          )?.repo_path}
           onClose={() => o.setEditId(null)}
           onSave={o.saveTask}
           onDelete={o.removeTask}

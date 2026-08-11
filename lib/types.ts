@@ -1,6 +1,7 @@
 export type Priority = "hi" | "med" | "lo";
 export type Status = "not_started" | "in_progress" | "on_hold" | "done" | "cancelled";
 export type MsgRole = "user" | "assistant" | "tool" | "system" | "session_break";
+export type WorkspaceMode = "direct" | "worktree";
 
 export interface Project {
   id: string;
@@ -18,7 +19,7 @@ export interface Project {
   test_command: string; // optional one-shot test command
   port: number; // deterministic per-project port, injected as PORT into services + the PTY
   default_agent: string; // agent driver new tasks in this project run under (lib/agents/registry.ts)
-  run_in_repo: number; // 1 = new tasks skip worktree isolation and run directly in repo_path
+  run_in_repo: number; // legacy project preference; task.workspace_mode is authoritative
   recap: string; // last LLM "where you left off" recap (auto-generated when idle)
   recap_at: number; // when the recap was generated (0 = none)
   recap_covers_at: number; // the project's last-activity ts the recap was based on
@@ -46,6 +47,7 @@ export interface Task {
   resolved_model: string | null; // model the SDK actually ran last turn (for the badge)
   reasoning: string | null; // thinking preset ("off"|"think"|"think_hard"|"ultrathink"); null = inherit default
   permission_mode: string | null; // run permission ("acceptEdits"|"plan"); null = bypassPermissions (default)
+  workspace_mode: WorkspaceMode; // direct project folder or isolated git worktree
   launch_config_required: number; // 1 when an agent-suggested task needs pre-start review
   launch_config_confirmed_at: number; // epoch ms; 0 until launch settings are confirmed
   session_id: string | null; // the agent's opaque session/thread id for the current generation

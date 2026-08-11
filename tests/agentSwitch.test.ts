@@ -53,7 +53,7 @@ describe("switching a task's agent", () => {
     expect(after.agent).toBe("codex");
     expect(after.model).toBeNull();
     expect(after.reasoning).toBeNull();
-    expect(after.permission_mode).toBeNull();
+    expect(after.permission_mode).toBe("bypassPermissions");
     expect(after.resolved_model).toBeNull();
   });
 

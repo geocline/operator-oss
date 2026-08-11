@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Priority } from "@/lib/types";
+import type { Priority, WorkspaceMode } from "@/lib/types";
 import { Icon } from "../icons";
 import { jget, jsend } from "./api";
 import { relTime, duration } from "./format";
 import { EMPTY_AGENTS, SLABEL, type ProjectRow, type ProjectSession, type TaskRow, type AgentsBundle } from "./types";
-import { agentLabel, defaultAgentFor, findAgent } from "./agents";
+import { agentLabel, defaultAgentFor, driverForModel, findAgent } from "./agents";
 import { reasoningChoicesFor, suggestLaunchConfiguration } from "./launchConfig";
 import { StatusDot, Skel, ErrNote } from "./shared";
 import { Modal, BrowseDirButton, PrioritySeg, DepPicker } from "./Modal";
@@ -46,11 +46,87 @@ export function AgentPicker({ agents, value, onChange, onConnect, help, label = 
   );
 }
 
-export function NewTaskModal({ project, agents, tasks, onClose, onCreate, onOpenSetup }: { project: ProjectRow; agents: AgentsBundle; tasks: TaskRow[]; onClose: () => void; onCreate: (i: { title: string; desc: string; priority: Priority; agent: string; startNow: boolean; depends_on: string[] }) => void; onOpenSetup?: () => void }) {
+function ExecutionControls({
+  workspaceMode,
+  onWorkspaceMode,
+  permissionMode,
+  onPermissionMode,
+  permissionOptions,
+  projectRepoPath,
+  workspaceLocked = false,
+}: {
+  workspaceMode: WorkspaceMode;
+  onWorkspaceMode: (mode: WorkspaceMode) => void;
+  permissionMode: string;
+  onPermissionMode: (mode: string) => void;
+  permissionOptions: { value: string; label: string; sub: string }[];
+  projectRepoPath?: string;
+  workspaceLocked?: boolean;
+}) {
+  const access = permissionOptions.find((option) => option.value === permissionMode);
+  const fullPower = permissionMode === "bypassPermissions";
+  const location = projectRepoPath || "the project folder";
+  const summary = workspaceMode === "direct"
+    ? `Runs directly in ${location} with ${fullPower ? "unrestricted harness permissions" : `${access?.label ?? "restricted"} access`}.`
+    : `Runs in an isolated worktree with ${fullPower ? "unrestricted harness permissions" : `${access?.label ?? "restricted"} access`}.`;
+
+  return (
+    <div className="execution-config">
+      <div className="execution-config-title">Execution</div>
+      <label className="execution-config-row">
+        <span>
+          <strong>Workspace</strong>
+          <small>Where edits land</small>
+        </span>
+        <select
+          aria-label="Workspace"
+          value={workspaceMode}
+          disabled={workspaceLocked}
+          onChange={(event) => onWorkspaceMode(event.target.value as WorkspaceMode)}
+        >
+          <option value="direct">Project folder</option>
+          <option value="worktree">Isolated worktree</option>
+        </select>
+      </label>
+      <label className="execution-config-row">
+        <span>
+          <strong>Agent access</strong>
+          <small>What it may do</small>
+        </span>
+        <select
+          aria-label="Agent access"
+          value={permissionMode}
+          onChange={(event) => onPermissionMode(event.target.value)}
+        >
+          {permissionOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.value === "bypassPermissions" ? "Full power" : option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="execution-config-summary">
+        {summary}
+        {workspaceLocked && <span> Workspace is fixed after the session starts.</span>}
+      </div>
+    </div>
+  );
+}
+
+export function NewTaskModal({ project, agents, tasks, onClose, onCreate, onOpenSetup }: { project: ProjectRow; agents: AgentsBundle; tasks: TaskRow[]; onClose: () => void; onCreate: (i: { title: string; desc: string; priority: Priority; agent: string; model: string; reasoning: string; startNow: boolean; depends_on: string[]; workspace_mode: WorkspaceMode; permission_mode: string }) => void; onOpenSetup?: () => void }) {
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
   const [priority, setPriority] = useState<Priority>("med");
   const [agent, setAgent] = useState(() => defaultAgentFor(agents, project.default_agent));
+  const initialCapabilities = findAgent(agents, agent)?.capabilities;
+  const [model, setModel] = useState(initialCapabilities?.models[0]?.value ?? "");
+  const [reasoning, setReasoning] = useState(
+    initialCapabilities?.reasoningOptions.find((option) => option.value === "think")?.value
+      ?? initialCapabilities?.reasoningOptions[0]?.value
+      ?? "",
+  );
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("direct");
+  const [permissionMode, setPermissionMode] = useState("bypassPermissions");
   const [startNow, setStartNow] = useState(false);
   const [deps, setDeps] = useState<string[]>([]);
   const ref = useRef<HTMLInputElement>(null);
@@ -58,16 +134,61 @@ export function NewTaskModal({ project, agents, tasks, onClose, onCreate, onOpen
   // The bundle can arrive after mount; adopt the resolved default until the user picks.
   const touched = useRef(false);
   useEffect(() => { if (!touched.current) setAgent(defaultAgentFor(agents, project.default_agent)); }, [agents, project.default_agent]);
-  const pickAgent = (id: string) => { touched.current = true; setAgent(id); };
-  const can = title.trim().length > 0;
+  useEffect(() => {
+    const capabilities = findAgent(agents, agent)?.capabilities;
+    if (!capabilities || capabilities.models.some((option) => option.value === model)) return;
+    const nextModel = capabilities.models[0]?.value ?? "";
+    setModel(nextModel);
+    const choices = reasoningChoicesFor(agents, agent, nextModel);
+    setReasoning(choices.find((option) => option.value === "think")?.value ?? choices[0]?.value ?? "");
+  }, [agents, agent, model]);
+  const pickAgent = (id: string) => {
+    touched.current = true;
+    setAgent(id);
+    const capabilities = findAgent(agents, id)?.capabilities;
+    const nextModel = capabilities?.models[0]?.value ?? "";
+    setModel(nextModel);
+    const reasoningOptions = reasoningChoicesFor(agents, id, nextModel);
+    setReasoning(
+      reasoningOptions.find((option) => option.value === "think")?.value
+      ?? reasoningOptions[0]?.value
+      ?? "",
+    );
+    const modes = findAgent(agents, id)?.capabilities.permissionModes ?? [];
+    if (!modes.some((option) => option.value === permissionMode)) {
+      setPermissionMode(
+        modes.find((option) => option.value === "bypassPermissions")?.value ??
+        modes[0]?.value ??
+        "bypassPermissions",
+      );
+    }
+  };
   // A task with unfinished blockers can't start now, so the two options are exclusive.
   const blocked = deps.some((id) => tasks.find((t) => t.id === id)?.status !== "done");
   // Can't launch a session on an agent that isn't signed in — but the task can
   // still be created (not started) and started once the agent is connected.
   const selAgent = findAgent(agents, agent);
-  const agentReady = selAgent ? selAgent.authenticated : true;
+  const modelOptions = selAgent?.capabilities.models ?? [];
+  const thinkingOptions = reasoningChoicesFor(agents, agent, model);
+  const selectedModel = modelOptions.find((option) => option.value === model);
+  const permissionOptions = (selAgent?.capabilities.permissionModes ?? []).filter(
+    (option) => !selectedModel?.permissionValues || selectedModel.permissionValues.includes(option.value),
+  );
+  const agentReady = selectedModel?.authenticated ?? selAgent?.authenticated ?? true;
+  const can = title.trim().length > 0 && Boolean(selAgent && selectedModel && reasoning);
   const canStart = !blocked && agentReady;
-  const create = () => can && onCreate({ title: title.trim(), desc: desc.trim(), priority, agent, startNow: startNow && canStart, depends_on: deps });
+  const create = () => can && onCreate({
+    title: title.trim(),
+    desc: desc.trim(),
+    priority,
+    agent: driverForModel(agents, agent, model),
+    model,
+    reasoning,
+    startNow: startNow && canStart,
+    depends_on: deps,
+    workspace_mode: workspaceMode,
+    permission_mode: permissionMode,
+  });
   return (
     <Modal title="New task" sub={`${project.name} · title + description become ${agentLabel(agents, agent)}'s first prompt`} onClose={onClose}
       footer={<>
@@ -89,7 +210,56 @@ export function NewTaskModal({ project, agents, tasks, onClose, onCreate, onOpen
         <textarea value={desc} placeholder="Describe the feature or task. This is the body of the prompt the agent starts with." onChange={(e) => setDesc(e.target.value)} />
         <div className="hlp">Project context is prepended automatically — no need to restate the stack or conventions.</div>
       </div>
-      <AgentPicker agents={agents} value={agent} onChange={pickAgent} onConnect={onOpenSetup} />
+      <div className="launch-config">
+        <div className="launch-config-grid">
+          <label className="field">
+            <span className="lab">Harness</span>
+            <select aria-label="Harness" value={agent} onChange={(event) => pickAgent(event.target.value)}>
+              {agents.agents.map((option) => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span className="lab">Model</span>
+            <select aria-label="Model" value={model} onChange={(event) => {
+              const nextModel = event.target.value;
+              setModel(nextModel);
+              const nextOption = modelOptions.find((option) => option.value === nextModel);
+              const allowedPermissions = (selAgent?.capabilities.permissionModes ?? []).filter(
+                (option) => !nextOption?.permissionValues || nextOption.permissionValues.includes(option.value),
+              );
+              if (!allowedPermissions.some((option) => option.value === permissionMode)) {
+                setPermissionMode(
+                  allowedPermissions.find((option) => option.value === "bypassPermissions")?.value
+                  ?? allowedPermissions[0]?.value
+                  ?? "bypassPermissions",
+                );
+              }
+              const choices = reasoningChoicesFor(agents, agent, nextModel);
+              if (!choices.some((option) => option.value === reasoning)) {
+                setReasoning(choices.find((option) => option.value === "think")?.value ?? choices[0]?.value ?? "");
+              }
+            }}>
+              {modelOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+          <label className="field">
+            <span className="lab">Thinking strength</span>
+            <select aria-label="Thinking strength" value={reasoning} onChange={(event) => setReasoning(event.target.value)}>
+              {thinkingOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+        </div>
+      </div>
+      <ExecutionControls
+        workspaceMode={workspaceMode}
+        onWorkspaceMode={setWorkspaceMode}
+        permissionMode={permissionMode}
+        onPermissionMode={setPermissionMode}
+        permissionOptions={permissionOptions}
+        projectRepoPath={project.repo_path}
+      />
       <div className="field">
         <div className="lab">Priority</div>
         <PrioritySeg value={priority} onChange={setPriority} />
@@ -107,6 +277,8 @@ type TaskEditPatch = {
   agent?: string;
   model?: string;
   reasoning?: string;
+  permission_mode?: string;
+  workspace_mode?: WorkspaceMode;
   confirm_launch_config?: boolean;
 };
 
@@ -115,6 +287,7 @@ export function EditTaskModal({
   tasks,
   agents = EMPTY_AGENTS,
   appDefaults = {},
+  projectRepoPath,
   onClose,
   onSave,
   onDelete,
@@ -123,6 +296,7 @@ export function EditTaskModal({
   tasks: TaskRow[];
   agents?: AgentsBundle;
   appDefaults?: Record<string, string>;
+  projectRepoPath?: string;
   onClose: () => void;
   onSave: (id: string, patch: TaskEditPatch) => Promise<void>;
   onDelete: (id: string) => void;
@@ -138,24 +312,29 @@ export function EditTaskModal({
   const [agent, setAgent] = useState(initialLaunchConfig.agent);
   const [model, setModel] = useState(initialLaunchConfig.model);
   const [reasoning, setReasoning] = useState(initialLaunchConfig.reasoning);
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>(task.workspace_mode);
+  const [permissionMode, setPermissionMode] = useState(task.permission_mode ?? "bypassPermissions");
   const [confirmDel, setConfirmDel] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => { ref.current?.focus(); }, []);
   const can = title.trim().length > 0;
-  const launchConfigVisible =
-    task.launch_config_required === 1 && task.started === 0;
+  const launchConfigVisible = task.started === 0;
   const launchConfigChanged =
-    agent !== task.agent ||
+    driverForModel(agents, agent, model) !== task.agent ||
     model !== (task.model ?? "") ||
     reasoning !== (task.reasoning ?? "");
   const needsLaunchConfirmation =
-    launchConfigVisible &&
+    task.launch_config_required === 1 &&
     (task.launch_config_confirmed_at === 0 || launchConfigChanged);
   const selectedAgent = findAgent(agents, agent);
   const modelOptions = selectedAgent?.capabilities.models ?? [];
   const thinkingOptions = reasoningChoicesFor(agents, agent, model);
+  const selectedModelOption = modelOptions.find((option) => option.value === model);
+  const accessOptions = (selectedAgent?.capabilities.permissionModes ?? []).filter(
+    (option) => !selectedModelOption?.permissionValues || selectedModelOption.permissionValues.includes(option.value),
+  );
   const launchConfigComplete =
     Boolean(selectedAgent) &&
     modelOptions.some((option) => option.value === model) &&
@@ -174,6 +353,17 @@ export function EditTaskModal({
   };
   const pickModel = (nextModel: string) => {
     setModel(nextModel);
+    const nextOption = modelOptions.find((option) => option.value === nextModel);
+    const allowedPermissions = (selectedAgent?.capabilities.permissionModes ?? []).filter(
+      (option) => !nextOption?.permissionValues || nextOption.permissionValues.includes(option.value),
+    );
+    if (!allowedPermissions.some((option) => option.value === permissionMode)) {
+      setPermissionMode(
+        allowedPermissions.find((option) => option.value === "bypassPermissions")?.value
+        ?? allowedPermissions[0]?.value
+        ?? "bypassPermissions",
+      );
+    }
     const choices = reasoningChoicesFor(agents, agent, nextModel);
     if (!choices.some((option) => option.value === reasoning)) {
       setReasoning(
@@ -193,9 +383,13 @@ export function EditTaskModal({
         description: desc.trim(),
         priority,
         depends_on: deps,
+        permission_mode: permissionMode,
       };
+      if (task.started === 0 && !task.session_id && !task.worktree_path) {
+        patch.workspace_mode = workspaceMode;
+      }
       if (launchConfigVisible) {
-        patch.agent = agent;
+        patch.agent = driverForModel(agents, agent, model);
         patch.model = model;
         patch.reasoning = reasoning;
         if (confirmLaunch) patch.confirm_launch_config = true;
@@ -290,6 +484,15 @@ export function EditTaskModal({
           )}
         </div>
       )}
+      <ExecutionControls
+        workspaceMode={workspaceMode}
+        onWorkspaceMode={setWorkspaceMode}
+        permissionMode={permissionMode}
+        onPermissionMode={setPermissionMode}
+        permissionOptions={accessOptions}
+        projectRepoPath={projectRepoPath}
+        workspaceLocked={task.started === 1 || Boolean(task.session_id || task.worktree_path)}
+      />
       <div className="field">
         <div className="lab">Priority</div>
         <PrioritySeg value={priority} onChange={setPriority} />
@@ -316,7 +519,6 @@ export function ContextModal({ project, agents, onSetDefaultAgent, onClose, onSa
   const [devCmd, setDevCmd] = useState(project.dev_command);
   const [setupCmd, setSetupCmd] = useState(project.setup_command);
   const [testCmd, setTestCmd] = useState(project.test_command);
-  const [runInRepo, setRunInRepo] = useState(!!project.run_in_repo);
   const [confirmDel, setConfirmDel] = useState(false);
   const showServices = clientFeatures().services;
   // AI context refresh: let Claude read the repo and draft fresh context. The
@@ -411,7 +613,7 @@ export function ContextModal({ project, agents, onSetDefaultAgent, onClose, onSa
         )}
         <span className="spacer" />
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-accent" onClick={() => onSave({ name, context, repo_path: repo, branch, dev_command: devCmd, setup_command: setupCmd, test_command: testCmd, run_in_repo: runInRepo ? 1 : 0 })}>{Icon.check()} Save</button>
+        <button className="btn btn-accent" onClick={() => onSave({ name, context, repo_path: repo, branch, dev_command: devCmd, setup_command: setupCmd, test_command: testCmd, run_in_repo: project.run_in_repo })}>{Icon.check()} Save</button>
       </>}>
       <div className="field">
         <div className="lab">Project name</div>
@@ -474,17 +676,6 @@ export function ContextModal({ project, agents, onSetDefaultAgent, onClose, onSa
           <div className="lab">{Icon.git()} Branch</div>
           <input type="text" className="ctx-mono" value={branch} onChange={(e) => setBranch(e.target.value)} />
         </div>
-      </div>
-      <div className="field" style={{ marginTop: 14, marginBottom: 0 }}>
-        <label style={{ display: "flex", alignItems: "flex-start", gap: 8, cursor: "pointer" }}>
-          <input type="checkbox" checked={runInRepo} style={{ marginTop: 2 }} onChange={(e) => setRunInRepo(e.target.checked)} />
-          <span>
-            Run tasks directly in the project folder
-            <div className="hlp" style={{ marginTop: 2 }}>
-              New tasks run in the working dir itself - no per-task branch, diff, or merge (the default). Turn off to isolate each task in its own git worktree for safe parallel tasks. Existing tasks keep their worktrees.
-            </div>
-          </span>
-        </label>
       </div>
       <div style={{ marginTop: 14 }}>
         <AgentPicker
@@ -619,7 +810,6 @@ export function NewProjectModal({ onClose, onCreate }: { onClose: () => void; on
   // of the user's GitHub repos. "new" sends no path - the server creates
   // PROJECTS_DIR/<name> and the folder exists before the first task.
   const [mode, setMode] = useState<"new" | "existing" | "clone">("new");
-  const [runInRepo, setRunInRepo] = useState(true);
   const [cloneSpec, setCloneSpec] = useState(""); // owner/repo or pasted URL
   const [cloning, setCloning] = useState(false);
   const [cloneErr, setCloneErr] = useState<string | null>(null);
@@ -630,7 +820,7 @@ export function NewProjectModal({ onClose, onCreate }: { onClose: () => void; on
 
   const submit = async () => {
     if (!ok) return;
-    const base = { name: name.trim(), sub: sub.trim() || "app", color, context: context.trim(), run_in_repo: runInRepo ? 1 : 0 };
+    const base = { name: name.trim(), sub: sub.trim() || "app", color, context: context.trim(), run_in_repo: 1 };
     if (mode === "new") { await onCreate({ ...base, repo_path: "" }); return; }
     if (mode === "existing") { await onCreate({ ...base, repo_path: repo.trim() }); return; }
     // Clone first; only create the project once the repo actually landed.
@@ -705,17 +895,6 @@ export function NewProjectModal({ onClose, onCreate }: { onClose: () => void; on
           }}
         />
       )}
-      <div className="field">
-        <label style={{ display: "flex", alignItems: "flex-start", gap: 8, cursor: "pointer" }}>
-          <input type="checkbox" checked={runInRepo} style={{ marginTop: 2 }} onChange={(e) => setRunInRepo(e.target.checked)} />
-          <span>
-            Run tasks directly in the project folder
-            <div className="hlp" style={{ marginTop: 2 }}>
-              Skips per-task git worktrees (no isolated branch, diff, or merge). Best for single-task workflows; leave off to run tasks in parallel safely.
-            </div>
-          </span>
-        </label>
-      </div>
       <div className="field">
         <div className="lab">What we&apos;re building <span className="opt">— optional, can add later</span></div>
         <textarea value={context} placeholder="Description, stack, conventions…" onChange={(e) => setContext(e.target.value)} />

@@ -13,10 +13,8 @@
 // mirroring the tool/tool_result pairing every other driver uses.
 //
 // Model identity is a hard policy gate (see ./policy.ts): a turn's terminal
-// `message_end` must prove BOTH the requested alias and a resolved physical
-// Kimi identity before the turn is allowed to settle successfully. Missing
-// identity, an identity that reads as OpenAI/Anthropic, or a fallback-suffixed
-// identity all produce a policy `error` event and permanently withhold a
+// `message_end` must prove the exact admitted alias and a non-fallback route.
+// Missing identity or a fallback-suffixed identity produces a policy error and withholds a
 // successful `done` for the rest of this normalizer's life (a fresh state is
 // created per turn — see newPrimeState()).
 //
@@ -27,10 +25,6 @@ import type { StreamEvent, ToolPeek, TurnUsage } from "../../types";
 import type { PrimeRpcEvent } from "./rpc";
 import { clip, resultText, summarizeResult } from "../shared";
 import { APPROVED_PRIME_MODEL } from "./policy";
-
-// An identity that reads as a different provider entirely — the physical
-// resolved model must never match this, no matter what alias was requested.
-const DISALLOWED_IDENTITY = /gpt|openai|claude|anthropic/i;
 
 // A LiteLLM/OpenRouter fallback route landed instead of the pinned model —
 // e.g. "kimi-k3-0905-preview:fallback" or "kimi-k3/fallback". Treated the
@@ -67,6 +61,8 @@ interface PrimeMessage {
 export interface PrimeMapState {
   /** The alias this turn was launched with (normally APPROVED_PRIME_MODEL). */
   requestedModel: string;
+  /** Physical identity captured by the admission test for this exact alias. */
+  expectedResolvedModel?: string;
   /** Accumulated message_update deltas for the message currently in flight. */
   assistantText: string;
   /** True between message_start and its matching message_end. */
@@ -79,9 +75,13 @@ export interface PrimeMapState {
   unknownEvents: string[];
 }
 
-export function newPrimeState(requestedModel: string = APPROVED_PRIME_MODEL): PrimeMapState {
+export function newPrimeState(
+  requestedModel: string = APPROVED_PRIME_MODEL,
+  expectedResolvedModel?: string,
+): PrimeMapState {
   return {
     requestedModel,
+    expectedResolvedModel,
     assistantText: "",
     inMessage: false,
     sessionId: null,
@@ -178,7 +178,11 @@ function mapMessageEnd(ev: PrimeRpcEvent, state: PrimeMapState): StreamEvent[] {
     // successful `done` at agent_end. A failure here does not erase the
     // work already performed (tokens were spent), so assistant text and
     // usage below are still reported; only the terminal success is withheld.
-    const identityError = checkModelIdentity(message, state.requestedModel);
+    const identityError = checkModelIdentity(
+      message,
+      state.requestedModel,
+      state.expectedResolvedModel,
+    );
     if (identityError) {
       state.outcome = "policy_error";
       out.push({ type: "error", content: identityError });
@@ -211,15 +215,16 @@ function mapMessageEnd(ev: PrimeRpcEvent, state: PrimeMapState): StreamEvent[] {
 // in the LiteLLM gateway config; acceptance reconciles the physical identity
 // out-of-band via the provider's generation lookup.
 // Returns a human-readable reason, or null when the identity is clean.
-function checkModelIdentity(message: PrimeMessage, requestedModel: string): string | null {
+function checkModelIdentity(
+  message: PrimeMessage,
+  requestedModel: string,
+  expectedResolvedModel?: string,
+): string | null {
   if (message.model !== requestedModel) {
     return `Prime turn requested "${requestedModel}" but message_end reported alias "${message.model ?? "(none)"}"`;
   }
   if (FALLBACK_SUFFIX.test(message.model)) {
     return `Prime model alias "${message.model}" is a fallback route, not the pinned model`;
-  }
-  if (typeof message.provider === "string" && DISALLOWED_IDENTITY.test(message.provider)) {
-    return `Prime provider "${message.provider}" reads as a non-approved provider route`;
   }
   const identity = message.resolvedModel;
   if (identity === undefined || identity === null) {
@@ -233,8 +238,8 @@ function checkModelIdentity(message: PrimeMessage, requestedModel: string): stri
   if (typeof identity !== "string" || !identity.trim()) {
     return "Prime message_end reported an empty resolved model identity";
   }
-  if (DISALLOWED_IDENTITY.test(identity)) {
-    return `Prime resolved model identity "${identity}" reads as a non-Kimi provider`;
+  if (expectedResolvedModel && identity !== expectedResolvedModel) {
+    return `Prime resolved "${identity}" instead of admitted model "${expectedResolvedModel}"`;
   }
   if (FALLBACK_SUFFIX.test(identity)) {
     return `Prime resolved model identity "${identity}" is a fallback route, not the pinned model`;

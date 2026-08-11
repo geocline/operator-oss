@@ -23,6 +23,7 @@ const task: TaskRow = {
   resolved_model: null,
   reasoning: null,
   permission_mode: null,
+  workspace_mode: "direct",
   launch_config_required: 0,
   launch_config_confirmed_at: 0,
   session_id: null,
@@ -208,5 +209,74 @@ describe("EditTaskModal save feedback", () => {
       }),
     );
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows independent Workspace and Agent access controls before start", async () => {
+    const onSave = vi.fn(async () => {});
+    let renderer!: ReactTestRenderer;
+
+    await act(async () => {
+      renderer = create(React.createElement(EditTaskModal, {
+        task,
+        tasks: [task],
+        agents,
+        projectRepoPath: "/Users/geo/code/operator",
+        onClose: vi.fn(),
+        onSave,
+        onDelete: vi.fn(),
+      }));
+    });
+
+    const workspace = renderer.root.findByProps({ "aria-label": "Workspace" });
+    const access = renderer.root.findByProps({ "aria-label": "Agent access" });
+    expect(workspace.props.value).toBe("direct");
+    expect(access.props.value).toBe("bypassPermissions");
+    expect(textOf(renderer.root)).toContain(
+      "Runs directly in /Users/geo/code/operator with unrestricted harness permissions.",
+    );
+
+    await act(async () => {
+      workspace.props.onChange({ target: { value: "worktree" } });
+      access.props.onChange({ target: { value: "plan" } });
+    });
+    await act(async () => {
+      button(renderer, "Save changes").props.onClick();
+      await Promise.resolve();
+    });
+
+    expect(onSave).toHaveBeenCalledWith(
+      task.id,
+      expect.objectContaining({
+        workspace_mode: "worktree",
+        permission_mode: "plan",
+      }),
+    );
+  });
+
+  it("locks Workspace after start but keeps Agent access editable", async () => {
+    const onSave = vi.fn(async () => {});
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(React.createElement(EditTaskModal, {
+        task: { ...task, started: 1 },
+        tasks: [{ ...task, started: 1 }],
+        agents,
+        projectRepoPath: "/Users/geo/code/operator",
+        onClose: vi.fn(),
+        onSave,
+        onDelete: vi.fn(),
+      }));
+    });
+
+    expect(renderer.root.findByProps({ "aria-label": "Workspace" }).props.disabled).toBe(true);
+    expect(renderer.root.findByProps({ "aria-label": "Agent access" }).props.disabled).not.toBe(true);
+    await act(async () => {
+      button(renderer, "Save changes").props.onClick();
+      await Promise.resolve();
+    });
+    expect(onSave).toHaveBeenCalledWith(
+      task.id,
+      expect.not.objectContaining({ workspace_mode: expect.anything() }),
+    );
   });
 });

@@ -7,7 +7,7 @@ import { removeTaskUploads } from "@/lib/uploads";
 import { abortTurn, hasTurn } from "@/lib/abort";
 import { publishGlobal } from "@/lib/events";
 import { queueManualWorkstreamCompletion } from "@/lib/workstreams/worker";
-import { isKnownAgent } from "@/lib/agents/capabilities";
+import { getCapabilities, isKnownAgent } from "@/lib/agents/capabilities";
 import { validateLaunchConfiguration } from "@/lib/agents/launchConfig";
 import type { Task } from "@/lib/types";
 
@@ -46,6 +46,21 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     "model" in body ||
     "reasoning" in body ||
     (body as { confirm_launch_config?: unknown }).confirm_launch_config === true;
+  if ("workspace_mode" in body) {
+    const nextWorkspace = (body as { workspace_mode?: unknown }).workspace_mode;
+    if (nextWorkspace !== "direct" && nextWorkspace !== "worktree") {
+      return NextResponse.json(
+        { error: "workspace_mode must be direct or worktree" },
+        { status: 400 },
+      );
+    }
+    if (previous.started === 1 || previous.session_id || previous.worktree_path) {
+      return NextResponse.json(
+        { error: "This task already has a workspace. Create a new session to change it." },
+        { status: 409 },
+      );
+    }
+  }
   // claimTurn() is the initial launch's atomic liveness marker. From this
   // synchronous check through updateTask below there are no awaits, so a
   // first-turn claim cannot interleave with a launch-setting write. Changes
@@ -59,7 +74,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
   // Whitelist user-editable fields.
   const allowed: Partial<Task> = {};
-  for (const k of ["title", "description", "priority", "status", "suggested", "model", "reasoning", "permission_mode"] as const) {
+  for (const k of ["title", "description", "priority", "status", "suggested", "model", "reasoning", "permission_mode", "workspace_mode"] as const) {
     if (k in body) (allowed as Record<string, unknown>)[k] = body[k];
   }
   // A manual status change is the user taking the wheel — clear the "your turn" flag.
@@ -88,8 +103,40 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       // the /clear handoff performs.
       if (!("model" in body)) allowed.model = null;
       if (!("reasoning" in body)) allowed.reasoning = null;
-      allowed.permission_mode = null;
+      if (!("permission_mode" in body)) {
+        allowed.permission_mode = "bypassPermissions";
+      }
       allowed.resolved_model = null;
+    }
+  }
+  if ("permission_mode" in allowed) {
+    const permission = allowed.permission_mode;
+    const agent = allowed.agent ?? previous.agent;
+    if (
+      typeof permission !== "string" ||
+      !getCapabilities(agent).permissionModes.some((mode) => mode.value === permission)
+    ) {
+      return NextResponse.json(
+        { error: `permission_mode "${String(permission)}" is unsupported by this harness` },
+        { status: 400 },
+      );
+    }
+  }
+  if (
+    previous.started === 0 &&
+    ("model" in body || "reasoning" in body)
+  ) {
+    const configuration = {
+      agent: allowed.agent ?? previous.agent,
+      model: "model" in allowed ? allowed.model ?? null : previous.model,
+      reasoning:
+        "reasoning" in allowed
+          ? allowed.reasoning ?? null
+          : previous.reasoning,
+    };
+    const configError = validateLaunchConfiguration(configuration);
+    if (configError) {
+      return NextResponse.json({ error: configError }, { status: 400 });
     }
   }
   const launchConfigChanged =

@@ -5,7 +5,7 @@ import {
   parseLiteLLMModelInfo,
   replaceLiteLLMCatalog,
 } from "./catalog";
-import type { LiteLLMCatalogSnapshot } from "./types";
+import type { LiteLLMAdmissionEvidence, LiteLLMCatalogSnapshot, LiteLLMModel } from "./types";
 
 const SETTING_KEY = "agent_model_catalog:litellm-codex";
 
@@ -15,12 +15,37 @@ function isSnapshot(value: unknown): value is LiteLLMCatalogSnapshot {
   return Array.isArray(row.models) && Array.isArray(row.errors);
 }
 
+function admittedSnapshot(value: LiteLLMCatalogSnapshot): LiteLLMCatalogSnapshot {
+  const models = value.models.flatMap((model): LiteLLMModel[] => {
+    if (!Array.isArray(model.admissions)) return [];
+    const admissions = model.admissions.filter((entry): entry is LiteLLMAdmissionEvidence =>
+      !!entry
+      && (entry.harness === "claude" || entry.harness === "codex" || entry.harness === "prime")
+      && (entry.status === "passed" || entry.status === "failed")
+      && typeof entry.harnessVersion === "string"
+      && !!entry.harnessVersion
+      && typeof entry.testRevision === "string"
+      && !!entry.testRevision
+      && typeof entry.testedAt === "string"
+      && Number.isFinite(Date.parse(entry.testedAt))
+      && entry.requestedAlias === model.value
+      && typeof entry.resolvedModel === "string"
+      && !!entry.resolvedModel
+    );
+    const harnesses = [...new Set(
+      admissions.filter((entry) => entry.status === "passed").map((entry) => entry.harness),
+    )];
+    return harnesses.length ? [{ ...model, admissions, harnesses }] : [];
+  });
+  return { ...value, models };
+}
+
 export function hydrateLiteLLMCatalog(): LiteLLMCatalogSnapshot {
   const saved = getSetting(SETTING_KEY);
   if (!saved) return getLiteLLMCatalog();
   try {
     const parsed: unknown = JSON.parse(saved);
-    if (isSnapshot(parsed)) replaceLiteLLMCatalog(parsed);
+    if (isSnapshot(parsed)) replaceLiteLLMCatalog(admittedSnapshot(parsed));
   } catch {
     // A corrupt cache must not prevent Operator from loading.
   }

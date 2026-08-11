@@ -195,11 +195,19 @@ function permissionModeFor(m: string | null): "bypassPermissions" | "acceptEdits
  * Resumes the task's existing session when present; otherwise starts a fresh
  * session seeded with the project context.
  */
-async function* runTurn(
+type ClaudeRunOverrides = {
+  model?: string;
+  env?: Record<string, string>;
+  settingSources?: [];
+  reportCost?: boolean;
+};
+
+export async function* runClaudeTurn(
   task: Task,
   project: Project,
   userText: string,
-  abortController?: AbortController
+  abortController?: AbortController,
+  overrides: ClaudeRunOverrides = {},
 ): AsyncGenerator<StreamEvent> {
   let sessionId: string | null = task.session_id;
   const suggested: string[] = [];
@@ -261,7 +269,7 @@ async function* runTurn(
       resume: task.session_id ?? undefined,
       // Per-task model selection ("opus"/"sonnet"/"haiku" alias). Omit to inherit
       // Claude Code's default model.
-      ...(task.model ? { model: task.model } : {}),
+      ...(overrides.model || task.model ? { model: overrides.model || task.model! } : {}),
       // Reasoning preset → thinking budget + effort (Off/Think/Think hard/Ultrathink).
       // Omitted keys leave Claude Code's default thinking.
       ...reasoningOptions(reasoning),
@@ -273,7 +281,8 @@ async function* runTurn(
       // Permission mode (default bypassPermissions; "plan" proposes without editing).
       permissionMode: permissionModeFor(permission),
       pathToClaudeCodeExecutable: CLAUDE_PATH,
-      env: buildHarnessEnv(task.id),
+      env: overrides.env ?? buildHarnessEnv(task.id),
+      ...(overrides.settingSources ? { settingSources: overrides.settingSources } : {}),
       mcpServers: {
         orchestrator: orchestratorServer(
           project,
@@ -383,7 +392,7 @@ async function* runTurn(
           queue.push({
             type: "usage",
             usage: {
-              cost_usd: message.total_cost_usd ?? 0,
+              cost_usd: overrides.reportCost === false ? 0 : message.total_cost_usd ?? 0,
               input_tokens: u.input_tokens ?? 0,
               output_tokens: u.output_tokens ?? 0,
               cache_read_tokens: u.cache_read_input_tokens ?? 0,
@@ -412,6 +421,9 @@ async function* runTurn(
   for (const t of suggested) yield { type: "suggested", title: t };
   yield { type: "done", sessionId };
 }
+
+const runTurn: AgentDriver["runTurn"] = (task, project, userText, abortController) =>
+  runClaudeTurn(task, project, userText, abortController);
 
 /**
  * Summarize a transcript into a concise handoff note for the /clear flow.

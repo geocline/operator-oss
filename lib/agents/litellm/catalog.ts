@@ -1,4 +1,6 @@
 import type {
+  LiteLLMAdmissionEvidence,
+  LiteLLMAdmissionStatus,
   LiteLLMCatalogSnapshot,
   LiteLLMHarness,
   LiteLLMModel,
@@ -25,13 +27,94 @@ const record = (value: unknown): Record<string, unknown> | null =>
 const cleanString = (value: unknown): string | null =>
   typeof value === "string" && value.trim() ? value.trim() : null;
 
-const cleanHarnesses = (value: unknown): LiteLLMHarness[] => {
-  if (!Array.isArray(value)) return [];
-  const found = value.filter(
-    (x): x is LiteLLMHarness => x === "codex" || x === "claude" || x === "prime",
-  );
-  return [...new Set(found)];
-};
+const cleanHarness = (value: unknown): LiteLLMHarness | null =>
+  value === "codex" || value === "claude" || value === "prime" ? value : null;
+
+const cleanAdmissionStatus = (value: unknown): LiteLLMAdmissionStatus | null =>
+  value === "passed" || value === "failed" ? value : null;
+
+const isIsoTimestamp = (value: string): boolean =>
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value)
+  && Number.isFinite(Date.parse(value));
+
+function parseAdmissions(
+  value: unknown,
+  modelName: string,
+): { admissions: LiteLLMAdmissionEvidence[]; errors: string[] } {
+  if (!Array.isArray(value) || value.length === 0) {
+    return {
+      admissions: [],
+      errors: ["operator.admissions must be an array of harness admission records"],
+    };
+  }
+
+  const admissions: LiteLLMAdmissionEvidence[] = [];
+  const errors: string[] = [];
+  const seenHarnesses = new Set<LiteLLMHarness>();
+
+  value.forEach((candidate, index) => {
+    const prefix = `operator.admissions[${index}]`;
+    const entry = record(candidate);
+    if (!entry) {
+      errors.push(`${prefix} must be a harness admission record`);
+      return;
+    }
+
+    const harness = cleanHarness(entry.harness);
+    if (!harness) {
+      errors.push(`${prefix}.harness must be codex, claude, or prime`);
+      return;
+    }
+    if (seenHarnesses.has(harness)) {
+      errors.push(`operator.admissions must not repeat harness ${harness}`);
+      return;
+    }
+    seenHarnesses.add(harness);
+
+    const status = cleanAdmissionStatus(entry.status);
+    if (!status) {
+      errors.push(`${prefix}.status must be passed or failed`);
+      return;
+    }
+    const harnessVersion = cleanString(entry.harness_version);
+    if (!harnessVersion) {
+      errors.push(`${prefix}.harness_version must be nonempty`);
+      return;
+    }
+    const testRevision = cleanString(entry.test_revision);
+    if (!testRevision) {
+      errors.push(`${prefix}.test_revision must be nonempty`);
+      return;
+    }
+    const testedAt = cleanString(entry.tested_at);
+    if (!testedAt || !isIsoTimestamp(testedAt)) {
+      errors.push(`${prefix}.tested_at must be an ISO-8601 timestamp`);
+      return;
+    }
+    const requestedAlias = cleanString(entry.requested_alias);
+    if (requestedAlias !== modelName) {
+      errors.push(`${prefix}.requested_alias must equal model_name`);
+      return;
+    }
+    const resolvedModel = cleanString(entry.resolved_model);
+    if (!resolvedModel) {
+      errors.push(`${prefix}.resolved_model must be nonempty`);
+      return;
+    }
+
+    admissions.push({
+      harness,
+      status,
+      harnessVersion,
+      testRevision,
+      testedAt,
+      requestedAlias,
+      resolvedModel,
+    });
+  });
+
+  return { admissions, errors };
+}
 
 export function parseLiteLLMModelInfo(raw: unknown): LiteLLMParseResult {
   const root = record(raw);
@@ -54,15 +137,20 @@ export function parseLiteLLMModelInfo(raw: unknown): LiteLLMParseResult {
     }
 
     const label = cleanString(operator.label);
-    const harnesses = cleanHarnesses(operator.harnesses);
     if (!label) {
       errors.push({ model: value, error: "operator.label must be nonempty" });
       continue;
     }
-    if (!harnesses.length) {
-      errors.push({ model: value, error: "operator.harnesses must include codex, claude, or prime" });
-      continue;
-    }
+
+    const parsedAdmissions = parseAdmissions(operator.admissions, value);
+    errors.push(...parsedAdmissions.errors.map((error) => ({ model: value, error })));
+    const harnesses = parsedAdmissions.admissions
+      .filter((admission) => admission.status === "passed")
+      .map((admission) => admission.harness);
+    // A model with valid evidence but no passing harness pair stays invisible.
+    // Failed admission is a result, not a catalog parse error.
+    if (!harnesses.length) continue;
+
     if (seen.has(value)) {
       errors.push({ model: value, error: "duplicate model_name" });
       continue;
@@ -88,6 +176,7 @@ export function parseLiteLLMModelInfo(raw: unknown): LiteLLMParseResult {
       description: cleanString(operator.description) ?? "",
       kind: "coding",
       harnesses,
+      admissions: parsedAdmissions.admissions,
       contextWindow,
       reasoningOptions,
       sortOrder,

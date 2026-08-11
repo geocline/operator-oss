@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { Icon } from "../icons";
 import { isAwaiting, relTime } from "./format";
 import { SLABEL, AWAIT_LABEL, SEARCH_MIN, type ProjectRow, type TaskRow, type AgentsBundle, type TaskView } from "./types";
-import { agentLabel, findAgent } from "./agents";
-import { launchConfigurationSummary, needsLaunchConfiguration } from "./launchConfig";
+import { agentLabel } from "./agents";
+import { launchConfigurationSummary, launchModelReady, needsLaunchConfiguration } from "./launchConfig";
 import { StatusDot, PriPill, SearchBar, AgentBadge } from "./shared";
 import { TaskCardSkeleton } from "./Layout";
 import { TaskBoard } from "./TaskBoard";
@@ -189,8 +189,8 @@ export function TasksColumn({ project, agents, tasks, suggested, selTaskId, runn
                 ) : (
                   <button
                     className="sug-btn"
-                    disabled={!findAgent(agents, s.agent)?.authenticated}
-                    title={!findAgent(agents, s.agent)?.authenticated ? `${agentLabel(agents, s.agent)} is not connected` : undefined}
+                    disabled={!launchModelReady(s, agents)}
+                    title={!launchModelReady(s, agents) ? `${agentLabel(agents, s.agent)} is not connected for this model` : undefined}
                     onClick={() => onStartSuggestion(s.id)}
                   >
                     {Icon.play()} Start
