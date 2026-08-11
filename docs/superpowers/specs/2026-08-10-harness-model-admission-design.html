@@ -8,13 +8,15 @@
 <h2>User-facing taxonomy</h2>
 <p>The top-level Harness choice contains only real agent loops:</p>
 <ul><li>Claude Code</li><li>Codex</li><li>Prime Agent</li><li>Grok Build when implemented</li></ul>
-<p>After choosing a harness, Operator shows <strong>Model source</strong> and <strong>Model</strong>. Native subscription models and LiteLLM models can coexist under the same real harness. The current <code>litellm-codex</code> driver may remain an internal adapter, but “LiteLLM · Codex harness” disappears as a top-level harness choice.</p>
+<p>Operator presents exactly three launch choices, in this order:</p>
+<ol><li><strong>Harness</strong> — Claude Code, Codex, Prime Agent, and later Grok Build.</li><li><strong>Model</strong> — one picker containing every model vetted for the selected harness. Models may be visually grouped as Anthropic, OpenAI/Codex, or LiteLLM, but there is no separate route or model-source control.</li><li><strong>Strength</strong> — only the reasoning levels supported by that exact harness-model pair.</li></ol>
+<p>LiteLLM is invisible routing infrastructure. The current <code>litellm-codex</code> driver may remain an internal adapter selected automatically when the chosen Codex model comes from LiteLLM, but “LiteLLM · Codex harness” disappears from the Harness picker.</p>
 
 <h2>Can Codex run other models?</h2>
-<p><strong>Yes, when the model endpoint correctly implements the OpenAI Responses protocol and the model behaves correctly with Codex’s tool loop.</strong> Operator already contains a working <code>litellm-codex</code> driver that points the Codex SDK at LiteLLM’s Responses endpoint. Admission testing decides which models are actually offered; HTTP compatibility alone is not enough.</p>
+<p><strong>Yes, when the model endpoint correctly implements the OpenAI Responses protocol and the model behaves correctly with Codex’s tool loop.</strong> To Geo this remains simply: Harness = Codex, Model = the selected vetted model. Internally, Operator automatically routes a LiteLLM-backed model through the existing Codex/LiteLLM adapter. Admission testing decides which models appear; HTTP compatibility alone is not enough.</p>
 
 <h2>Claude Code support</h2>
-<p>Add an internal <code>litellm-claude</code> adapter using an isolated Claude configuration and the LiteLLM Anthropic Messages-compatible route. Native Claude subscription sessions remain untouched. Only models that pass Claude Code tool-use, streaming, resume, stop, and output tests appear under Claude Code → LiteLLM.</p>
+<p>Add an internal <code>litellm-claude</code> adapter using an isolated Claude configuration and the LiteLLM Anthropic Messages-compatible route. Native Claude subscription sessions remain untouched. Only models that pass Claude Code tool-use, streaming, resume, stop, and output tests appear in the Claude Code Model picker. Geo does not choose the adapter or route.</p>
 
 <h2>Admission contract</h2>
 <p>A model’s <code>operator.harnesses</code> list is an output of vetting, not an unverified declaration. Admission records the exact alias, resolved physical model, harness, harness version, test revision, timestamp, and result.</p>
@@ -33,8 +35,8 @@
 <ul>
 <li>Prime shows every Operator-approved model whose admission record passes for <code>prime</code>.</li>
 <li>Remove the hard-coded <code>operator.kimi-k3</code> gate; replace it with the vetted Prime allowlist from the sanitized catalog.</li>
-<li>Codex shows native OpenAI models plus models that pass <code>codex</code> admission.</li>
-<li>Claude Code shows native Anthropic models plus models that pass <code>claude</code> admission.</li>
+<li>Codex’s single Model picker shows native OpenAI models plus models that pass <code>codex</code> admission.</li>
+<li>Claude Code’s single Model picker shows native Anthropic models plus models that pass <code>claude</code> admission.</li>
 <li>A failed or stale admission removes only that harness-model pair. The model may remain available through another harness.</li>
 <li>Refreshing the catalog never runs paid vetting implicitly. Vetting is an explicit operator command/action with visible results.</li>
 </ul>
@@ -45,7 +47,7 @@
 <li>Generalize Prime from one hard-coded alias to all Prime-vetted aliases.</li>
 <li>Keep the existing Codex/LiteLLM adapter and run the admission suite against candidate models.</li>
 <li>Implement the Claude/LiteLLM adapter and run the same suite.</li>
-<li>Change the picker taxonomy so route adapters are grouped beneath their real harness.</li>
+<li>Change the picker taxonomy to exactly Harness → Model → Strength. Resolve native versus LiteLLM adapters internally from the harness-model pair.</li>
 </ol>
 
 <h2>Testing</h2>
@@ -54,7 +56,7 @@
 <li>Prime policy tests accept all and only Prime-vetted aliases.</li>
 <li>Codex and Claude adapter contract tests use deterministic fake CLIs/transports.</li>
 <li>Live tests are opt-in and record immutable evidence without placing provider secrets in artifacts.</li>
-<li>UI tests show only real harnesses at top level and group native/LiteLLM models correctly.</li>
+<li>UI tests show only real harnesses, one model picker, and one strength picker; native/LiteLLM routing remains invisible.</li>
 </ul>
 
 <h2>Out of scope</h2>

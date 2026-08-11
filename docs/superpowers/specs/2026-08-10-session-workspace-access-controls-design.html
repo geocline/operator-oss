@@ -33,10 +33,10 @@
 <table><thead><tr><th>Harness</th><th>Full power</th><th>Restricted modes</th></tr></thead><tbody>
 <tr><td>Claude Code</td><td><code>bypassPermissions</code></td><td><code>acceptEdits</code>, <code>plan</code></td></tr>
 <tr><td>Codex</td><td><code>danger-full-access</code> + approvals never + network enabled</td><td><code>plan</code> → read-only + no network</td></tr>
-<tr><td>LiteLLM through Codex</td><td>Same Codex mapping</td><td>Same Codex mapping</td></tr>
 <tr><td>Prime Agent</td><td>Current host-permission Auto-run</td><td>None until Prime exposes a real restricted mode</td></tr>
 <tr><td>Grok Build (future)</td><td><code>--always-approve</code> / yolo</td><td>Grok permission profiles if intentionally selected</td></tr>
 </tbody></table>
+<p>A harness’s access mapping applies regardless of which model is selected. If Codex is the harness, the Codex mapping applies whether the model is a native OpenAI model or a vetted model supplied invisibly by LiteLLM. LiteLLM is not a harness and is never shown in this table as one.</p>
 <div class="warn"><strong>Plain-language rule:</strong> “Full power” must mean the strongest mode the chosen harness actually supports. Operator must not label Codex <code>workspace-write</code> as full power.</div>
 
 <h2>Server enforcement</h2>
