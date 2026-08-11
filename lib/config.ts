@@ -82,6 +82,25 @@ export const LITELLM_PRIME_HOME =
   configuredPrimeHome || path.join(os.homedir(), ".operator", "litellm-prime");
 
 /**
+ * Models the INTERNAL one-shot jobs run on (lib/agents/oneshots.ts) — the turns
+ * that run outside the main chat and that the user never picks a model for:
+ * the "where you left off" recap, the /clear handoff note, and the "Refresh
+ * with AI" context draft. Left unset these inherit whatever the CLI defaults to
+ * (Opus, on a typical Claude login), which is far more model than any of them
+ * needs — the recap is 2-4 bullets, the other two are summarize/write jobs with
+ * the source material already in the prompt.
+ *
+ * Two tiers per agent: the recap is throwaway (cheapest model), while the
+ * handoff note and the context draft are durable — they seed the next session's
+ * context — so they get the mid tier. Set to an empty string to opt out and
+ * inherit the CLI default again.
+ */
+export const CLAUDE_RECAP_MODEL = process.env.ORCH_CLAUDE_RECAP_MODEL ?? "haiku";
+export const CLAUDE_ONESHOT_MODEL = process.env.ORCH_CLAUDE_ONESHOT_MODEL ?? "sonnet";
+export const CODEX_RECAP_MODEL = process.env.ORCH_CODEX_RECAP_MODEL ?? "gpt-5.6-luna";
+export const CODEX_ONESHOT_MODEL = process.env.ORCH_CODEX_ONESHOT_MODEL ?? "gpt-5.6-luna";
+
+/**
  * Opt-in to billing an environment-provided agent API key (ANTHROPIC_API_KEY /
  * ANTHROPIC_AUTH_TOKEN / OPENAI_API_KEY). Off by default: both entrypoints
  * strip those vars at boot (lib/env-keys.mjs — server.js and pty-server.js read

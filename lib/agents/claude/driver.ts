@@ -30,7 +30,11 @@ import {
 import { publishTaskArtifact } from "../../artifactTool";
 import { getWorkstreamByTask } from "../../workstreams/store";
 import { waitForAnswer } from "../../asks";
-import { CLAUDE_CLI_PATH as CLAUDE_PATH } from "../../config";
+import {
+  CLAUDE_CLI_PATH as CLAUDE_PATH,
+  CLAUDE_ONESHOT_MODEL,
+  CLAUDE_RECAP_MODEL,
+} from "../../config";
 import { isUsageLimit } from "../../usageLimit";
 import { hasApiKey, looksLikeApiKey, setApiKey, clearApiKey } from "../../anthropic-key";
 import {
@@ -442,6 +446,8 @@ async function summarizeTranscript(transcript: string, project: Project): Promis
       maxTurns: 1,
       permissionMode: "bypassPermissions",
       pathToClaudeCodeExecutable: CLAUDE_PATH,
+      // Text in, text out — the mid tier is plenty (see lib/config.ts).
+      ...(CLAUDE_ONESHOT_MODEL ? { model: CLAUDE_ONESHOT_MODEL } : {}),
     },
   });
 
@@ -502,6 +508,9 @@ async function draftProjectContext(project: Project, digest: string): Promise<st
       maxTurns: 40,
       permissionMode: "bypassPermissions",
       pathToClaudeCodeExecutable: CLAUDE_PATH,
+      // A read-only explore-then-write loop — the mid tier handles it, and this
+      // is the longest of the three one-shots (see lib/config.ts).
+      ...(CLAUDE_ONESHOT_MODEL ? { model: CLAUDE_ONESHOT_MODEL } : {}),
     },
   });
 
@@ -543,6 +552,8 @@ async function summarizeProjectRecap(project: Project, digest: string): Promise<
       maxTurns: 1,
       permissionMode: "bypassPermissions",
       pathToClaudeCodeExecutable: CLAUDE_PATH,
+      // 2-4 throwaway bullets — the cheapest tier (see lib/config.ts).
+      ...(CLAUDE_RECAP_MODEL ? { model: CLAUDE_RECAP_MODEL } : {}),
     },
   });
 

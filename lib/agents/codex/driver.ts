@@ -24,7 +24,13 @@ import type { Project, Task, StreamEvent } from "../../types";
 import type { AgentDriver } from "../types";
 import { CODEX_CAPABILITIES } from "./capabilities";
 import { getSetting } from "../../store";
-import { CODEX_CLI_PATH, INTERNAL_BASE_URL, ORCH_MCP_SCRIPT } from "../../config";
+import {
+  CODEX_CLI_PATH,
+  CODEX_ONESHOT_MODEL,
+  CODEX_RECAP_MODEL,
+  INTERNAL_BASE_URL,
+  ORCH_MCP_SCRIPT,
+} from "../../config";
 import {
   buildProjectContext,
   buildHarnessEnv,
@@ -210,7 +216,13 @@ const ONESHOT_MAX_ITEMS_EXPLORE = 120;
 // degrades to empty text (callers add their own "(no … produced)" fallback) so
 // a failed helper turn never rejects into the recap/refresh jobs — mirrors the
 // Claude driver, whose collectors always return a string.
-async function oneShot(project: Project, prompt: string, maxItems: number, mode: SandboxMode = "read-only"): Promise<string> {
+async function oneShot(
+  project: Project,
+  prompt: string,
+  maxItems: number,
+  model: string = CODEX_ONESHOT_MODEL,
+  mode: SandboxMode = "read-only",
+): Promise<string> {
   const codex = new Codex({ codexPathOverride: CODEX_CLI_PATH || undefined });
   const thread = codex.startThread({
     workingDirectory: project.repo_path || process.cwd(),
@@ -218,6 +230,10 @@ async function oneShot(project: Project, prompt: string, maxItems: number, mode:
     sandboxMode: mode,
     approvalPolicy: "never",
     networkAccessEnabled: false,
+    // None of these jobs needs the frontier model — the user never picks one for
+    // them, so left unset they'd silently inherit the CLI's default. Empty
+    // string opts back into that default (see lib/config.ts).
+    ...(model ? { model } : {}),
   });
   const abort = new AbortController();
   let items = 0;
@@ -287,7 +303,8 @@ async function summarizeProjectRecap(project: Project, digest: string): Promise<
       `time away. Output ONLY 2–4 terse markdown bullet points ("- " each), one line each, ideally under ~12 words. ` +
       `Be concrete about features, files, and tasks. No headings, no intro/outro, no next steps — recap only what has ` +
       `already happened.\n\n=== PROJECT CONTEXT ===\n${project.context || "(none)"}\n\n=== RECENT ACTIVITY ===\n${digest}`,
-    ONESHOT_MAX_ITEMS_TEXT
+    ONESHOT_MAX_ITEMS_TEXT,
+    CODEX_RECAP_MODEL
   );
   return out || "(no recap produced)";
 }
