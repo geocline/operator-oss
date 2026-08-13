@@ -257,6 +257,7 @@ export async function GET(req: Request): Promise<Response> {
     const acknowledged = await acknowledgeWorkstreamActivation({
       externalWorkstreamId: remote.workstream_id,
       activationAckToken: remote.activation_ack_token,
+      operatorTaskId: task.id,
     });
     if (!acknowledged) {
       return home(

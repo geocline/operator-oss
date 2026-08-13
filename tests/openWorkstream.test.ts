@@ -113,6 +113,12 @@ describe("workstream activation deep link", () => {
         body: JSON.stringify({ activation_token: "opaque-activation" }),
       }),
     );
+    const redirected = new URL(response.headers.get("location")!);
+    expect(redirected.searchParams.get("project")).toBe(lane.id);
+    const taskId = redirected.searchParams.get("task");
+    expect(taskId).toBeTruthy();
+    // The ack carries the Operator task id so the tracker can persist the
+    // reverse pointer (card_workstreams.operator_task_id) at activation time.
     expect(fetchMock).toHaveBeenCalledWith(
       `${TRACKER_BASE}/api/workstream-bridge/activation/ack`,
       expect.objectContaining({
@@ -120,13 +126,10 @@ describe("workstream activation deep link", () => {
         body: JSON.stringify({
           workstream_id: "workstream-001",
           activation_ack_token: "opaque-ack-token-with-enough-entropy",
+          operator_task_id: taskId,
         }),
       }),
     );
-    const redirected = new URL(response.headers.get("location")!);
-    expect(redirected.searchParams.get("project")).toBe(lane.id);
-    const taskId = redirected.searchParams.get("task");
-    expect(taskId).toBeTruthy();
     expect(getTask(taskId!)?.title).toBe("Review TIC information");
     expect(getTask(taskId!)?.description).not.toContain("card-create");
     expect(getTask(taskId!)?.description).not.toContain(cardPath);

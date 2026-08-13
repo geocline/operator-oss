@@ -157,7 +157,7 @@ function failureForStatus(
 // Compact summary of WHY the tracker rejected a request, so the agent can fix
 // the content instead of guessing. The tracker's free-text `error` may embed
 // rejected content, so it is never retained — only structured violation
-// codes/fields (enum-like identifiers such as "internal_identity in
+// codes/fields (enum-like identifiers such as "local_path in
 // attachments[0].content"), each vetted against a strict charset.
 const SAFE_VIOLATION_TOKEN = /^[A-Za-z0-9_.\[\]-]{1,64}$/;
 function rejectionDetail(safeBody: Record<string, unknown> | null): string {
@@ -387,12 +387,20 @@ export async function exchangeWorkstreamToken(
 export async function acknowledgeWorkstreamActivation(input: {
   externalWorkstreamId: string;
   activationAckToken: string;
+  // Operator task id (nanoid) that owns this workstream. Sent so the tracker
+  // can record the reverse pointer (card_workstreams.operator_task_id) at the
+  // one moment both ids are known and the caller has proven ownership via the
+  // ack token. Optional for backward compatibility.
+  operatorTaskId?: string;
 }): Promise<boolean> {
   const value = await bridgeRequest(
     "/api/workstream-bridge/activation/ack",
     {
       workstream_id: input.externalWorkstreamId,
       activation_ack_token: input.activationAckToken,
+      ...(input.operatorTaskId?.trim()
+        ? { operator_task_id: input.operatorTaskId.trim() }
+        : {}),
     },
   );
   return remoteStateFrom(value) === "active";
