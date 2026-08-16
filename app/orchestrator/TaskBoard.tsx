@@ -7,7 +7,12 @@ import { isAwaiting, relTime } from "./format";
 import { SEARCH_MIN, type ProjectRow, type TaskRow, type AgentsBundle, type TaskView } from "./types";
 import { agentLabel } from "./agents";
 import { launchConfigurationSummary, launchModelReady, needsLaunchConfiguration } from "./launchConfig";
-import { StatusDot, PriPill, SearchBar, AgentBadge } from "./shared";
+import { rowStatus } from "./statusLadder";
+import { LadderDot, PriPill, SearchBar, AgentBadge } from "./shared";
+
+// A stable empty set so an omitted `unviewed` prop doesn't allocate a new one
+// on every render.
+const EMPTY_UNVIEWED: Set<string> = new Set();
 
 // The kanban alternative to the grouped task list (layout from the Claude
 // Design "Operator — Board View" study, rendered with the app's own tokens).
@@ -94,8 +99,8 @@ function dayBucket(ts: number): string {
   return "Earlier";
 }
 
-function BoardCard({ task, agents, selected, running, blockedBy, mini, dragging, canDrag, onSelect, onDragStart, onDragOverCard, onDropOnCard, onDragEnd, actions }: {
-  task: TaskRow; agents: AgentsBundle; selected: boolean; running: boolean; blockedBy?: string[];
+function BoardCard({ task, agents, selected, running, unviewed, blockedBy, mini, dragging, canDrag, onSelect, onDragStart, onDragOverCard, onDropOnCard, onDragEnd, actions }: {
+  task: TaskRow; agents: AgentsBundle; selected: boolean; running: boolean; unviewed?: boolean; blockedBy?: string[];
   mini?: boolean; dragging: boolean; canDrag: boolean;
   onSelect: () => void; onDragStart: () => void; onDragOverCard: (e: React.DragEvent) => void;
   onDropOnCard: (e: React.DragEvent) => void; onDragEnd: () => void; actions?: ReactNode;
@@ -103,6 +108,7 @@ function BoardCard({ task, agents, selected, running, blockedBy, mini, dragging,
   const awaiting = isAwaiting(task);
   const blocked = !!blockedBy?.length && !task.started;
   const sessionCount = task.started ? task.generation : Math.max(0, task.generation - 1);
+  const status = rowStatus(task, { running, unviewed: !!unviewed });
   const activity = awaiting ? `waiting on you · ${relTime(task.updated_at)}`
     : running ? "live · working"
     : task.status === "done" ? `done · ${relTime(task.updated_at)}`
@@ -124,7 +130,7 @@ function BoardCard({ task, agents, selected, running, blockedBy, mini, dragging,
       title={canDrag ? "Drag to move / reorder" : undefined}
     >
       <div className="bc-top">
-        <StatusDot status={task.status} running={running} awaiting={awaiting} />
+        <LadderDot status={status} />
         <h3 className="bc-title">{task.title}</h3>
         {!mini && <PriPill p={task.priority} />}
       </div>
@@ -150,9 +156,9 @@ function BoardCard({ task, agents, selected, running, blockedBy, mini, dragging,
   );
 }
 
-export function TaskBoard({ tasks, suggested, agents, selTaskId, running, blockedBy, canDrag, onSelect, onEditTask, onMove, onStartSuggestion, onAcceptSuggestion, onDismissSuggestion }: {
+export function TaskBoard({ tasks, suggested, agents, selTaskId, running, unviewed, blockedBy, canDrag, onSelect, onEditTask, onMove, onStartSuggestion, onAcceptSuggestion, onDismissSuggestion }: {
   tasks: TaskRow[]; suggested: TaskRow[]; agents: AgentsBundle; selTaskId: string | null;
-  running: Set<string>; blockedBy: Map<string, string[]>;
+  running: Set<string>; unviewed?: Set<string>; blockedBy: Map<string, string[]>;
   // Dragging is disabled while a search filter is active: hidden cards would be
   // silently dropped from the persisted order.
   canDrag: boolean;
@@ -160,6 +166,7 @@ export function TaskBoard({ tasks, suggested, agents, selTaskId, running, blocke
   onMove: (id: string, patch: Partial<Pick<TaskRow, "status" | "suggested">>, orderedIds: string[]) => void;
   onStartSuggestion: (id: string) => void; onAcceptSuggestion: (id: string) => void; onDismissSuggestion: (id: string) => void;
 }) {
+  const unviewedIds = unviewed ?? EMPTY_UNVIEWED;
   const [dragId, setDragId] = useState<string | null>(null);
   const [over, setOver] = useState<{ col: ColKey; index: number } | null>(null);
   // Terminal columns past MINI_CAP rows collapse under a veil until expanded.
@@ -251,6 +258,7 @@ export function TaskBoard({ tasks, suggested, agents, selTaskId, running, blocke
                       agents={agents}
                       selected={t.id === selTaskId}
                       running={running.has(t.id)}
+                      unviewed={unviewedIds.has(t.id)}
                       blockedBy={blockedBy.get(t.id)}
                       mini={def.mini}
                       dragging={dragId === t.id}
@@ -303,9 +311,9 @@ export function TaskBoard({ tasks, suggested, agents, selTaskId, running, blocke
 // Full-workspace board shell (desktop): owns everything right of the projects
 // sidebar — header with the List/Board toggle, the board, and (via `children`)
 // the slide-over session panel + drawers the composition root mounts on top.
-export function BoardWorkspace({ project, agents, tasks, suggested, selTaskId, running, blockedBy, loading, onSetView, onMoveTask, onSelectTask, onNewTask, onEditContext, onShowSessions, onEditTask, onStartSuggestion, onAcceptSuggestion, onDismissSuggestion, children }: {
+export function BoardWorkspace({ project, agents, tasks, suggested, selTaskId, running, unviewed, blockedBy, loading, onSetView, onMoveTask, onSelectTask, onNewTask, onEditContext, onShowSessions, onEditTask, onStartSuggestion, onAcceptSuggestion, onDismissSuggestion, children }: {
   project: ProjectRow; agents: AgentsBundle; tasks: TaskRow[]; suggested: TaskRow[]; selTaskId: string | null;
-  running: Set<string>; blockedBy: Map<string, string[]>; loading?: boolean;
+  running: Set<string>; unviewed?: Set<string>; blockedBy: Map<string, string[]>; loading?: boolean;
   onSetView: (v: TaskView) => void;
   onMoveTask: (id: string, patch: Partial<Pick<TaskRow, "status" | "suggested">>, orderedIds: string[]) => void;
   onSelectTask: (id: string) => void; onNewTask: () => void; onEditContext: () => void; onShowSessions: () => void;
@@ -351,7 +359,7 @@ export function BoardWorkspace({ project, agents, tasks, suggested, selTaskId, r
       ) : (
         <TaskBoard
           tasks={shown} suggested={shownSuggested} agents={agents} selTaskId={selTaskId}
-          running={running} blockedBy={blockedBy} canDrag={!q}
+          running={running} unviewed={unviewed} blockedBy={blockedBy} canDrag={!q}
           onSelect={onSelectTask} onEditTask={onEditTask} onMove={onMoveTask}
           onStartSuggestion={onStartSuggestion} onAcceptSuggestion={onAcceptSuggestion} onDismissSuggestion={onDismissSuggestion}
         />

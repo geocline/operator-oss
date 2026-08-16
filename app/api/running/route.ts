@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { listRunningTaskIds } from "@/lib/store";
+import { listRunningTasksLite } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +9,11 @@ export const dynamic = "force-dynamic";
 // refetches the selected project's rows, so a spinner on a task in a project
 // it navigated away from would stick forever. On every SSE reconnect the
 // client reconciles its running set against this authoritative list.
+//
+// `tasks` carries each running task's project id alongside its id — the
+// project-scoped running rollup (ProjectsColumn's blue dot) seeds itself from
+// this on boot/reconnect; `ids` is kept for the plain task-level running set.
 export async function GET() {
-  return NextResponse.json({ ids: listRunningTaskIds() });
+  const tasks = listRunningTasksLite();
+  return NextResponse.json({ ids: tasks.map((t) => t.id), tasks });
 }

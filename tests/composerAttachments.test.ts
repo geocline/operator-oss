@@ -78,6 +78,8 @@ describe("Composer file attachments", () => {
       onSend: vi.fn(),
       onStop: vi.fn(),
       onClear: vi.fn(),
+      models: [],
+      onHandoff: vi.fn(),
     });
     const input = findElement(
       tree,

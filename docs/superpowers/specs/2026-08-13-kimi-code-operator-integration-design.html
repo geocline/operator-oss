@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kimi Code Operator Integration Design</title>
+<style>body{max-width:920px;margin:40px auto;padding:0 28px;color:#17212b;font:16px/1.55 system-ui,sans-serif}h1{font-size:38px;line-height:1.08}h2{margin-top:34px}code{background:#edf1f4;padding:2px 5px;border-radius:4px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #d5dde3;padding:9px;text-align:left;vertical-align:top}th{background:#edf2f5}.decision{border-left:5px solid #3767b1;background:#eef4ff;padding:15px 18px}.warn{border-left:5px solid #a56b12;background:#fff7e8;padding:15px 18px}</style></head><body>
+<h1>Kimi Code as Operator’s Fourth Public Harness</h1>
+<p><strong>Date:</strong> August 13, 2026<br><strong>Status:</strong> Approved architecture from the cross-harness handoff, refined against the current official SDK and CLI.</p>
+<div class="decision"><strong>Decision:</strong> Add public harness <strong>Kimi Code</strong> backed by hidden driver <code>litellm-kimi-code</code>. Pin <code>@moonshot-ai/kimi-agent-sdk@0.1.8</code> and the official Kimi Wire CLI <code>1.49.0</code>. The originally selected npm CLI 0.36.0 was rejected by the paid-run preflight because it no longer exposes <code>--wire</code>/<code>--work-dir</code>. Route exact Operator aliases through the existing loopback relay using a secret-free inline provider skeleton and Kimi’s non-persisted environment overlay.</div>
+<p><strong>Completion budget:</strong> set <code>KIMI_MODEL_MAX_COMPLETION_TOKENS=16384</code> in the supervised child environment. Wire CLI 1.49 otherwise uses the model’s entire remaining context window as the requested completion budget; for a one-million-token model this approaches 930,000 output tokens and can fail provider credit preflight before inference.</p>
+<p><strong>Cost evidence:</strong> require every relay-captured generation ID to reconcile to one exact physical model and a finite nonnegative provider-reported cost. Record the shared OpenRouter key-usage delta as corroborating diagnostics, not an admission veto: concurrent Operator traffic can increase that account-wide counter, while posting delay can temporarily omit generations that already have attributable provider records.</p>
+
+<h2>Boundaries</h2>
+<ul>
+<li>LiteLLM remains hidden infrastructure. The child receives only <code>operator-loopback-relay</code>, never a gateway or OpenRouter credential.</li>
+<li>Every task gets <code>LITELLM_KIMI_CODE_HOME/&lt;task-id&gt;</code> as <code>KIMI_CODE_HOME</code>; global Kimi configuration, sessions, Skills, and memory are not read.</li>
+<li>Telemetry is disabled. The model/provider override is in memory and is never written to <code>config.toml</code>.</li>
+<li>The first public permission surface is Auto-run only. Kimi Code Plan mode is not called a sandbox and remains hidden until its write/Bash/network/subagent/hook behavior is independently proven.</li>
+<li>The driver remains registered when the executable is unavailable and returns an actionable error; it never falls back to Claude, Codex, or Prime.</li>
+</ul>
+
+<h2>Driver architecture</h2>
+<table><thead><tr><th>Unit</th><th>Responsibility</th></tr></thead><tbody>
+<tr><td><code>lib/agents/kimi-code/policy.ts</code></td><td>Validate task IDs, derive the isolated home, scrub ambient credentials, and build the secret-free inline provider plus exact environment overlay for the selected alias and relay.</td></tr>
+<tr><td><code>lib/agents/kimi-code/events.ts</code></td><td>Normalize SDK content, thinking, tool, subagent, usage, approval, interrupt, and unknown events into Operator’s <code>StreamEvent</code> contract. Malformed paired-tool events fail closed.</td></tr>
+<tr><td><code>lib/agents/kimi-code/tools.ts</code></td><td>Expose Operator’s scoped tools through the SDK external-tool interface, including an interactive <code>ask_user</code> that parks on Operator’s existing ask registry.</td></tr>
+<tr><td><code>lib/agents/kimi-code/driver.ts</code></td><td>Create/resume an SDK session in the task worktree, stream normalized events, interrupt the active turn on Stop, close the SDK session, and report unavailable-state errors without fallback.</td></tr>
+<tr><td>Catalog/API/UI maps</td><td>Add <code>kimi-code</code> to admission metadata and expose one fourth public harness whose models point internally to <code>litellm-kimi-code</code>.</td></tr>
+</tbody></table>
+
+<h2>Data flow</h2>
+<ol>
+<li>Operator selects an exact model admitted for <code>kimi-code</code>.</li>
+<li>The driver starts/reuses Operator’s loopback relay and constructs a credential-scrubbed child environment.</li>
+<li>The SDK spawns the pinned <code>kimi</code> executable with the task worktree, opaque session ID, Auto-run, isolated home, and temporary OpenAI-compatible model overlay.</li>
+<li>SDK events normalize into Operator events; Operator external tools call the same shared implementation used by other harnesses.</li>
+<li>Stop invokes the SDK turn interrupt, then session close; admission verifies no Kimi child remains.</li>
+<li>Provider generation IDs captured by the relay reconcile physical identity and cost before any gateway admission metadata changes.</li>
+</ol>
+
+<h2>Error policy</h2>
+<p>Unknown informational SDK events are bounded diagnostics. Schema-invalid tool events, approval failures, missing exact model selection, missing executable, and model/provider errors emit actionable errors and no successful completion. Abort is not an error, but must settle the task and child process.</p>
+
+<h2>Testing and admission</h2>
+<ul>
+<li>Strict TDD for policy/env isolation, event mapping, external Operator tools, registry/API surface, unavailable behavior, resume, abort, and packaging.</li>
+<li>Run deterministic fake-SDK tests before installing or invoking the live CLI.</li>
+<li>Run the reusable admission contract separately for Kimi K3 and DeepSeek V4 Pro.</li>
+<li>Add <code>kimi-code</code> gateway admission metadata only for an exact passing artifact. A failure changes no catalog semantics.</li>
+<li>Request independent code review before the first paid Kimi Code admission.</li>
+</ul>
+<div class="warn"><strong>No implicit promotion:</strong> implementation makes the harness available, but model options remain empty until a pairing’s sanitized live evidence passes and the gateway is explicitly updated and safely reloaded.</div>
+</body></html>

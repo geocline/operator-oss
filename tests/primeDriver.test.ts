@@ -103,7 +103,11 @@ describe("litellm-prime turns", () => {
     updateTask(task.id, { model: "operator.frontier" });
     const events = await collectTurn(getTask(task.id)!, project, "go");
     expect(events[0].type).toBe("error");
-    expect((events[0] as { content: string }).content).toMatch(/unavailable|catalog|not currently vetted/i);
+    // Actionable means naming the model and where to look, not telling the user
+    // to refresh a catalog that would come back identical.
+    const message = (events[0] as { content: string }).content;
+    expect(message).toContain("operator.frontier");
+    expect(message).toMatch(/gateway/i);
     expect(events.at(-1)?.type).toBe("done");
   });
 

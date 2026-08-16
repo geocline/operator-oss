@@ -79,7 +79,7 @@ async function* runTurn(
   if (!selected) {
     yield {
       type: "error",
-      content: `Claude Code model "${task.model || "Default"}" is not currently vetted. Refresh models and choose an available model.`,
+      content: `Claude Code can't run "${task.model || "Default"}" over LiteLLM: the gateway isn't offering that model for the claude harness right now. Check that the gateway is up and that the model lists claude under operator.harnesses (or a passing operator.admissions record), then refresh models in Settings.`,
     };
     yield { type: "done", sessionId: task.session_id };
     return;

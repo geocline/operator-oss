@@ -18,6 +18,11 @@ mkdir -p \
 mkdir -p "$HOME/.operator/litellm-prime"
 chmod 700 "$HOME/.operator/litellm-prime"
 
+# Kimi Code receives a separate home per task beneath this restrictive root.
+# Its temporary provider overlay is process-only; no real key is written here.
+mkdir -p "$HOME/.operator/litellm-kimi-code"
+chmod 700 "$HOME/.operator/litellm-kimi-code"
+
 # Subscription login by default. If an agent key/token env var is present, the
 # `claude`/`codex` CLIs (and the Agent SDK child processes, and every pty shell
 # — all inherit this environment) prefer it over the volume's stored login and

@@ -63,7 +63,7 @@ function PreviewPane({ project }: { project: ProjectRow }) {
         </div>
       </div>
       <div className="prev-actions">
-        {url ? <a className="btn btn-line" href={url} target="_blank" rel="noopener noreferrer">{Icon.external()} Open live</a> : <button className="btn btn-line" disabled>{Icon.external()} Open live</button>}
+        {url && <a className="btn btn-line" href={url} target="_blank" rel="noopener noreferrer">{Icon.external()} Open live</a>}
         <button className="btn btn-line" onClick={copy} disabled={!url}>{copied ? Icon.check() : Icon.copy()} {copied ? "Copied" : "Copy link"}</button>
       </div>
       <div className="prev-note">Every project gets a real URL the moment it runs — open it on your phone, send it to a teammate, no deploy step.</div>
@@ -71,7 +71,7 @@ function PreviewPane({ project }: { project: ProjectRow }) {
   );
 }
 
-function ContextPane({ task, sessions, running, onClear }: { task: TaskRow; sessions: Session[]; running: boolean; onClear: () => void }) {
+function ContextPane({ task, sessions, onClear }: { task: TaskRow; sessions: Session[]; onClear: () => void }) {
   const pct = Math.min(100, Math.max(0, Math.round(task.context_pct)));
   return (
     <div className="rail-pad">
@@ -98,7 +98,12 @@ function ContextPane({ task, sessions, running, onClear }: { task: TaskRow; sess
         })}
       </div>
 
-      <button className="btn btn-line ctxw-clear" onClick={onClear} disabled={running || task.started !== 1}>{Icon.clear()} Clear context now</button>
+      {/* Renew is a real mid-turn capability (tests/clearMidTurn.test.ts pins
+          it) — rendered whenever a session exists, suppressed (not disabled)
+          otherwise. Same rule as the header and Composer Renew controls. */}
+      {task.started === 1 && (
+        <button className="btn btn-line ctxw-clear" onClick={onClear}>{Icon.clear()} Clear context now</button>
+      )}
       <div className="ctxw-foot">Clearing condenses the transcript and seeds a fresh window.</div>
     </div>
   );
@@ -219,7 +224,7 @@ export function SessionRail({ project, task, sessions, running, onResolveWithAI,
         )}
         {tab === "preview" && showPreview && <PreviewPane project={project} />}
         {tab === "notes" && <NotesPane task={task} />}
-        {tab === "context" && <ContextPane task={task} sessions={sessions} running={running} onClear={onClear} />}
+        {tab === "context" && <ContextPane task={task} sessions={sessions} onClear={onClear} />}
       </div>
     </aside>
   );

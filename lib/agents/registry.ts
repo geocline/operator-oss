@@ -18,6 +18,7 @@ import { codexDriver } from "./codex/driver";
 import { liteLLMCodexDriver } from "./litellm/driver";
 import { liteLLMClaudeDriver } from "./litellm-claude/driver";
 import { primeAgentDriver } from "./prime/driver";
+import { kimiCodeDriver } from "./kimi-code/driver";
 
 export { DEFAULT_AGENT } from "./capabilities";
 import { DEFAULT_AGENT } from "./capabilities";
@@ -33,6 +34,7 @@ function drivers(): Record<string, AgentDriver> {
     [liteLLMCodexDriver.id]: liteLLMCodexDriver,
     [liteLLMClaudeDriver.id]: liteLLMClaudeDriver,
     [primeAgentDriver.id]: primeAgentDriver,
+    [kimiCodeDriver.id]: kimiCodeDriver,
   };
   return DRIVERS;
 }

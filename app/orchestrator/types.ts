@@ -48,6 +48,7 @@ export interface TaskRow {
   started: number;
   running: number;
   awaiting_input: number;
+  turn_started_at: number | null; // ms epoch the current turn started; null while idle
   updated_at: number;
   cost_usd: number; // cumulative dollar spend across all turns of this task
   total_tokens: number; // cumulative tokens (input+output+cache) across all turns

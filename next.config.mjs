@@ -49,7 +49,7 @@ const nextConfig = {
   // better-sqlite3 and node-pty are native modules and the agent SDKs spawn
   // their CLIs (`claude` / `codex`) — none should be bundled by Next's server
   // compiler.
-  serverExternalPackages: ["better-sqlite3", "node-pty", "@anthropic-ai/claude-agent-sdk", "@openai/codex-sdk"],
+  serverExternalPackages: ["better-sqlite3", "node-pty", "@anthropic-ai/claude-agent-sdk", "@moonshot-ai/kimi-agent-sdk", "@openai/codex-sdk"],
 };
 
 export default nextConfig;

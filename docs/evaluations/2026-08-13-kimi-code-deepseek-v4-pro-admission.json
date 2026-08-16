@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "alias": "operator.deepseek-v4-pro",
+  "resolved_model": "deepseek/deepseek-v4-pro-20260423",
+  "harness": "kimi-code",
+  "harness_version": "kimi, version 1.49.0",
+  "test_revision": "80a6f6b89a17+wave0.62630ade71e7",
+  "tested_at": "2026-08-13T23:58:33.534Z",
+  "status": "failed",
+  "gates": {
+    "identity": {
+      "passed": true,
+      "detail": "exact alias resolved to deepseek/deepseek-v4-pro-20260423"
+    },
+    "basic_turn": {
+      "passed": false,
+      "detail": "streamed coherent result was not observed"
+    },
+    "tool_loop": {
+      "passed": false,
+      "detail": "missing command tool call"
+    },
+    "operator_bridge": {
+      "passed": false,
+      "detail": "Operator tool or claimed interactive ask did not complete"
+    },
+    "repository_result": {
+      "passed": true,
+      "detail": "disposable fixture contains the expected edit and its tests pass"
+    },
+    "resume": {
+      "passed": false,
+      "detail": "same-session recall was not proven"
+    },
+    "stop": {
+      "passed": false,
+      "detail": "interrupt did not settle cleanly or a process survived"
+    },
+    "usage": {
+      "passed": true,
+      "detail": "token usage and trusted metered cost are recorded"
+    },
+    "isolation": {
+      "passed": true,
+      "detail": "task state is isolated and only the loopback relay credential was exposed"
+    }
+  },
+  "session_id_sha256": "b5d66e41c1c9f6c015ac45dde0848a9157816469d1aebc522b5b55a5f8363afc",
+  "usage": {
+    "input_tokens": 84918,
+    "output_tokens": 1253,
+    "cache_read_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cost_usd": 0.017461248,
+    "cost_status": "trusted"
+  },
+  "provider_reconciliation": {
+    "generation_ids": [
+      "gen-1786665447-fJwoFo0ad8zq1IBExG12",
+      "gen-1786665457-nsKb7cWPsbhmxrWYTKtt",
+      "gen-1786665462-gNy8U9bdo11qUY8YEVFX",
+      "gen-1786665467-g4u5cswgB8ahKxxu2vPE",
+      "gen-1786665472-3aNavylx2vSMIh7c7XUm",
+      "gen-1786665477-vMcKvQgqSa7suGQmXSNi"
+    ],
+    "physical_models": [
+      "deepseek/deepseek-v4-pro-20260423"
+    ],
+    "providers": [
+      "GMICloud"
+    ],
+    "provider_cost_usd": 0.017461248,
+    "key_usage_delta_usd": 0,
+    "complete": true
+  },
+  "process_settlement": {
+    "settled": false,
+    "task_busy": false,
+    "survivor_count": 0
+  },
+  "diagnostics": [
+    "6 provider generation(s) reconciled",
+    "gateway alias binding was fallback-free",
+    "fresh event counts: assistant=1, error=1, model=1, session=1, tool=3, tool_result=3",
+    "resume event counts: assistant=9, done=1, model=1, notice=1, session=1",
+    "stop event counts: assistant=2, error=2, model=2, session=2",
+    "stop run emitted an error event"
+  ]
+}

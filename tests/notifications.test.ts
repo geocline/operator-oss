@@ -70,6 +70,22 @@ describe("global lifecycle payload", () => {
     );
     expect(limited).toMatchObject({ event: "turn_failed", failure: "limit" });
   });
+
+  it("carries the persisted turn_started_at anchor so every viewer's elapsed clock agrees", async () => {
+    const project = createProject({ name: "Payments" });
+    const task = createTask({ project_id: project.id, title: "Fix the webhook retry" });
+    const startedAt = Date.now();
+    updateTask(task.id, { running: 1, status: "in_progress", turn_started_at: startedAt });
+
+    const [running] = await capture(() => publish(task.id, { type: "session", sessionId: "s1" }), 1);
+    expect(running).toMatchObject({ event: "turn_started", turn_started_at: startedAt });
+
+    // Once the runner settles the row, the anchor is cleared back to null so a
+    // stale clock never lingers past the turn it belonged to.
+    updateTask(task.id, { running: 0, awaiting_input: 1, turn_started_at: null });
+    const [ended] = await capture(() => publish(task.id, { type: "turn_end" }), 1);
+    expect(ended).toMatchObject({ event: "turn_end", turn_started_at: null });
+  });
 });
 
 const taskEvent = (over: Partial<Extract<GlobalWireEvent, { type: "task" }>> = {}) => ({
@@ -84,6 +100,7 @@ const taskEvent = (over: Partial<Extract<GlobalWireEvent, { type: "task" }>> = {
   title: "Fix the webhook retry",
   projectName: "Payments",
   agent: "claude",
+  turn_started_at: null,
   ...over,
 });
 

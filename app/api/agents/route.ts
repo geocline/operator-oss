@@ -3,6 +3,8 @@ import { listDrivers, DEFAULT_AGENT } from "@/lib/agents/registry";
 import { getSetting } from "@/lib/store";
 import { getAgentConnection, getAgentAuthBroken } from "@/lib/agents/connections";
 import { hydrateLiteLLMCatalog } from "@/lib/agents/litellm/catalog-store";
+import { publicAgentId, PUBLIC_AGENT_LABELS } from "@/lib/agents/capabilities";
+import { showEvalModels } from "@/lib/config";
 import type { AgentDriver } from "@/lib/agents/types";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +29,13 @@ export async function GET() {
       : driver.id === "codex"
         ? "litellm-codex"
         : null;
-    const gateway = gatewayId ? byId.get(gatewayId) : null;
+    // The eval-only gateway pairing (Anthropic/OpenAI models proxied through
+    // LiteLLM for admission testing) is off by default: Geo's subscription-only
+    // rule keeps those families off every LiteLLM route in normal use (see
+    // lib/agents/litellm/family.ts). Skip the merge entirely rather than
+    // filtering afterward, so ORCH_SHOW_EVAL_MODELS=0 means the merge step
+    // never runs at all.
+    const gateway = gatewayId && showEvalModels() ? byId.get(gatewayId) : null;
     const conn = getAgentConnection(driver.id);
     const managed = driver.capabilities.connectionStyle === "managed_endpoint";
     const managedConnected = managed && driver.capabilities.models.length > 0;
@@ -51,12 +59,26 @@ export async function GET() {
           ],
           managedCatalogPath: gateway.capabilities.managedCatalogPath,
         }
-      : driver.capabilities;
+      : {
+          ...driver.capabilities,
+          // A stand-alone managed LiteLLM harness (Prime, Kimi Code) has no
+          // native/gateway split of its own - every model on it IS a LiteLLM
+          // model, so tag each one with the real driver id the same way the
+          // gateway pairing above does. app/orchestrator/agents.ts's
+          // driverForModel() resolves tasks.agent from this field identically
+          // for all four harnesses; claude/codex (which always take the
+          // gateway branch above) are unaffected.
+          models: driver.capabilities.models.map((model) => ({
+            ...model,
+            driverId: driver.id,
+            authenticated: nativeConnected,
+          })),
+        };
 
     const gatewayConnected = gatewayModels.length > 0;
     return {
-      id: driver.id,
-      label: driver.label,
+      id: publicAgentId(driver.id),
+      label: PUBLIC_AGENT_LABELS[driver.id] ?? driver.label,
       capabilities,
       connected: managedConnected || gatewayConnected || keyed || !!conn,
       authenticated: managedConnected || gatewayConnected || keyed || !!conn,
@@ -74,11 +96,7 @@ export async function GET() {
   return NextResponse.json({
     // The app-level default agent (Settings → Run defaults) is the client's
     // ultimate fallback when a project hasn't set its own; unset → the built-in.
-    default: getSetting("default_agent") === "litellm-codex"
-      ? "codex"
-      : getSetting("default_agent") === "litellm-claude"
-        ? "claude"
-        : getSetting("default_agent") || DEFAULT_AGENT,
+    default: publicAgentId(getSetting("default_agent") || DEFAULT_AGENT),
     agents: publicDrivers.map(publicDescriptor),
   });
 }

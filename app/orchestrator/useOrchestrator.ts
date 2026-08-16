@@ -17,6 +17,11 @@ import { useRecaps } from "./useRecaps";
 
 type Modal = null | "task" | "context" | "project" | "sessions";
 
+// The /handoff command's final-turn prompt: written as a normal visible message
+// so the document streams into the transcript, then the turn's last assistant
+// message is carried verbatim into the next generation as its seed summary.
+export const HANDOFF_PROMPT = `We are handing this session off to a fresh session that has NEVER seen this conversation. Write a comprehensive handoff document that lets it continue without re-deriving anything. Include, in this order: (1) Objective - what this task is trying to accomplish. (2) Current state - what is completed, with concrete facts: figures, dates, names, decisions and their rationale. (3) Key findings and data - every load-bearing number, file, or reference discovered. (4) Decisions and pushbacks - what was decided, what was rejected and why. (5) Open items / next steps, in priority order. (6) Do NOT redo - things already done that a naive fresh session might wrongly repeat. (7) Sources of truth - where the files, cards, and references live (absolute paths). If this task has a working folder, also save the document there as HANDOFF.md. Then output the COMPLETE document as your final message - the full text, not a pointer to the file.`;
+
 // The orchestrator's single source of truth: all client state, the derived
 // views over it, the data-loading effects, and every action callback. Returns a
 // flat bag the composition root (Orchestrator.tsx) wires straight into the UI.
@@ -35,6 +40,30 @@ export function useOrchestrator() {
   // the previous project's (stale) list.
   const [tasksFor, setTasksFor] = useState<string | null>(null);
   const [running, setRunning] = useState<Set<string>>(new Set());
+  // Project-scoped running rollup — projectId -> the set of its task ids
+  // currently running. Feeds ProjectsColumn's "a task is running here" dot for
+  // projects that aren't the selected one, so a live turn in a collapsed
+  // project is never invisible. Fed incrementally by useGlobalEvents on every
+  // task lifecycle event, and replaced wholesale by reconcileRunning below.
+  const [runningByProject, setRunningByProjectState] = useState<Map<string, Set<string>>>(new Map());
+  const setRunningByProject = useCallback((projectId: string, taskId: string, on: boolean) => {
+    setRunningByProjectState((prev) => {
+      const existing = prev.get(projectId);
+      const already = !!existing?.has(taskId);
+      if (on === already) return prev; // no-op: skip the copy
+      const next = new Map(prev);
+      const set = new Set(existing ?? []);
+      if (on) set.add(taskId); else set.delete(taskId);
+      if (set.size) next.set(projectId, set); else next.delete(projectId);
+      return next;
+    });
+  }, []);
+  // The plain "does this project have anything running" view ProjectsColumn
+  // actually renders — the per-task detail behind it doesn't matter there.
+  const runningProjects = useMemo(
+    () => new Set(Array.from(runningByProject.entries()).filter(([, ids]) => ids.size > 0).map(([id]) => id)),
+    [runningByProject]
+  );
   const [modal, setModal] = useState<Modal>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
@@ -130,7 +159,20 @@ export function useOrchestrator() {
   // it. useGlobalEvents calls this on every SSE reconnect; replacing the whole
   // set with the server's global truth drains any stale entries.
   const reconcileRunning = useCallback(async () => {
-    try { const { ids } = await jget<{ ids: string[] }>("/api/running"); setRunning(new Set(ids)); } catch {}
+    try {
+      const { ids, tasks: liveTasks } = await jget<{ ids: string[]; tasks: { id: string; project_id: string }[] }>("/api/running");
+      setRunning(new Set(ids));
+      // Wholesale replace, mirroring `running` above — this is the
+      // authoritative fleet-wide truth, so any drift the incremental
+      // per-event updates missed (a dark stream) is drained here too.
+      const byProject = new Map<string, Set<string>>();
+      for (const t of liveTasks) {
+        const set = byProject.get(t.project_id) ?? new Set<string>();
+        set.add(t.id);
+        byProject.set(t.project_id, set);
+      }
+      setRunningByProjectState(byProject);
+    } catch {}
   }, []);
 
   // Load the agent capability bundle (drives every run-control picker AND the
@@ -165,7 +207,7 @@ export function useOrchestrator() {
   // settings + agents) while the subscription has to be set up here.
   const lifecycleRef = useRef<(ev: GlobalWireEvent) => void>(() => {});
   useGlobalEvents({
-    selProjRef, setTaskRunning, setTasks, setProjects, loadTasks, reconcileRunning, refreshAgents,
+    selProjRef, setTaskRunning, setTasks, setProjects, loadTasks, reconcileRunning, refreshAgents, setRunningByProject,
     onLifecycle: (ev) => lifecycleRef.current(ev),
   });
   const messages = selTask ? msgsByTask[selTask] ?? [] : [];
@@ -279,7 +321,60 @@ export function useOrchestrator() {
   // an event is worth interrupting for RIGHT NOW.
   const notifyRef = useRef({ settings, agents, selTask });
   useEffect(() => { notifyRef.current = { settings, agents, selTask }; });
+
+  // ---------- unviewed-completion marker (local only, no server state) ----------
+  // A green dot on a task row whose turn finished while it WASN'T the one on
+  // screen (or the tab itself wasn't visible to see it finish) — cleared the
+  // moment the task is opened. Persisted per project in localStorage so it
+  // survives a reload; `unviewed` mirrors the CURRENTLY selected project's
+  // persisted set, which is all TasksColumn/TaskBoard ever need to render.
+  const unviewedKey = (projectId: string) => `orch:unviewed:${projectId}`;
+  const loadUnviewed = (projectId: string): Set<string> => {
+    try {
+      const raw = localStorage.getItem(unviewedKey(projectId));
+      return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
+    } catch { return new Set(); }
+  };
+  const saveUnviewed = (projectId: string, ids: Set<string>) => {
+    try { localStorage.setItem(unviewedKey(projectId), JSON.stringify(Array.from(ids))); } catch {}
+  };
+  const [unviewed, setUnviewed] = useState<Set<string>>(new Set());
+  const unviewedRef = useRef(unviewed);
+  useEffect(() => { unviewedRef.current = unviewed; }, [unviewed]);
+  // Switching projects: load that project's persisted set fresh (it may have
+  // accrued markers from turns that finished while we were elsewhere).
+  useEffect(() => { setUnviewed(selProj ? loadUnviewed(selProj) : new Set()); }, [selProj]);
+  // Opening a task clears its own marker right away, local + persisted.
+  useEffect(() => {
+    if (!selTask || !selProj) return;
+    setUnviewed((prev) => {
+      if (!prev.has(selTask)) return prev;
+      const next = new Set(prev);
+      next.delete(selTask);
+      saveUnviewed(selProj, next);
+      return next;
+    });
+  }, [selTask, selProj]);
+
   const onLifecycle = useCallback((ev: GlobalWireEvent) => {
+    // A pending /handoff completes on its turn's end — before the
+    // selected-task early-return below, which only gates notifications.
+    if (ev.type === "task" && ev.event === "turn_end") handoffDoneRef.current(ev.taskId);
+    // Mark the task unviewed if its turn ended off-screen (a different task
+    // selected, or the tab itself hidden) — the ONLY writer of this marker.
+    if (ev.type === "task" && ev.event === "turn_end") {
+      const tabVisible = typeof document !== "undefined" && document.visibilityState === "visible";
+      const isSelected = ev.taskId === notifyRef.current.selTask;
+      if (!isSelected || !tabVisible) {
+        const existing = ev.projectId === selProjRef.current ? unviewedRef.current : loadUnviewed(ev.projectId);
+        if (!existing.has(ev.taskId)) {
+          const next = new Set(existing);
+          next.add(ev.taskId);
+          saveUnviewed(ev.projectId, next);
+          if (ev.projectId === selProjRef.current) setUnviewed(next);
+        }
+      }
+    }
     const { settings: s, agents: a, selTask: sel } = notifyRef.current;
     // Already looking at it, with the window in front: the screen IS the
     // notification. Anything in another task or another project still fires.
@@ -350,6 +445,9 @@ export function useOrchestrator() {
   // partial transcript, and publishes turn_end, which the event stream handler
   // turns into a task refresh (now awaiting_input, resumable).
   const stopTurn = useCallback(async (taskId: string) => {
+    // Stop also cancels a pending /handoff — an aborted document-writing turn
+    // must not auto-clear the session on its (aborted) turn_end.
+    pendingHandoff.current.delete(taskId);
     try { await fetch(`/api/tasks/${taskId}/abort`, { method: "POST" }); } catch {}
   }, []);
 
@@ -424,24 +522,61 @@ export function useOrchestrator() {
 
   // Optional `agent` hands the task to another driver across the clear
   // boundary (same worktree, fresh context seeded with the summary) - the
-  // "Continue with Codex" path when Claude quota runs low.
-  const clearSession = useCallback(async (taskId: string, agent?: string) => {
-    const t = tasks.find((x) => x.id === taskId);
-    if (!t || running.has(taskId) || !t.started) return;
+  // "Continue with Codex" path when Claude quota runs low. `model` carries a
+  // same-driver model pick across the boundary; `useLastAssistant` seeds the
+  // next generation with the outgoing session's final assistant message (the
+  // /handoff document) instead of an auto-summary.
+  //
+  // The fresh generation is NOT auto-started: the task returns to the
+  // unstarted state with the composer open, so the user can adjust the model
+  // and write (or edit) the opening prompt before anything runs. Sending a
+  // message - or the Start button - launches generation N+1.
+  const doClear = useCallback(async (taskId: string, generation: number, opts?: { agent?: string; model?: string | null; useLastAssistant?: boolean }) => {
     setTaskRunning(taskId, true);
     try {
-      const { summary } = await jsend<{ summary: string }>(
-        `/api/tasks/${taskId}/clear`, "POST", agent ? { agent } : undefined
-      );
-      appendMsg(taskId, { id: `sb-${Date.now()}`, role: "session_break", content: summary, generation: t.generation });
+      const body = opts && (opts.agent || opts.model !== undefined || opts.useLastAssistant)
+        ? { ...(opts.agent ? { agent: opts.agent } : {}), ...(opts.model !== undefined ? { model: opts.model } : {}), ...(opts.useLastAssistant ? { useLastAssistant: true } : {}) }
+        : undefined;
+      const { summary } = await jsend<{ summary: string }>(`/api/tasks/${taskId}/clear`, "POST", body);
+      appendMsg(taskId, { id: `sb-${Date.now()}`, role: "session_break", content: summary, generation });
       const fresh = await jget<TaskRow>(`/api/tasks/${taskId}`);
       setTasks((prev) => prev.map((x) => (x.id === taskId ? { ...x, ...fresh } : x)));
     } finally {
       setTaskRunning(taskId, false);
     }
-    // spin up the fresh window (re-prime with title + description + carried summary)
-    runTurn(taskId, "", true);
-  }, [tasks, running, runTurn, appendMsg]);
+  }, [appendMsg]);
+  const clearSession = useCallback(async (taskId: string, opts?: { agent?: string; model?: string | null; useLastAssistant?: boolean }) => {
+    const t = tasks.find((x) => x.id === taskId);
+    if (!t || running.has(taskId) || !t.started) return;
+    await doClear(taskId, t.generation, opts);
+  }, [tasks, running, doClear]);
+
+  // /handoff: run one final, visible turn in the current session that writes a
+  // comprehensive handoff document, then (on that turn's end, observed via the
+  // global lifecycle stream) clear with the document as the carried summary and
+  // the picked model applied. The fresh generation then waits for the user's
+  // opening prompt like any other clear.
+  const pendingHandoff = useRef(new Map<string, { model: string | null }>());
+  const handoffSession = useCallback(async (taskId: string, model: string | null) => {
+    const t = tasks.find((x) => x.id === taskId);
+    if (!t || running.has(taskId) || !t.started) return;
+    pendingHandoff.current.set(taskId, { model });
+    await runTurn(taskId, HANDOFF_PROMPT, false);
+  }, [tasks, running, runTurn]);
+  // Completion hook, reached from onLifecycle via ref (onLifecycle is declared
+  // above clearSession and must stay referentially stable). Calls doClear
+  // directly: at turn_end time the local `running` set hasn't flipped yet, so
+  // clearSession's guard would swallow the completion.
+  const handoffDoneRef = useRef<(taskId: string) => void>(() => {});
+  useEffect(() => {
+    handoffDoneRef.current = (taskId: string) => {
+      const pending = pendingHandoff.current.get(taskId);
+      if (!pending) return;
+      pendingHandoff.current.delete(taskId);
+      const gen = tasks.find((x) => x.id === taskId)?.generation ?? 1;
+      void doClear(taskId, gen, { model: pending.model, useLastAssistant: true });
+    };
+  }, [tasks, doClear]);
 
   // Cheap local patch: a mutation just took a task out of the "needs you" set,
   // so drop it from its project's badge now rather than waiting for the SSE
@@ -658,7 +793,7 @@ export function useOrchestrator() {
     // state + derived
     booted, bootError, retryBoot: boot, tasksLoading, transcriptLoading,
     projects, activeProjects, deprecatedProjects, selProj, setSelProj, project,
-    tasks, realTasks, suggested, selTask, task, messages, running,
+    tasks, realTasks, suggested, selTask, task, messages, running, runningProjects, unviewed,
     blockedBy, liveAwaiting, needsYouTotal,
     modal, setModal, editId, setEditId, view, setView, taskView, setTaskView,
     appearance, setAppearance, appearanceOpen, setAppearanceOpen,
@@ -669,7 +804,7 @@ export function useOrchestrator() {
     servicesOpen, setServicesOpen, servicesMounted, setServicesMounted, servicesHeight, setServicesHeight,
     // actions
     setSelTask, fetchRecap, runTurn, answerQuestion, stopTurn, cancelQueued, resolveConflictsWithAI,
-    selectProject, jumpToNeedsYou, goToTask, clearSession, setStatus, setPriority, setModel, setAgent,
+    selectProject, jumpToNeedsYou, goToTask, clearSession, handoffSession, setStatus, setPriority, setModel, setAgent,
     setReasoning, setPermission, createTask, saveTask, removeTask, moveTask, startSuggestion, acceptSuggestion,
     dismissSuggestion, saveContext, createProject, reorderProjects, removeProject, setDeprecated,
     resetSettings, setProjectDefaultAgent,

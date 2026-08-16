@@ -61,6 +61,7 @@ export interface Task {
   started: number; // 1 once the initial prompt has been sent
   running: number; // 1 while a Claude turn is actively streaming
   awaiting_input: number; // 1 when it's your turn: Claude's turn ended mid-task, or it's parked on an AskUserQuestion
+  turn_started_at: number | null; // ms epoch when the current turn started; null while idle
   created_at: number;
   updated_at: number;
 }
@@ -297,6 +298,8 @@ export type GlobalTaskEvent = {
   status: Status;
   /** In-progress tasks awaiting the user across this task's project. */
   awaiting_count: number;
+  /** ms epoch the current turn started at; null while idle (see Task.turn_started_at). */
+  turn_started_at: number | null;
 };
 
 // Everything GET /api/events can send. Task lifecycle is the bulk of it;

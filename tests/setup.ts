@@ -18,7 +18,9 @@ process.env.ORCH_DB_DIR = path.join(root, "db");
 process.env.LITELLM_BASE_URL = "http://127.0.0.1:4000/v1";
 process.env.LITELLM_API_KEY = "test-litellm-local";
 process.env.LITELLM_CODEX_HOME = path.join(root, "litellm-codex");
+process.env.LITELLM_CLAUDE_HOME = path.join(root, "litellm-claude");
 process.env.LITELLM_PRIME_HOME = path.join(root, "litellm-prime");
+process.env.LITELLM_KIMI_CODE_HOME = path.join(root, "litellm-kimi-code");
 
 // Control plane v2: isolate its SQLite db and pin the seams to their in-process
 // mocks. Set here (before the module graph loads) so lib/control-plane/config.ts

@@ -53,18 +53,18 @@ describe("Prime Agent UI surface (data/route-level, no DOM rendering)", () => {
     expect(css).toMatch(/\.av\.cc\.litellm-prime\s*\{[^}]*color:/);
   });
 
-  it("exposes litellm-prime with the Prime Agent label via GET /api/agents", async () => {
+  it("exposes Prime under its clean public id and label via GET /api/agents", async () => {
     const { GET } = await import("@/app/api/agents/route");
     const body = await (await GET()).json();
-    const prime = body.agents.find((a: { id: string }) => a.id === "litellm-prime");
+    const prime = body.agents.find((a: { id: string }) => a.id === "prime");
     expect(prime).toBeTruthy();
-    expect(prime.label).toBe("Prime Agent");
+    expect(prime.label).toBe("Prime");
   });
 
-  it("offers Auto-run only, never Plan mode, for litellm-prime", async () => {
+  it("offers Auto-run only, never Plan mode, for the Prime harness", async () => {
     const { GET } = await import("@/app/api/agents/route");
     const body = await (await GET()).json();
-    const prime = body.agents.find((a: { id: string }) => a.id === "litellm-prime");
+    const prime = body.agents.find((a: { id: string }) => a.id === "prime");
     const modes = prime.capabilities.permissionModes.map((m: { value: string }) => m.value);
     expect(modes).toEqual(["bypassPermissions"]);
     expect(modes).not.toContain("plan");
@@ -73,7 +73,7 @@ describe("Prime Agent UI surface (data/route-level, no DOM rendering)", () => {
   it("reports Prime cost as metered, never estimated", async () => {
     const { GET } = await import("@/app/api/agents/route");
     const body = await (await GET()).json();
-    const prime = body.agents.find((a: { id: string }) => a.id === "litellm-prime");
+    const prime = body.agents.find((a: { id: string }) => a.id === "prime");
     expect(prime.capabilities.reportsCostUsd).toBe(true);
     expect(prime.capabilities.costIsEstimated).toBe(false);
   });
@@ -114,7 +114,10 @@ describe("Prime Agent UI surface (data/route-level, no DOM rendering)", () => {
 
   it("tells the Connect card Prime runs with host permissions and metered cost, not a subscription login", () => {
     const source = readFileSync(path.join(process.cwd(), "app/orchestrator/AgentConnect.tsx"), "utf8");
-    expect(source).toContain("litellm-prime");
+    // Prime's public id (agent.id) is "prime" (see lib/agents/capabilities.ts
+    // PUBLIC_AGENT_IDS) - the raw "litellm-prime" driver id never reaches the
+    // client, so the card gates its Prime-specific copy on the clean id.
+    expect(source).toContain('agent.id === "prime"');
     expect(source).toContain("Operator process's host permissions");
     expect(source).toContain("metered through LiteLLM, never estimated");
   });

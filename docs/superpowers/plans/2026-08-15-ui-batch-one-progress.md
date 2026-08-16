@@ -1,0 +1,42 @@
+# UI Batch One ("clarity batch") - running progress log
+
+Purpose: survive context compaction. If you are picking this up cold, read this file, then the spec at `docs/superpowers/specs/2026-08-15-ui-batch-one-clarity.md` (written after the codebase mapping pass), then continue from the first unchecked item.
+
+## Mandate (from Geo, 2026-08-15)
+
+Greenlit "batch one" of the UI clarity work that came out of the DeepSeek Harness (dsh) review. Scope, exactly five items:
+
+1. **Status-dot precedence ladder** on task rows: ONE dot per row. Precedence: amber "waiting on you" (with reason: approval / question) > blue "running" > green "finished while unviewed" (local unread marker, cleared by opening the task) > nothing (idle, but the slot space stays reserved so rows never reflow). PLUS project-header rollup: a collapsed/unselected project shows the max-severity status of its tasks (dsh forgot this; we add it).
+2. **Suppress-don't-disable audit**: controls that cannot act right now don't render at all (no dead buttons, no zero badges, no menus on blank states). Audit findings first, then targeted fixes.
+3. **Composer takeover for asks**: when a task is awaiting input (ask_user card / interactive ask), the composer area itself becomes the decision panel instead of (or in addition to) a transcript card. Include a "Chat about it" escape that cancels/skips the structured answer and returns the normal composer.
+4. **Turn clock**: elapsed-time indicator for a running turn, anchored to the turn's real start timestamp (survives reload), appearing only after 15 seconds.
+5. **Harness/model picker redesign**: task UI asks "which harness" + "which model", derives the billing route itself. HARD RULE (Geo, non-negotiable): Anthropic models ONLY via native Claude Code driver (subscription), OpenAI models ONLY via native Codex driver (login). Never offer a LiteLLM route for those two families. "litellm-*" ids disappear from user-facing vocabulary; litellm-claude/litellm-codex stay as eval escape hatches, hidden from the default picker. Kimi K3 -> Kimi Code, Prime -> Prime, (future) DeepSeek -> dsh driver.
+
+Execution style Geo asked for: I (Fable, lead) write the spec, delegate bounded implementation to cheaper models, review every diff, verify with real runs/tests, keep this log current, only stop for a genuine blocker. NO commits and NO pushes without Geo's explicit request (standing rule). Working tree already has uncommitted LiteLLM/Prime/Kimi work - preserve it untouched; targeted edits only; never `git add .`.
+
+## Context you need
+
+- The dsh review: full findings summarized in `~/.claude/projects/-Users-geo-Claude-Projects-operator/memory/operator-dsh-borrow-list.md` and `harness-model-routing-policy.md` (memory files). dsh clone at /tmp/deepseek-harness (may be gone; re-clone github.com/deepseek-ai/deepseek-harness if needed - UI reference files: packages/client/ui-workspace/src/client/rows/Rows.tsx sessionStatuses() ~L215-260, ui-primitives/src/StateDot.tsx, ui-conversation ApprovalPanel.tsx / PlanReviewPanel.tsx, ChatView.tsx TurnStatus ~L105).
+- Operator architecture: see CLAUDE.md. Key: task rows update via ONE shared EventSource on /api/events (leader tab + BroadcastChannel, app/orchestrator/sharedEvents.ts + useGlobalEvents.ts); event payloads re-read the task row at publish time and carry the project's awaiting count. Asks: lib/asks.ts + lib/agentTools startAskUser; transcript stream per selected task via useTaskStream.ts.
+
+## State
+
+- [x] Batch greenlit by Geo
+- [x] Memory files written (routing policy, borrow list)
+- [x] Codebase mapping pass (done; key facts: colors currently inverted vs target - blue=awaiting/amber=running today; NO turn-start timestamp reaches the client (runner has Date.now() at lib/runner.ts ~L227, never persisted); litellm-prime/litellm-kimi-code leak raw ids to the client while claude/codex are aliased in app/api/agents/route.ts L22-41 + app/orchestrator/agents.ts publicHarnessId; asks render in Transcript.tsx AskView L154-224 with answer flow via /api/tasks/[id]/answer; suppress-audit sins cataloged in spec)
+- [x] Spec written to docs/superpowers/specs/2026-08-15-ui-batch-one-clarity.md - THE authoritative work breakdown: Package A (server: turn_started_at, public ids prime/kimi-code, subscription routing guard + ORCH_SHOW_EVAL_MODELS flag), Package B (status ladder + project rollup + titlebar suppression), Package C (composer takeover + turn clock + session-pane suppressions). A first, then B and C parallel.
+- [x] PACKAGE A DONE + independently verified (2026-08-15): turn_started_at persisted (lib/runner.ts L252 set, L428/L540 cleared, wire at app/api/events/route.ts L120), public ids prime/kimi-code via publicAgentId/PUBLIC_AGENT_LABELS in lib/agents/capabilities.ts, guard in lib/agents/litellm/family.ts::isSubscriptionOnlyModelId wired into capabilities filter + catalog.ts modelForHarness L243, ORCH_SHOW_EVAL_MODELS via showEvalModels() in lib/config.ts (function not const, per-call env read). Full suite was 95 files / 731 passed per implementer; I re-ran harnessRouting+litellmAgentUi+agentDriver = 19 passed. Deviations accepted: guard centralized in modelForHarness; showEvalModels as function.
+- [ ] Item 1: status ladder + rollup - implemented / reviewed / verified
+- [ ] Item 2: suppress audit - findings doc / fixes / verified
+- [x] PACKAGE C DONE per implementer (2026-08-15): AskPanel extracted from AskView (Transcript.tsx) and mounted as composer takeover in SessionView when pendingAsk (derived from messages, survives tab switches); "Chat about it" -> textarea + .answering-strip, free text answers map to every question (avoids "(no selection)" lines); transcript pending ask now non-interactive with "answer below" pointer. Turn clock: format.ts elapsed()/turnClockVisible()/TURN_CLOCK_DELAY_MS=15s, anchored to task.turn_started_at (fallback last user msg), bubble + header chip in lockstep. Suppressions: Open live, Renew x3 unified to started===1, WorktreePrune future checkbox removed, Start button visible .start-reason, ask incomplete reason visible. New tests: composerTakeover (6), turnClock (11), sessionPaneSuppressions (4). tsc clean. MY REVIEW STILL PENDING.
+- [x] WATCH ITEM RESOLVED: runningTasks failure was B's mid-edit state; green in B's final run and in my own full-suite run.
+- [x] PACKAGE B DONE + verified: statusLadder.ts pure ladder, LadderDot in shared.tsx, rollup via runningByProject (seeded from /api/running which now returns {ids,tasks:[{id,project_id}]}), unviewed marker in useOrchestrator (localStorage orch:unviewed:<projectId>), Services/Terminal suppressed without project, Sessions button gated, .proj-await restyled amber. Tests: statusLadder(10), projectRollup(4), statusLadderSuppression(4).
+- [x] MY VERIFICATION (2026-08-15): tsc clean; full suite 101 files / 771 passed / 2 skipped under my own run. BROWSER-VERIFIED on a throwaway preview (PORT=3210, DB copied to /tmp - since deleted; .claude/launch.json "ui-batch-preview" config created and KEPT for future use, pinned to /opt/homebrew/bin/node because bash -lc picked a mismatched Node): amber needs-you pill/badges/dots + blue running dot on task rows (real Ardent Internal data + seeded states); composer takeover renders panel with visible "Answer question 1 to send" reason and working "Chat about it" -> textarea + dismissible "Answering: Template" strip; transcript pending ask is non-interactive with "Answer below" pointer; harness picker reads exactly Claude Code / Codex / Prime / Kimi Code; Claude Code model list is subscription-only (no litellm entries; ORCH_SHOW_EVAL_MODELS default-off confirmed end-to-end). Turn clock verified by unit tests + code review only (a live-browser clock needs a real running turn; declined to run real turns against the DB copy because task worktrees are shared with the live instance). Selecting the fake "running" seeded task correctly reconciled to idle via the snapshot - honest-state behavior, not a bug.
+- NOT COMMITTED: everything is working-tree changes on top of the pre-existing LiteLLM/Prime/Kimi WIP, awaiting Geo's go-ahead.
+- [ ] Item 5: picker redesign - implemented / reviewed / verified
+- [ ] Full test suite green (`npm test`), manual browser verification of each item
+- [ ] Final summary for Geo (no commit unless he asks)
+
+## Log
+
+- 2026-08-15: File created. Mapping agent dispatched over app/Orchestrator.tsx, app/orchestrator/*, lib/events.ts, lib/runner.ts, lib/asks.ts, capabilities/picker surfaces, tests.

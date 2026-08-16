@@ -5,7 +5,7 @@ import path from "node:path";
 import { LITELLM_PRIME_HOME } from "@/lib/config";
 import { ensurePrimeTaskDirs, removePrimeTaskState } from "@/lib/agents/prime/session-paths";
 import { createProject, createTask, getTask } from "@/lib/store";
-import { registerTurn, hasTurn } from "@/lib/abort";
+import { registerTurn, unregisterTurn, hasTurn } from "@/lib/abort";
 import { DELETE } from "@/app/api/tasks/[id]/route";
 
 const params = (id: string) => ({ params: Promise.resolve({ id }) });
@@ -73,6 +73,11 @@ describe("task deletion retires Prime state", () => {
     const dirs = ensurePrimeTaskDirs(task.id, 1);
     const controller = new AbortController();
     registerTurn(task.id, controller);
+    controller.signal.addEventListener(
+      "abort",
+      () => unregisterTurn(task.id, controller),
+      { once: true },
+    );
 
     await DELETE(new Request("http://x"), params(task.id));
 

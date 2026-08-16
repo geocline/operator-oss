@@ -117,7 +117,7 @@ async function* runTurn(
   if (!selected) {
     yield {
       type: "error",
-      content: `Prime model "${task.model || "(none)"}" is not currently vetted. Refresh models and choose an available Prime model.`,
+      content: `Prime can't run "${task.model || "(none)"}": the LiteLLM gateway isn't offering that model for Prime right now. Check that the gateway is up and that the model lists prime under operator.harnesses (or a passing operator.admissions record), then refresh models in Settings.`,
     };
     yield { type: "done", sessionId: task.session_id };
     return;

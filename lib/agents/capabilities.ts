@@ -21,12 +21,43 @@ import { liteLLMCapabilities } from "./litellm/capabilities";
 
 export const DEFAULT_AGENT = "claude";
 
+// Public id aliases for LiteLLM harness drivers whose real "litellm-*" id must
+// never reach the client (see docs/superpowers/specs/2026-08-15-ui-batch-one-
+// clarity.md A2). Generalizes the litellm-codex->codex / litellm-claude->claude
+// remap GET /api/agents already did inline - those two stay a special case
+// (they're folded INTO the native claude/codex agents rather than shown on
+// their own), while litellm-prime and litellm-kimi-code are stand-alone public
+// agents that just need a clean id + label. Stored tasks.agent always keeps the
+// real driver id; only the id/label shown to the client is remapped.
+export const PUBLIC_AGENT_IDS: Record<string, string> = {
+  "litellm-prime": "prime",
+  "litellm-kimi-code": "kimi-code",
+};
+export const PUBLIC_AGENT_LABELS: Record<string, string> = {
+  "litellm-prime": "Prime",
+  "litellm-kimi-code": "Kimi Code",
+};
+const REAL_AGENT_IDS: Record<string, string> = Object.fromEntries(
+  Object.entries(PUBLIC_AGENT_IDS).map(([real, pub]) => [pub, real]),
+);
+
+/** The client-facing id for a driver id ("litellm-prime" -> "prime"); passes through anything not aliased. */
+export function publicAgentId(id: string): string {
+  return PUBLIC_AGENT_IDS[id] ?? id;
+}
+
+/** The real driver id behind a public id ("prime" -> "litellm-prime"); passes through anything not aliased. */
+export function realAgentId(publicId: string): string {
+  return REAL_AGENT_IDS[publicId] ?? publicId;
+}
+
 const CAPABILITIES: Record<string, AgentCapabilities> = {
   claude: CLAUDE_CAPABILITIES,
   codex: CODEX_CAPABILITIES,
   "litellm-codex": liteLLMCapabilities(),
   "litellm-claude": liteLLMCapabilities("claude"),
   "litellm-prime": liteLLMCapabilities("prime"),
+  "litellm-kimi-code": liteLLMCapabilities("kimi-code"),
 };
 
 /** Capability descriptor by agent id; unknown/null ids fall back to the default
@@ -36,6 +67,7 @@ export function getCapabilities(id: string | null | undefined): AgentCapabilitie
   if (id === "litellm-codex") return liteLLMCapabilities();
   if (id === "litellm-claude") return liteLLMCapabilities("claude");
   if (id === "litellm-prime") return liteLLMCapabilities("prime");
+  if (id === "litellm-kimi-code") return liteLLMCapabilities("kimi-code");
   return (id && CAPABILITIES[id]) || CAPABILITIES[DEFAULT_AGENT];
 }
 

@@ -19,6 +19,11 @@ function agentAuthLine(agents: AgentInfo[]): string {
 }
 
 export function ProjectsColumn({ projects, deprecated, agents, selId, running, width, onSelect, onNew, onOpenAppearance, onReorder, onRestore, onCollapse, settingsActive, onOpenSettings, mobile }: {
+  // Project ids with at least one task currently running (see the statusLadder
+  // rollup, fed by useOrchestrator's runningByProject) — NOT task ids. A
+  // project row's own status ladder: the amber "N waiting" badge always wins
+  // (a project with a running task can still separately have one waiting on
+  // you), a blue dot shows otherwise, idle shows nothing.
   projects: ProjectRow[]; deprecated: ProjectRow[]; agents: AgentInfo[]; selId: string | null; running: Set<string>; width: number;
   onSelect: (id: string) => void; onNew: () => void; onOpenAppearance: () => void;
   onReorder: (ids: string[]) => void; onRestore: (id: string) => void; onCollapse: () => void;
@@ -71,9 +76,11 @@ export function ProjectsColumn({ projects, deprecated, agents, selId, running, w
             >
               <div className="pic" style={{ background: p.color }}>
                 {p.name[0]}
-                {p.awaiting_count > 0 && (
+                {p.awaiting_count > 0 ? (
                   <span className="proj-await" title={`${p.awaiting_count} task${p.awaiting_count !== 1 ? "s" : ""} waiting on your input`}>{p.awaiting_count}</span>
-                )}
+                ) : running.has(p.id) ? (
+                  <span className="proj-running" title="A task is running in this project" />
+                ) : null}
               </div>
               <div className="pmeta">
                 <div className="pname">{p.name}</div>

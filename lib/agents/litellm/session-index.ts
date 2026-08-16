@@ -7,7 +7,7 @@ export interface OperatorSessionIndexRecord {
   project_id: string;
   task_title: string;
   project_path: string;
-  harness: "codex" | "claude" | "prime";
+  harness: "codex" | "claude" | "prime" | "kimi-code";
   model: string;
   updated_at: string;
 }

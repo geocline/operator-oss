@@ -6,6 +6,7 @@ import type {
   LiteLLMModel,
   LiteLLMParseResult,
 } from "./types";
+import { isSubscriptionOnlyModelId } from "./family";
 
 const EMPTY: LiteLLMCatalogSnapshot = {
   models: [],
@@ -17,6 +18,10 @@ const EMPTY: LiteLLMCatalogSnapshot = {
 
 const state = globalThis as typeof globalThis & {
   __operatorLiteLLMCatalog?: LiteLLMCatalogSnapshot;
+  __operatorLiveAdmissionCandidate?: {
+    alias: string;
+    harness: LiteLLMHarness;
+  };
 };
 
 const record = (value: unknown): Record<string, unknown> | null =>
@@ -28,7 +33,12 @@ const cleanString = (value: unknown): string | null =>
   typeof value === "string" && value.trim() ? value.trim() : null;
 
 const cleanHarness = (value: unknown): LiteLLMHarness | null =>
-  value === "codex" || value === "claude" || value === "prime" ? value : null;
+  value === "codex"
+  || value === "claude"
+  || value === "prime"
+  || value === "kimi-code"
+    ? value
+    : null;
 
 const cleanAdmissionStatus = (value: unknown): LiteLLMAdmissionStatus | null =>
   value === "passed" || value === "failed" ? value : null;
@@ -41,6 +51,9 @@ function parseAdmissions(
   value: unknown,
   modelName: string,
 ): { admissions: LiteLLMAdmissionEvidence[]; errors: string[] } {
+  // Absence is handled by the caller (the model falls back to its declared
+  // `harnesses` list). Reaching here with a non-array means the key IS present
+  // and malformed, which is a real config error worth reporting.
   if (!Array.isArray(value) || value.length === 0) {
     return {
       admissions: [],
@@ -62,7 +75,7 @@ function parseAdmissions(
 
     const harness = cleanHarness(entry.harness);
     if (!harness) {
-      errors.push(`${prefix}.harness must be codex, claude, or prime`);
+      errors.push(`${prefix}.harness must be codex, claude, prime, or kimi-code`);
       return;
     }
     if (seenHarnesses.has(harness)) {
@@ -142,13 +155,34 @@ export function parseLiteLLMModelInfo(raw: unknown): LiteLLMParseResult {
       continue;
     }
 
-    const parsedAdmissions = parseAdmissions(operator.admissions, value);
+    // Two dialects. With `operator.admissions` present, the harness list is
+    // derived ONLY from records that passed: recorded evidence outranks any
+    // claim, and a recorded failure keeps that pair out. Without it, the
+    // gateway's plain `operator.harnesses` list is taken at face value and the
+    // model is flagged unvetted - the app has no opinion on whether someone
+    // tested it, and dropping the model instead (the previous behaviour) left a
+    // local instance with an empty picker and an error telling it to refresh,
+    // which re-read the same config and changed nothing.
+    const declared = Array.isArray(operator.harnesses)
+      ? operator.harnesses
+          .map(cleanHarness)
+          .filter(
+            (h): h is Exclude<LiteLLMHarness, "kimi-code"> =>
+              !!h && h !== "kimi-code",
+          )
+      : [];
+    const hasAdmissions = operator.admissions !== undefined;
+    const parsedAdmissions = hasAdmissions
+      ? parseAdmissions(operator.admissions, value)
+      : { admissions: [] as LiteLLMAdmissionEvidence[], errors: [] as string[] };
     errors.push(...parsedAdmissions.errors.map((error) => ({ model: value, error })));
-    const harnesses = parsedAdmissions.admissions
-      .filter((admission) => admission.status === "passed")
-      .map((admission) => admission.harness);
-    // A model with valid evidence but no passing harness pair stays invisible.
-    // Failed admission is a result, not a catalog parse error.
+    const harnesses = hasAdmissions
+      ? parsedAdmissions.admissions
+          .filter((admission) => admission.status === "passed")
+          .map((admission) => admission.harness)
+      : [...new Set(declared)];
+    // Nothing left to run this model on: every admission failed, or the config
+    // named no harness at all. Not a parse error, just an invisible model.
     if (!harnesses.length) continue;
 
     if (seen.has(value)) {
@@ -176,7 +210,11 @@ export function parseLiteLLMModelInfo(raw: unknown): LiteLLMParseResult {
       description: cleanString(operator.description) ?? "",
       kind: "coding",
       harnesses,
-      admissions: parsedAdmissions.admissions,
+      // The legacy path omits the key entirely rather than writing an empty
+      // array: this snapshot gets persisted and re-read through
+      // admittedSnapshot, and "admissions: []" there reads as "evidence exists
+      // and nothing passed", which would drop the model on the next load.
+      ...(hasAdmissions ? { admissions: parsedAdmissions.admissions } : { unvetted: true }),
       contextWindow,
       reasoningOptions,
       sortOrder,
@@ -198,5 +236,33 @@ export function getLiteLLMCatalog(): LiteLLMCatalogSnapshot {
 }
 
 export function modelForHarness(value: string, harness: LiteLLMHarness): LiteLLMModel | null {
-  return getLiteLLMCatalog().models.find((m) => m.value === value && m.harnesses.includes(harness)) ?? null;
+  // Belt-and-suspenders on the subscription-only rule (see ./family.ts):
+  // liteLLMCapabilities() already keeps these out of every picker, but a
+  // hand-edited tasks.model row bypasses the picker entirely — reject it here
+  // too, at the exact point every LiteLLM driver resolves its turn's model.
+  if (isSubscriptionOnlyModelId(value)) return null;
+  const model = getLiteLLMCatalog().models.find((candidate) => candidate.value === value);
+  if (!model) return null;
+  if (model.harnesses.includes(harness)) return model;
+  const candidate = state.__operatorLiveAdmissionCandidate;
+  return candidate?.alias === value && candidate.harness === harness
+    ? model
+    : null;
+}
+
+export function setLiveAdmissionCandidateForTest(
+  alias: string,
+  harness: LiteLLMHarness,
+): void {
+  if (
+    process.env.NODE_ENV !== "test"
+    || process.env.MODEL_ADMISSION_LIVE !== "1"
+  ) {
+    throw new Error("Live admission candidate override requires test mode and explicit live opt-in");
+  }
+  state.__operatorLiveAdmissionCandidate = { alias, harness };
+}
+
+export function clearLiveAdmissionCandidateForTest(): void {
+  delete state.__operatorLiveAdmissionCandidate;
 }

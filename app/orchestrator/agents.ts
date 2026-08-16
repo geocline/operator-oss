@@ -4,10 +4,21 @@
 // no client edits. Pure functions (no React) so any module can import them.
 import type { AgentsBundle, AgentInfo, AgentCapabilities } from "./types";
 
+// Mirrors the server-side alias map (lib/agents/capabilities.ts PUBLIC_AGENT_IDS)
+// plus the litellm-codex/litellm-claude gateway fold GET /api/agents does
+// inline - a task's real tasks.agent (any "litellm-*" driver id) resolves to
+// the public agent id its capabilities/picker live under, so caps lookups and
+// model-picker filtering behave identically for all four harnesses.
+const PUBLIC_HARNESS_IDS: Record<string, string> = {
+  "litellm-codex": "codex",
+  "litellm-claude": "claude",
+  "litellm-prime": "prime",
+  "litellm-kimi-code": "kimi-code",
+};
+
 export function publicHarnessId(id: string | null | undefined): string | null | undefined {
-  if (id === "litellm-codex") return "codex";
-  if (id === "litellm-claude") return "claude";
-  return id;
+  if (id == null) return id;
+  return PUBLIC_HARNESS_IDS[id] ?? id;
 }
 
 export function findAgent(bundle: AgentsBundle, id: string | null | undefined): AgentInfo | undefined {

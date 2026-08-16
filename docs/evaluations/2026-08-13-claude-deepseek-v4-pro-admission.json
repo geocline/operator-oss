@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "alias": "operator.deepseek-v4-pro",
+  "resolved_model": "deepseek/deepseek-v4-pro-20260423",
+  "harness": "claude",
+  "harness_version": "2.1.220 (Claude Code)",
+  "test_revision": "d21e8c53a422+wave0.139b915cb321",
+  "tested_at": "2026-08-13T21:54:10.868Z",
+  "status": "failed",
+  "gates": {
+    "identity": {
+      "passed": true,
+      "detail": "exact alias resolved to deepseek/deepseek-v4-pro-20260423"
+    },
+    "basic_turn": {
+      "passed": true,
+      "detail": "coherent result streamed through the harness"
+    },
+    "tool_loop": {
+      "passed": true,
+      "detail": "read, edit, and command calls had valid paired results"
+    },
+    "operator_bridge": {
+      "passed": false,
+      "detail": "Operator tool or claimed interactive ask did not complete"
+    },
+    "repository_result": {
+      "passed": true,
+      "detail": "disposable fixture contains the expected edit and its tests pass"
+    },
+    "resume": {
+      "passed": true,
+      "detail": "same session resumed and recalled the planted fact"
+    },
+    "stop": {
+      "passed": true,
+      "detail": "interrupt settled with no busy task or surviving process"
+    },
+    "usage": {
+      "passed": false,
+      "detail": "token usage or trusted metered cost is incomplete"
+    },
+    "isolation": {
+      "passed": true,
+      "detail": "task state is isolated and only the loopback relay credential was exposed"
+    }
+  },
+  "session_id_sha256": "b81e08d58406a17bc0b695e2192989eea102f636fa5f3448d2e028f613ae4f89",
+  "usage": {
+    "input_tokens": 209069,
+    "output_tokens": 1245,
+    "cache_read_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cost_usd": 0.029403723,
+    "cost_status": "trusted"
+  },
+  "provider_reconciliation": {
+    "generation_ids": [
+      "gen-1786657986-l0DgLlY3Fqdt1k9DDvqh",
+      "gen-1786657991-URPipeCNrUi3gNBh7iOn",
+      "gen-1786657991-fUd9UoJf0GFBmdCVJwgu",
+      "gen-1786657996-1PMQRrXeuNI2oHUqw6dz",
+      "gen-1786658001-AyxqcCILe1cEmgFtL4P3",
+      "gen-1786658005-kVHrJ1PTQD9r3HGQcano",
+      "gen-1786658011-xzdXQ9mZY8fuPwvGVske",
+      "gen-1786658017-VmbECH1ZLWb4F571Onw7",
+      "gen-1786658021-Jf0Wnk7AYw95TphifWh0"
+    ],
+    "physical_models": [
+      "deepseek/deepseek-v4-pro-20260423"
+    ],
+    "providers": [
+      "Baidu",
+      "StreamLake"
+    ],
+    "provider_cost_usd": 0.029403723,
+    "key_usage_delta_usd": 0.05720760200000008,
+    "complete": true
+  },
+  "process_settlement": {
+    "settled": true,
+    "task_busy": false,
+    "survivor_count": 0
+  },
+  "diagnostics": [
+    "9 provider generation(s) reconciled",
+    "gateway alias binding was fallback-free",
+    "fresh event counts: assistant=6, done=1, model=1, session=1, suggested=1, tool=5, tool_result=5, usage=1",
+    "resume event counts: assistant=1, done=1, model=1, session=1, usage=1",
+    "stop event counts: done=2, model=2, session=2, tool=2"
+  ]
+}

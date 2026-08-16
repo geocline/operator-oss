@@ -81,6 +81,18 @@ if (configuredPrimeHome && !path.isAbsolute(configuredPrimeHome)) {
 export const LITELLM_PRIME_HOME =
   configuredPrimeHome || path.join(os.homedir(), ".operator", "litellm-prime");
 
+const configuredKimiCodeHome = process.env.LITELLM_KIMI_CODE_HOME;
+if (configuredKimiCodeHome && !path.isAbsolute(configuredKimiCodeHome)) {
+  throw new Error("LITELLM_KIMI_CODE_HOME must be an absolute path");
+}
+
+/** Task-local Kimi Code config/session root for metered LiteLLM-backed turns. */
+export const LITELLM_KIMI_CODE_HOME =
+  configuredKimiCodeHome || path.join(os.homedir(), ".operator", "litellm-kimi-code");
+
+/** Pinned Kimi Code CLI path; blank resolves `kimi` on PATH. */
+export const KIMI_CODE_CLI_PATH = process.env.KIMI_CODE_CLI_PATH || "kimi";
+
 /**
  * Models the INTERNAL one-shot jobs run on (lib/agents/oneshots.ts) — the turns
  * that run outside the main chat and that the user never picks a model for:
@@ -113,6 +125,21 @@ export const CODEX_ONESHOT_MODEL = process.env.ORCH_CODEX_ONESHOT_MODEL ?? "gpt-
 export const ALLOW_API_KEY_ENV = ["1", "true", "on"].includes(
   String(process.env.ORCH_ALLOW_API_KEY_ENV || "").toLowerCase(),
 );
+
+/**
+ * Show the eval-only LiteLLM/gateway model pairings merged into the public
+ * claude/codex agents (app/api/agents/route.ts merges litellm-claude's/
+ * litellm-codex's vetted models into the native claude/codex model lists).
+ * Those pairings exist for admission-testing machinery, not everyday routing -
+ * Geo's hard subscription-only rule is that an Anthropic/OpenAI-family model
+ * never reaches a LiteLLM route in normal use (see lib/agents/litellm/family.ts
+ * for the harness-side enforcement of that rule). Off by default, so a fresh
+ * instance never shows eval pairings; read at request time (a function, not a
+ * baked-in module-load constant) so it can be toggled per test case.
+ */
+export function showEvalModels(): boolean {
+  return ["1", "true", "on"].includes(String(process.env.ORCH_SHOW_EVAL_MODELS || "").toLowerCase());
+}
 
 /**
  * Base TCP port for per-project managed services. Each project is assigned a

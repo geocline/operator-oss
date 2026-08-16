@@ -6,11 +6,18 @@
 declare global {
   // eslint-disable-next-line no-var
   var __orchAbort: Map<string, AbortController> | undefined;
+  // eslint-disable-next-line no-var
+  var __orchDeletingTasks: Set<string> | undefined;
 }
 
 function registry(): Map<string, AbortController> {
   if (!global.__orchAbort) global.__orchAbort = new Map();
   return global.__orchAbort;
+}
+
+function deletingTasks(): Set<string> {
+  if (!global.__orchDeletingTasks) global.__orchDeletingTasks = new Set();
+  return global.__orchDeletingTasks;
 }
 
 // Atomically claim the turn slot for a task: register a fresh controller and
@@ -22,6 +29,7 @@ function registry(): Map<string, AbortController> {
 // controller to the runner (whose finally releases it) or release it
 // themselves via unregisterTurn on every non-launch path.
 export function claimTurn(taskId: string): AbortController | null {
+  if (deletingTasks().has(taskId)) return null;
   const reg = registry();
   if (reg.has(taskId)) return null;
   const controller = new AbortController();
@@ -35,6 +43,7 @@ export function claimTurn(taskId: string): AbortController | null {
 // is synchronous, occupancy never lapses across the handoff — no POST can
 // slip a parallel turn in between the two.
 export function handoffTurn(taskId: string, prev: AbortController): AbortController | null {
+  if (deletingTasks().has(taskId)) return null;
   const reg = registry();
   if (reg.get(taskId) !== prev) return null;
   const controller = new AbortController();
@@ -90,4 +99,40 @@ export function abortTurn(taskId: string): boolean {
   reg.delete(taskId);
   controller.abort();
   return true;
+}
+
+/**
+ * Atomically exclude every future turn launch for a task and abort its current
+ * owner without freeing the occupied slot. The runner releases that slot only
+ * after its driver has unwound, so deletion can wait for real settlement
+ * without a successor slipping into the gap.
+ */
+export function beginTaskDeletion(taskId: string): boolean {
+  const deleting = deletingTasks();
+  if (deleting.has(taskId)) return false;
+  deleting.add(taskId);
+  const controller = registry().get(taskId);
+  controller?.abort();
+  return true;
+}
+
+export function isTaskDeleting(taskId: string): boolean {
+  return deletingTasks().has(taskId);
+}
+
+export function endTaskDeletion(taskId: string): void {
+  deletingTasks().delete(taskId);
+}
+
+export async function waitForTurnSettlement(
+  taskId: string,
+  timeoutMs = 15_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (registry().has(taskId)) {
+    if (Date.now() >= deadline) {
+      throw new Error(`Task turn settlement timed out after ${timeoutMs}ms`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
 }

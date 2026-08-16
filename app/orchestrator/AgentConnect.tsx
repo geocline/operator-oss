@@ -200,7 +200,7 @@ function ManagedEndpointConnect({
     <div className="field" style={{ maxWidth: 560 }}>
       <div className="hlp" style={{ marginTop: 0 }}>
         Managed by your loopback LiteLLM gateway. Provider keys and model routing stay in LiteLLM.
-        {agent.id === "litellm-prime" && (
+        {agent.id === "prime" && (
           <> {"Prime Agent runs with the Operator process's host permissions (no OS sandbox) and only Auto-run is offered. Cost is metered through LiteLLM, never estimated."}</>
         )}
       </div>

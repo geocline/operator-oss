@@ -5,6 +5,7 @@ import { LITELLM_API_KEY, LITELLM_BASE_URL } from "../../config";
 export interface LiteLLMRelay {
   baseUrl: string;
   childApiKey: "operator-loopback-relay";
+  generationIds(): string[];
   close(): Promise<void>;
 }
 
@@ -14,6 +15,7 @@ type RelayOptions = {
 };
 
 const CHILD_KEY = "operator-loopback-relay" as const;
+const GENERATION_ID = /\bgen-[A-Za-z0-9_-]{8,}\b/g;
 
 export async function createLiteLLMRelay(options: RelayOptions): Promise<LiteLLMRelay> {
   const upstreamRoot = options.upstreamBaseUrl.replace(/\/v1\/?$/, "");
@@ -22,6 +24,18 @@ export async function createLiteLLMRelay(options: RelayOptions): Promise<LiteLLM
     .replace(/^https:/, "wss:");
   const websocketServer = new WebSocketServer({ noServer: true });
   const websocketPairs = new Set<[WebSocket, WebSocket]>();
+  const generationIds = new Set<string>();
+  let generationTail = "";
+  const captureGenerationIds = (value: Uint8Array | string) => {
+    const text = typeof value === "string"
+      ? value
+      : Buffer.from(value).toString("utf8");
+    const searchable = `${generationTail}${text}`;
+    for (const match of searchable.matchAll(GENERATION_ID)) {
+      generationIds.add(match[0]);
+    }
+    generationTail = searchable.slice(-128);
+  };
   const server = http.createServer(async (request, response) => {
     const requestPath = request.url || "/";
     if (!requestPath.startsWith("/v1/")) {
@@ -60,6 +74,7 @@ export async function createLiteLLMRelay(options: RelayOptions): Promise<LiteLLM
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
+          captureGenerationIds(value);
           response.write(value);
         }
       }
@@ -120,6 +135,7 @@ export async function createLiteLLMRelay(options: RelayOptions): Promise<LiteLLM
         pending.length = 0;
       });
       upstream.on("message", (data, isBinary) => {
+        if (!isBinary) captureGenerationIds(data.toString());
         if (client.readyState === WebSocket.OPEN) client.send(data, { binary: isBinary });
       });
       client.on("close", (code, reason) => {
@@ -150,6 +166,7 @@ export async function createLiteLLMRelay(options: RelayOptions): Promise<LiteLLM
   return {
     baseUrl: `http://127.0.0.1:${address.port}/v1`,
     childApiKey: CHILD_KEY,
+    generationIds: () => [...generationIds],
     close: () => new Promise<void>((resolve, reject) => {
       for (const [client, upstream] of websocketPairs) {
         client.terminate();

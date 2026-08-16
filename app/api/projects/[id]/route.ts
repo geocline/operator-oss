@@ -3,8 +3,16 @@ import { getProject, updateProject, deleteProject } from "@/lib/store";
 import { listTasks } from "@/lib/store";
 import { removeWorktree } from "@/lib/git";
 import { removeTaskUploads } from "@/lib/uploads";
-import { abortTurn } from "@/lib/abort";
+import {
+  beginTaskDeletion,
+  endTaskDeletion,
+  waitForTurnSettlement,
+} from "@/lib/abort";
 import { removeProjectServices } from "@/lib/services";
+import { settlePrimeTask } from "@/lib/agents/prime/driver";
+import { removePrimeTaskState } from "@/lib/agents/prime/session-paths";
+import { settleKimiCodeTask } from "@/lib/agents/kimi-code/driver";
+import { removeKimiCodeTaskState } from "@/lib/agents/kimi-code/session-paths";
 
 export const dynamic = "force-dynamic";
 
@@ -34,12 +42,46 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   // error handler re-persisting) escapes the runner and, unhandled, would take
   // down the whole server process — killing every other tenant's turn. Mirror
   // the task DELETE handler, which aborts before teardown for the same reason.
-  for (const t of tasks) abortTurn(t.id);
+  const marked: string[] = [];
+  for (const task of tasks) {
+    if (!beginTaskDeletion(task.id)) {
+      for (const taskId of marked) endTaskDeletion(taskId);
+      return NextResponse.json(
+        { error: "A task in this project is already being deleted." },
+        { status: 409 },
+      );
+    }
+    marked.push(task.id);
+  }
+  // Prove every agent tree is settled before removing the first task's bytes.
+  // Otherwise a later task's cleanup failure could leave a half-deleted
+  // project that still exists in the database.
+  try {
+    await Promise.all(tasks.map((task) => waitForTurnSettlement(task.id)));
+    await Promise.all(
+      tasks.flatMap((t) => [
+        settlePrimeTask(t.id),
+        settleKimiCodeTask(t.id),
+      ]),
+    );
+  } catch (error) {
+    console.error(`agent process cleanup failed for project ${id}:`, error);
+    for (const taskId of marked) endTaskDeletion(taskId);
+    return NextResponse.json(
+      {
+        error:
+          "The project could not be deleted because an agent process tree could not be settled.",
+      },
+      { status: 409 },
+    );
+  }
   // Tear down each task's worktree + uploaded chat images before the DB
   // cascade drops the rows.
   for (const t of tasks) {
     if (project.repo_path && t.worktree_path) await removeWorktree(project.repo_path, t.worktree_path, t.work_branch);
     removeTaskUploads(t.id);
+    removePrimeTaskState(t.id);
+    removeKimiCodeTaskState(t.id);
   }
   // Kill this project's managed dev-server processes and drop their live registry
   // entries BEFORE the cascade drops the services rows — otherwise the detached
@@ -47,5 +89,6 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   // router keeps routing to a now-deleted project until the server restarts.
   removeProjectServices(id);
   deleteProject(id);
+  for (const taskId of marked) endTaskDeletion(taskId);
   return NextResponse.json({ ok: true });
 }

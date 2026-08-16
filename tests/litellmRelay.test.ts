@@ -114,4 +114,21 @@ describe("LiteLLM credential relay", () => {
     expect(requestPath).toBe("/v1/responses?mode=test");
     upstreamSockets.close();
   });
+
+  it("collects only sanitized provider generation ids from upstream responses", async () => {
+    upstream = http.createServer((_req, res) => {
+      res.writeHead(200, { "Content-Type": "text/event-stream" });
+      res.write('data: {"id":"gen-12345678-Alpha');
+      res.end('Beta","private":"do-not-store"}\n\n');
+    });
+    const port = await listen(upstream);
+    relay = await createLiteLLMRelay({
+      upstreamBaseUrl: `http://127.0.0.1:${port}/v1`,
+      gatewayToken: "real-gateway-secret",
+    });
+
+    await (await fetch(`${relay.baseUrl}/messages`)).text();
+
+    expect(relay.generationIds()).toEqual(["gen-12345678-AlphaBeta"]);
+  });
 });

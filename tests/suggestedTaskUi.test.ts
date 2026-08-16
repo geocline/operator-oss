@@ -40,6 +40,7 @@ const suggested: TaskRow = {
   started: 0,
   running: 0,
   awaiting_input: 0,
+  turn_started_at: null,
   updated_at: 1,
   cost_usd: 0,
   total_tokens: 0,

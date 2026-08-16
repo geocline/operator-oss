@@ -22,7 +22,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // next send, so the new driver resumes with full context in the SAME
   // worktree/branch - no task duplication. Body is optional and may be empty
   // (the plain /clear path sends none).
+  //
+  // `{ useLastAssistant: true }` seeds the next generation with the outgoing
+  // session's final assistant message instead of an auto-summary - the /handoff
+  // flow, where that message IS a purpose-written handoff document and
+  // re-summarizing it would only lose detail. `{ model }` carries a same-driver
+  // model choice across the boundary (e.g. hand Sonnet's work to Opus), applied
+  // with the generation bump so the fresh session's first turn runs on it.
   let handoffAgent: string | null = null;
+  let handoffModel: string | null | undefined;
+  let useLastAssistant = false;
   try {
     const body = await req.json();
     if (body && typeof body.agent === "string" && body.agent && body.agent !== task.agent) {
@@ -32,6 +41,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         return NextResponse.json({ error: `unknown agent "${body.agent}"` }, { status: 400 });
       handoffAgent = body.agent;
     }
+    if (body && (typeof body.model === "string" || body.model === null)) handoffModel = body.model;
+    if (body && body.useLastAssistant === true) useLastAssistant = true;
   } catch {
     // no/invalid JSON body - plain clear
   }
@@ -59,7 +70,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   );
 
   let summary = "(empty session — nothing to summarize)";
-  if (transcript.trim()) {
+  // /handoff path: the session's last assistant message is a purpose-written
+  // handoff document — carry it verbatim. Fall back to the auto-summary if the
+  // turn produced no assistant text (e.g. it errored out mid-write).
+  const lastAssistant = useLastAssistant
+    ? listMessages(id).filter((m) => m.generation === gen && m.role === "assistant" && m.content.trim()).at(-1)
+    : undefined;
+  if (lastAssistant) {
+    summary = lastAssistant.content;
+  } else if (transcript.trim()) {
     try {
       summary = await summarizeTranscript(task, transcript, project);
     } catch (err) {
@@ -79,6 +98,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     started: 0,
     running: 0,
     awaiting_input: 0,
+    turn_started_at: null,
     status: "in_progress",
     // On handoff, switch drivers and drop driver-specific knobs (model alias,
     // reasoning preset, permission mode are not portable across CLIs; null =
@@ -86,7 +106,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // show the old driver's model against the new agent.
     ...(handoffAgent
       ? { agent: handoffAgent, model: null, resolved_model: null, reasoning: null, permission_mode: null }
-      : {}),
+      : handoffModel !== undefined
+        ? { model: handoffModel, resolved_model: null }
+        : {}),
   });
 
   // Discard any follow-ups queued against the OLD generation. They were lined up

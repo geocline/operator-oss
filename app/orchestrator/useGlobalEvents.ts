@@ -12,7 +12,7 @@ import type { ProjectRow, TaskRow } from "./types";
 // This is what clears spinners and updates
 // the "needs you" badges for tasks whose transcript stream isn't open — only
 // the selected task has one (useTaskStream) — replacing the old 10s poll.
-export function useGlobalEvents({ selProjRef, setTaskRunning, setTasks, setProjects, loadTasks, reconcileRunning, refreshAgents, onLifecycle }: {
+export function useGlobalEvents({ selProjRef, setTaskRunning, setTasks, setProjects, loadTasks, reconcileRunning, refreshAgents, setRunningByProject, onLifecycle }: {
   selProjRef: MutableRefObject<string | null>;
   setTaskRunning: (id: string, on: boolean) => void;
   setTasks: React.Dispatch<React.SetStateAction<TaskRow[]>>;
@@ -20,6 +20,13 @@ export function useGlobalEvents({ selProjRef, setTaskRunning, setTasks, setProje
   loadTasks: (projectId: string, selectFirst?: boolean) => Promise<void>;
   reconcileRunning: () => Promise<void>;
   refreshAgents: () => Promise<void>;
+  /**
+   * A task's live-turn state just changed, project-scoped — feeds the
+   * ProjectsColumn rollup (a blue dot on any project with a task running,
+   * even one that's collapsed/unselected). Called for both ordinary "task"
+   * lifecycle events and task_deleted (which must clear its entry too).
+   */
+  setRunningByProject: (projectId: string, taskId: string, on: boolean) => void;
   /**
    * Every event, before any state patching, for consumers that care about the
    * transition rather than the resulting state - notifications, above all. It
@@ -45,12 +52,14 @@ export function useGlobalEvents({ selProjRef, setTaskRunning, setTasks, setProje
     // re-fetch.
     if (ev.type === "task_deleted") {
       setTaskRunning(ev.taskId, false);
+      setRunningByProject(ev.projectId, ev.taskId, false);
       setTasks((prev) => prev.filter((t) => t.id !== ev.taskId));
       setProjects((prev) => prev.map((p) => (p.id === ev.projectId ? { ...p, awaiting_count: ev.awaiting_count } : p)));
       return;
     }
     if (ev.type !== "task") return;
     setTaskRunning(ev.taskId, ev.running);
+    setRunningByProject(ev.projectId, ev.taskId, ev.running);
     setTasks((prev) => prev.map((t) => {
       if (t.id !== ev.taskId) return t;
       // A launch publishes turn_started before the agent session opens, i.e.
@@ -95,6 +104,9 @@ export function useGlobalEvents({ selProjRef, setTaskRunning, setTasks, setProje
         void refreshAgents();
       },
     });
-    // All deps are stable (a ref, a setState, []-memoized callbacks).
+    // All deps are stable (a ref, a setState, []-memoized callbacks). Note
+    // setRunningByProject/setTaskRunning/setTasks aren't listed: they're only
+    // read inside handle(), which is always called through handleRef (kept
+    // fresh by the effect above on every render), never directly here.
   }, [selProjRef, setProjects, loadTasks, reconcileRunning, refreshAgents]);
 }

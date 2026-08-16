@@ -193,6 +193,29 @@ export function duration(start: number, end: number | null): string {
   return `${Math.floor(m / 60)}h ${m % 60}m`;
 }
 
+// The live turn clock: "0:47" while under a minute, "12:03" under an hour,
+// "1:02:11" past that — hours only appear (and minutes only pad to two
+// digits) once there are any. Anchored on the persisted turn_started_at (or a
+// fallback), never wall-clock-since-mount, so a reload mid-turn shows the
+// correct elapsed time immediately instead of restarting from 0.
+export function elapsed(startMs: number, nowMs: number): string {
+  const total = Math.max(0, Math.floor((nowMs - startMs) / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const ss = String(s).padStart(2, "0");
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${ss}`;
+  return `${m}:${ss}`;
+}
+// The turn clock stays hidden for the first 15s of a turn (most turns finish
+// before that, and a clock that flashes on then off reads as noise) — this is
+// anchor math, not mount time, so it evaluates correctly even right after a
+// reload mid-turn.
+export const TURN_CLOCK_DELAY_MS = 15_000;
+export function turnClockVisible(anchorMs: number, nowMs: number): boolean {
+  return nowMs - anchorMs >= TURN_CLOCK_DELAY_MS;
+}
+
 // A task is "waiting on you" when its awaiting_input flag is set — Claude either
 // ended its turn mid-task or is parked on an AskUserQuestion. The flag is the
 // single source of truth (cleared the instant the next turn starts / a question

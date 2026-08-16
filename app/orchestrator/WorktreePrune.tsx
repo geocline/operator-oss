@@ -215,16 +215,6 @@ export function WorktreePrune() {
           </>
         )}
       </div>
-
-      {/* Future opt-in — the automated path isn't built yet, so it's shown disabled
-          to reserve the slot without implying it works. */}
-      <div className="field">
-        <div className="lab">{Icon.clock()} Auto-prune</div>
-        <label className="hlp" style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 0, opacity: 0.6 }}>
-          <input type="checkbox" disabled />
-          Automatically prune worktrees merged more than 30 days ago <span className="opt">— coming soon</span>
-        </label>
-      </div>
     </>
   );
 }

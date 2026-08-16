@@ -5,6 +5,21 @@ import { createPortal } from "react-dom";
 import type { Priority, Status } from "@/lib/types";
 import { Icon, AgentMark } from "../icons";
 import { SCLS, SLABEL, AWAIT_LABEL } from "./types";
+import type { RowStatus } from "./statusLadder";
+
+// The one-dot status ladder (see statusLadder.ts): amber pulse for awaiting,
+// blue pulse for running, green (no pulse) for unviewed, and an EMPTY but
+// same-sized slot for idle so rows never reflow as their status changes.
+// Distinct from StatusDot below (which keeps its own coral-for-awaiting
+// language for the places that already use it) - this is the batch-one row
+// ladder used by TasksColumn/TaskBoard/ProjectsColumn.
+export function LadderDot({ status }: { status: RowStatus }) {
+  return (
+    <span className="dot-slot">
+      {status.kind !== "none" && <span className={`ldot ${status.kind}`} />}
+    </span>
+  );
+}
 
 export function StatusDot({ status, running, awaiting, lg }: { status: Status; running?: boolean; awaiting?: boolean; lg?: boolean }) {
   // Signal language (mission-control): "needs your input" is an alert coral, a

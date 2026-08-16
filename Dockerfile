@@ -72,6 +72,21 @@ RUN npm install -g @anthropic-ai/claude-code && claude --version
 # PATH lookup and the auth helpers resolve it next to `claude`.
 RUN npm install -g @openai/codex && codex --version
 
+# The official Node SDK 0.1.8 drives the classic Kimi Wire CLI, not the newer
+# npm TUI executable (which removed --wire/--work-dir). Pin the exact official
+# release asset, verify Moonshot's published SHA256, and assert the two SDK
+# arguments before admitting any model against this image.
+ARG KIMI_CLI_VERSION=1.49.0
+ARG KIMI_CLI_SHA256=6ce0b83f583c45a64cc9f51ffe7e1a8e03ee79acda69945fcf8c23341b9d892f
+RUN curl -fsSL -o /tmp/kimi.tgz \
+    "https://github.com/MoonshotAI/kimi-cli/releases/download/${KIMI_CLI_VERSION}/kimi-${KIMI_CLI_VERSION}-x86_64-unknown-linux-gnu.tar.gz" \
+  && echo "${KIMI_CLI_SHA256}  /tmp/kimi.tgz" | sha256sum -c - \
+  && tar -xzf /tmp/kimi.tgz -C /usr/local/bin \
+  && rm /tmp/kimi.tgz \
+  && kimi --version | grep -F "version ${KIMI_CLI_VERSION}" \
+  && kimi --help | grep -F -- "--wire" \
+  && kimi --help | grep -F -- "--work-dir"
+
 # The `prime-agent` CLI (the litellm-prime driver drives it over JSONL RPC;
 # task-local state lives under ~/.operator/litellm-prime on the volume).
 # Pinned - never `latest` - from the official GitHub release tarball, verified
@@ -110,6 +125,7 @@ COPY --from=build --chown=root:root /app/lib/auth ./lib/auth
 # and its shared tool defs — plain-Node .mjs the build output doesn't bundle, so
 # they must be COPY'd explicitly (same gotcha as the auth/router .mjs above).
 COPY --from=build --chown=root:root /app/scripts/orch-mcp.mjs ./scripts/orch-mcp.mjs
+COPY --from=build --chown=root:root --chmod=755 /app/scripts/kimi-code-launcher.mjs ./scripts/kimi-code-launcher.mjs
 COPY --from=build --chown=root:root /app/lib/agentToolDefs.mjs ./lib/agentToolDefs.mjs
 # The Prime Operator tool extension (loaded by prime-agent per turn via
 # --extension; jiti reads the TS source directly). Root-owned and read-only so
@@ -133,6 +149,7 @@ ENV NODE_ENV=production \
     CLAUDE_CLI_PATH=/usr/local/bin/claude \
     CODEX_CLI_PATH=/usr/local/bin/codex \
     PRIME_CLI_PATH=/usr/local/bin/prime-agent \
+    KIMI_CODE_CLI_PATH=/usr/local/bin/kimi \
     DISABLE_AUTOUPDATER=1
 
 USER orch

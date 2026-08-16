@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useState } from "react";
-import type { ToolData, ToolPeek, AskQuestion, AskAnswers } from "@/lib/types";
+import type { ToolData, ToolPeek, AskAnswers } from "@/lib/types";
 import { Icon } from "../icons";
 import { Markdown } from "../Markdown";
 import { diffCls, splitAttachments, type MsgAttachment } from "./format";
@@ -149,14 +149,15 @@ function ToolView({ data, condensed }: { data: ToolData; condensed?: boolean }) 
   );
 }
 
-// Interactive AskUserQuestion card: option pickers (+ an "Other" free-text per
-// question) while pending; a read-only summary once answered.
-function AskView({ data, agentLabel, onAnswer }: { data: ToolData; agentLabel: string; onAnswer: (answers: AskAnswers) => Promise<void> }) {
+// AskUserQuestion card as it renders in the transcript itself: a read-only
+// summary once answered (unchanged), and — while pending — question text only,
+// no controls. The decision now lives in the composer takeover (AskPanel,
+// below), which SessionView swaps in for the textarea whenever a question is
+// pending; this card just gives the history a "here's what was asked" record
+// and points down at where to actually answer it.
+function AskView({ data, agentLabel }: { data: ToolData; agentLabel: string }) {
   const questions = data.ask?.questions ?? [];
   const existing = data.ask?.answers;
-  const [state, setState] = useState(() => questions.map(() => ({ picked: [] as string[], other: "" })));
-  const [submitted, setSubmitted] = useState(false);
-  const [submitError, setSubmitError] = useState("");
 
   if (existing) {
     return (
@@ -172,6 +173,36 @@ function AskView({ data, agentLabel, onAnswer }: { data: ToolData; agentLabel: s
     );
   }
 
+  return (
+    <div className="ask ask-pending">
+      <div className="ask-head">{Icon.spark()} {agentLabel} needs your input</div>
+      {questions.map((q, i) => (
+        <div className="ask-q" key={i}>
+          <div className="ask-qh"><span className="ask-chip">{q.header}</span>{q.question}{q.multiSelect && <span className="ask-multi">pick any</span>}</div>
+        </div>
+      ))}
+      <div className="ask-pointer">↓ Answer below</div>
+    </div>
+  );
+}
+
+// The interactive counterpart: option pickers (+ an "Other" free-text per
+// question) and the submit button, rendered in the COMPOSER in place of the
+// textarea while a question is pending (see SessionView) — decisions live
+// where the hands are; the transcript above only shows history. "Chat about
+// it" hands control back to a normal textarea (SessionView wires that to the
+// same answer path via free text) for when picking an option isn't the right
+// shape of reply.
+export function AskPanel({ data, agentLabel, onAnswer, onChatAboutIt }: {
+  data: ToolData; agentLabel: string;
+  onAnswer: (answers: AskAnswers) => Promise<void>;
+  onChatAboutIt: () => void;
+}) {
+  const questions = data.ask?.questions ?? [];
+  const [state, setState] = useState(() => questions.map(() => ({ picked: [] as string[], other: "" })));
+  const [submitted, setSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+
   const toggle = (qi: number, label: string, multi: boolean) =>
     setState((s) => s.map((st, i) => {
       if (i !== qi) return st;
@@ -185,7 +216,8 @@ function AskView({ data, agentLabel, onAnswer }: { data: ToolData; agentLabel: s
     setState((s) => s.map((st, i) => (i === qi ? (questions[i].multiSelect ? { ...st, other: v } : { picked: [], other: v }) : st)));
 
   const answers: AskAnswers = state.map((st) => [...st.picked, ...(st.other.trim() ? [st.other.trim()] : [])]);
-  const complete = answers.every((a) => a.length > 0);
+  const firstIncomplete = answers.findIndex((a) => a.length === 0);
+  const complete = firstIncomplete === -1;
   const submit = async () => {
     if (!complete || submitted) return;
     setSubmitted(true);
@@ -199,7 +231,7 @@ function AskView({ data, agentLabel, onAnswer }: { data: ToolData; agentLabel: s
   };
 
   return (
-    <div className="ask">
+    <div className="ask-panel">
       <div className="ask-head">{Icon.spark()} {agentLabel} needs your input</div>
       {questions.map((q, i) => (
         <div className="ask-q" key={i}>
@@ -217,8 +249,15 @@ function AskView({ data, agentLabel, onAnswer }: { data: ToolData; agentLabel: s
       ))}
       <div className="ask-foot">
         {submitError && <span className="ask-submit-error" role="alert">{submitError}</span>}
+        <button className="btn btn-line btn-sm" onClick={onChatAboutIt} disabled={submitted} title="Answer in plain text instead of picking an option">Chat about it</button>
+        <span className="spacer" style={{ flex: 1 }} />
         <button className="btn btn-accent btn-sm" onClick={() => void submit()} disabled={!complete || submitted}>{submitted ? "Sending…" : submitError ? "Retry answer" : "Send answer"}</button>
       </div>
+      {/* Suppress, don't disable, without an explanation: the button may stay
+          disabled while incomplete, but the reason is always visible. */}
+      {!complete && !submitted && (
+        <div className="ask-incomplete">Answer question {firstIncomplete + 1} to send</div>
+      )}
     </div>
   );
 }
@@ -251,7 +290,7 @@ function AttachmentStrip({ items }: { items: MsgAttachment[] }) {
 // changes), so unchanged messages skip re-rendering — and re-parsing their
 // markdown — entirely. Callers must pass identity-stable handlers or the memo
 // is defeated (SessionView wraps its handlers for exactly this reason).
-export const MessageView = memo(function MessageView({ m, initial, hideWho, running, agent, agentLabel = "The agent", condensed, onAnswer, onCancelQueued, onClear, onReconnect }: { m: Msg; initial: boolean; hideWho: boolean; running?: boolean; agent?: string | null; agentLabel?: string; condensed?: boolean; onAnswer?: (askId: string, questions: AskQuestion[], answers: AskAnswers) => Promise<void> | undefined; onCancelQueued?: (pendingId: string) => void; onClear?: () => void; onReconnect?: () => void }) {
+export const MessageView = memo(function MessageView({ m, initial, hideWho, running, agent, agentLabel = "The agent", condensed, onCancelQueued, onClear, onReconnect }: { m: Msg; initial: boolean; hideWho: boolean; running?: boolean; agent?: string | null; agentLabel?: string; condensed?: boolean; onCancelQueued?: (pendingId: string) => void; onClear?: () => void; onReconnect?: () => void }) {
   if (m.role === "queued") {
     // A follow-up the user typed mid-turn, waiting its turn. Reads like a user
     // bubble but dimmed, tagged "Queued", with an × to drop it before it runs.
@@ -277,7 +316,7 @@ export const MessageView = memo(function MessageView({ m, initial, hideWho, runn
     let data: ToolData;
     try { data = JSON.parse(m.content) as ToolData; } catch { data = { title: m.content }; }
     if (data.ask) {
-      return <div className="msg msg-tool"><AskView data={data} agentLabel={agentLabel} onAnswer={async (answers) => { await onAnswer?.(data.ask?.id || m.toolId || "", data.ask?.questions ?? [], answers); }} /></div>;
+      return <div className="msg msg-tool"><AskView data={data} agentLabel={agentLabel} /></div>;
     }
     return <div className="msg msg-tool"><ToolView data={data} condensed={condensed} /></div>;
   }

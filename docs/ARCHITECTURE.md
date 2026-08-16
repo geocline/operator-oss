@@ -141,6 +141,25 @@ the full process tree: RPC abort, then SIGTERM, then SIGKILL against the
 process group, and no attribution is read while the process can still
 generate. Prime is not an OS sandbox, so capabilities expose Auto-run only.
 
+### The Kimi Code driver (`lib/agents/kimi-code/`)
+
+`litellm-kimi-code` is the fourth public harness. It uses the official
+`@moonshot-ai/kimi-agent-sdk` over the exact packaged official Wire CLI and
+normalizes native text, thinking, tool, usage, subagent, approval, question,
+compaction, and interrupt events into Operator's shared stream contract.
+Operator tools use the SDK's external-tool API; native Kimi question requests
+park on Operator's existing ask registry and resume in the same turn.
+
+Each task receives its own `<LITELLM_KIMI_CODE_HOME>/<task-id>/` via
+`KIMI_CODE_HOME` / `KIMI_SHARE_DIR`. The exact LiteLLM alias is supplied through
+a secret-free inline provider skeleton plus Kimi's non-persisted environment
+overlay: the loopback relay URL and only the disposable relay credential.
+Ambient provider
+credentials, user Kimi configuration, global sessions, memory, and Skills do
+not enter the child. The first permission surface is Auto-run only because
+Kimi Code is not an OS sandbox and Plan mode alone does not contain Bash,
+network, hooks, or subagents.
+
 ### Internal one-shots (`lib/agents/oneshots.ts`)
 
 Routing for the internal jobs that run a turn **outside the main chat**: `/clear` handoff

@@ -117,6 +117,7 @@ export async function GET(req: Request) {
           title: t.title,
           projectName: getProject(t.project_id)?.name ?? "",
           agent: t.agent,
+          turn_started_at: t.turn_started_at ?? null,
           ...(event === "turn_failed" && ev.type === "error"
             ? { failure: failureKind(ev.content) }
             : {}),

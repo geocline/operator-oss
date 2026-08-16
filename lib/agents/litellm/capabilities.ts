@@ -1,6 +1,7 @@
 import type { AgentCapabilities, AgentPickerOption } from "../types";
 import type { LiteLLMHarness } from "./types";
 import { getLiteLLMCatalog } from "./catalog";
+import { isSubscriptionOnlyModelId } from "./family";
 
 const REASONING: Record<string, AgentPickerOption> = {
   low: { value: "off", label: "Low", sub: "low reasoning effort" },
@@ -22,16 +23,28 @@ const PLAN_MODE: AgentPickerOption = {
 
 export function liteLLMCapabilities(harness: LiteLLMHarness = "codex"): AgentCapabilities {
   const catalog = getLiteLLMCatalog();
-  const models = catalog.models.filter((m) => m.harnesses.includes(harness));
+  // Subscription-only rule: an Anthropic/OpenAI-family model must never be
+  // offered on a LiteLLM route, no matter what the gateway's catalog declares
+  // (see ./family.ts). This is the primary filter; modelForHarness (./catalog.ts)
+  // repeats the check at turn-resolution time as belt-and-suspenders.
+  const models = catalog.models.filter(
+    (m) => m.harnesses.includes(harness) && !isSubscriptionOnlyModelId(m.value)
+  );
   const reasoning = new Set(models.flatMap((m) => m.reasoningOptions));
   // Prime is not an OS sandbox, so Plan mode stays hidden until an external
   // restriction test proves writes and network access are blocked.
-  const prime = harness === "prime";
+  const autoRunOnly = harness === "prime" || harness === "kimi-code";
   return {
     models: models.map((m) => ({
       value: m.value,
       label: m.label,
-      sub: m.description || "Operator-tagged LiteLLM model",
+      // An unvetted model is one the gateway simply declares for this harness,
+      // with no admission record behind it. It stays selectable - this is a
+      // local tool, not a certification program - but the picker says so rather
+      // than implying a test that never happened.
+      sub: [m.description || "Operator-tagged LiteLLM model", m.unvetted ? "untested pairing" : ""]
+        .filter(Boolean)
+        .join(" · "),
       contextWindow: m.contextWindow ?? 200_000,
       contextWindowKnown: m.contextWindow !== null,
       group: "LiteLLM",
@@ -40,12 +53,12 @@ export function liteLLMCapabilities(harness: LiteLLMHarness = "codex"): AgentCap
         .filter((value): value is string => Boolean(value)),
     })),
     reasoningOptions: [...reasoning].map((value) => REASONING[value]).filter(Boolean),
-    permissionModes: prime ? [AUTO_RUN] : [AUTO_RUN, PLAN_MODE],
+    permissionModes: autoRunOnly ? [AUTO_RUN] : [AUTO_RUN, PLAN_MODE],
     // Prime asks/tools run through the Operator extension; enabled once the
     // tool-parity suite (tests/primeOperatorTools.test.ts) went green.
     supportsAsks: true,
     supportsMcpTools: true,
-    reportsCostUsd: prime,
+    reportsCostUsd: harness === "prime",
     costIsEstimated: false,
     supportsResume: true,
     apiKeyHint: null,

@@ -205,7 +205,7 @@ export default function Orchestrator() {
     <ProjectsColumn
       mobile={isMobile}
       width={layout.projW} onCollapse={() => o.setLayout((l) => ({ ...l, projCollapsed: true }))}
-      projects={o.activeProjects} deprecated={o.deprecatedProjects} agents={o.agents.agents} selId={selProj} running={o.running}
+      projects={o.activeProjects} deprecated={o.deprecatedProjects} agents={o.agents.agents} selId={selProj} running={o.runningProjects}
       onSelect={o.selectProject} onNew={() => o.setModal("project")} onOpenAppearance={() => o.setAppearanceOpen((t) => !t)}
       onReorder={o.reorderProjects} onRestore={(id) => o.setDeprecated(id, false)}
       settingsActive={o.view === "settings"} onOpenSettings={() => openSettings()}
@@ -218,7 +218,7 @@ export default function Orchestrator() {
       onBack={isMobile ? () => window.history.back() : undefined}
       width={layout.taskW}
       onCollapse={() => o.setLayout((l) => ({ ...l, taskCollapsed: true }))}
-      project={project} agents={o.agents} tasks={o.realTasks} suggested={o.suggested} selTaskId={selTask} running={o.running} blockedBy={o.blockedBy}
+      project={project} agents={o.agents} tasks={o.realTasks} suggested={o.suggested} selTaskId={selTask} running={o.running} unviewed={o.unviewed} blockedBy={o.blockedBy}
       loading={o.tasksLoading}
       view={o.taskView} onSetView={setTaskView} onMoveTask={o.moveTask}
       onSelectTask={o.setSelTask} onNewTask={() => o.setModal("task")} onEditContext={() => o.setModal("context")}
@@ -241,7 +241,7 @@ export default function Orchestrator() {
             onSend={(text) => o.runTurn(task.id, text, false)}
             onStart={() => o.runTurn(task.id, "", true)}
             onStop={() => o.stopTurn(task.id)}
-            onClear={() => o.clearSession(task.id)} onHandoff={(agent) => o.clearSession(task.id, agent)} onSetAgent={o.setAgent} onEdit={() => o.setEditId(task.id)}
+            onClear={() => o.clearSession(task.id)} onHandoff={(agent) => o.clearSession(task.id, { agent })} onHandoffModel={(m) => o.handoffSession(task.id, m)} onSetAgent={o.setAgent} onEdit={() => o.setEditId(task.id)}
             focused={focusMode} onToggleFocus={() => setFocusMode((v) => !v)}
             onReconnect={() => openSettings("agents")}
             onSetStatus={o.setStatus} onSetPriority={o.setPriority} onSetModel={o.setModel}
@@ -304,7 +304,7 @@ export default function Orchestrator() {
   const boardWorkspace = project && (
     <BoardWorkspace
       project={project} agents={o.agents} tasks={o.realTasks} suggested={o.suggested}
-      selTaskId={selTask} running={o.running} blockedBy={o.blockedBy} loading={o.tasksLoading}
+      selTaskId={selTask} running={o.running} unviewed={o.unviewed} blockedBy={o.blockedBy} loading={o.tasksLoading}
       onSetView={setTaskView} onMoveTask={o.moveTask}
       onSelectTask={openBoardTask} onNewTask={() => o.setModal("task")} onEditContext={() => o.setModal("context")}
       onShowSessions={() => o.setModal("sessions")} onEditTask={o.setEditId}
@@ -328,7 +328,7 @@ export default function Orchestrator() {
                 onSend={(text) => o.runTurn(task.id, text, false)}
                 onStart={() => o.runTurn(task.id, "", true)}
                 onStop={() => o.stopTurn(task.id)}
-                onClear={() => o.clearSession(task.id)} onHandoff={(agent) => o.clearSession(task.id, agent)} onSetAgent={o.setAgent} onEdit={() => o.setEditId(task.id)}
+                onClear={() => o.clearSession(task.id)} onHandoff={(agent) => o.clearSession(task.id, { agent })} onHandoffModel={(m) => o.handoffSession(task.id, m)} onSetAgent={o.setAgent} onEdit={() => o.setEditId(task.id)}
             focused={focusMode} onToggleFocus={() => setFocusMode((v) => !v)}
                 onReconnect={() => openSettings("agents")}
                 onSetStatus={o.setStatus} onSetPriority={o.setPriority} onSetModel={o.setModel}
@@ -455,24 +455,24 @@ export default function Orchestrator() {
           )}
 
           <div className="tb-actions">
-            {features.services && (
+            {features.services && project && (
               <button
                 className={`tb-btn${o.servicesOpen ? " on" : ""}`}
-                disabled={!project}
-                title={project ? "Toggle the project's managed services (dev server, setup, test)" : "Select a project first"}
-                onClick={() => { if (!project) return; o.setServicesMounted(true); o.setServicesOpen((s) => !s); }}
+                title="Toggle the project's managed services (dev server, setup, test)"
+                onClick={() => { o.setServicesMounted(true); o.setServicesOpen((s) => !s); }}
               >
                 {Icon.sliders()} Services
               </button>
             )}
-            <button
-              className={`tb-btn${o.termOpen ? " on" : ""}`}
-              disabled={!project}
-              title={project ? "Toggle terminal (runs in the project's working dir)" : "Select a project first"}
-              onClick={() => { if (!project) return; o.setTermMounted(true); o.setTermOpen((t) => !t); }}
-            >
-              {Icon.terminal()} Terminal
-            </button>
+            {project && (
+              <button
+                className={`tb-btn${o.termOpen ? " on" : ""}`}
+                title="Toggle terminal (runs in the project's working dir)"
+                onClick={() => { o.setTermMounted(true); o.setTermOpen((t) => !t); }}
+              >
+                {Icon.terminal()} Terminal
+              </button>
+            )}
             <button className="tb-btn" onClick={() => o.setAppearanceOpen((t) => !t)} title="Appearance">{Icon.sliders()} Appearance</button>
           </div>
 

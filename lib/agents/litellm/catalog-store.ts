@@ -15,12 +15,34 @@ function isSnapshot(value: unknown): value is LiteLLMCatalogSnapshot {
   return Array.isArray(row.models) && Array.isArray(row.errors);
 }
 
+// Re-apply the catalog's own rules to a snapshot restored from disk, so a cache
+// written by a different build can never smuggle in a harness pairing the
+// current rules would reject. A snapshot with NO admissions array predates the
+// evidence format (or came from a gateway speaking the plain `harnesses`
+// dialect); it keeps its declared harnesses, flagged unvetted, exactly as a
+// fresh parse of that same config would.
 function admittedSnapshot(value: LiteLLMCatalogSnapshot): LiteLLMCatalogSnapshot {
   const models = value.models.flatMap((model): LiteLLMModel[] => {
-    if (!Array.isArray(model.admissions)) return [];
+    // Missing OR empty: an older build persisted the legacy path as an empty
+    // array, and treating that as "evidence exists, none passed" is what emptied
+    // the picker on upgrade.
+    if (!Array.isArray(model.admissions) || model.admissions.length === 0) {
+      const harnesses = (model.harnesses ?? []).filter(
+        (harness) =>
+          harness === "claude"
+          || harness === "codex"
+          || harness === "prime",
+      );
+      return harnesses.length ? [{ ...model, harnesses, unvetted: true }] : [];
+    }
     const admissions = model.admissions.filter((entry): entry is LiteLLMAdmissionEvidence =>
       !!entry
-      && (entry.harness === "claude" || entry.harness === "codex" || entry.harness === "prime")
+      && (
+        entry.harness === "claude"
+        || entry.harness === "codex"
+        || entry.harness === "prime"
+        || entry.harness === "kimi-code"
+      )
       && (entry.status === "passed" || entry.status === "failed")
       && typeof entry.harnessVersion === "string"
       && !!entry.harnessVersion
@@ -35,7 +57,8 @@ function admittedSnapshot(value: LiteLLMCatalogSnapshot): LiteLLMCatalogSnapshot
     const harnesses = [...new Set(
       admissions.filter((entry) => entry.status === "passed").map((entry) => entry.harness),
     )];
-    return harnesses.length ? [{ ...model, admissions, harnesses }] : [];
+    // Evidence present: it decides, and the unvetted flag never survives.
+    return harnesses.length ? [{ ...model, admissions, harnesses, unvetted: false }] : [];
   });
   return { ...value, models };
 }

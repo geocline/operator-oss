@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Kimi Code Operator Integration Plan</title>
+<style>body{max-width:920px;margin:40px auto;padding:0 28px;color:#17212b;font:16px/1.55 system-ui,sans-serif}h1{font-size:36px}h2{margin-top:32px}code{background:#edf1f4;padding:2px 5px;border-radius:4px}li{margin:8px 0}</style></head><body>
+<h1>Kimi Code Operator Integration Plan</h1>
+<blockquote><strong>For agentic workers:</strong> execute every implementation task test-first and run independent review before paid admission.</blockquote>
+<p><strong>Goal:</strong> Add Kimi Code as a fourth public harness and admit only exact passing Kimi K3/DeepSeek pairings.</p>
+<p><strong>Architecture:</strong> Official TypeScript SDK over the pinned official Wire CLI; secret-free inline provider plus temporary environment route through Operator’s relay; per-task state; shared Operator tool implementations; normalized <code>StreamEvent</code> output.</p>
+
+<h2>Task 1 — Catalog and package surface</h2>
+<ol><li>Add failing tests for <code>kimi-code</code> admission parsing, public driver registration, empty-before-admission model list, Auto-run-only permissions, refresh path, and unavailable executable behavior.</li><li>Add exact SDK/CLI dependencies and config/env defaults.</li><li>Implement the new harness value and capability/registry/API mappings; run focused tests.</li></ol>
+
+<h2>Task 2 — Isolated policy and environment</h2>
+<ol><li>Add failing tests for task-local home, path traversal rejection, credential scrubbing, relay-only credential exposure, telemetry disablement, exact alias/context/reasoning variables, and no persisted key.</li><li>Implement <code>kimi-code/policy.ts</code>; run focused tests.</li></ol>
+
+<h2>Task 3 — Event normalizer</h2>
+<ol><li>Add recorded/constructed SDK event tests for text, thinking, tool call/result pairing, usage, subagent notices, approvals, interrupt, errors, and malformed events.</li><li>Implement <code>kimi-code/events.ts</code> with bounded diagnostics and fail-closed tool handling; run focused tests.</li></ol>
+
+<h2>Task 4 — Operator tools and driver</h2>
+<ol><li>Add fake-SDK tests for worktree/session/model/env arguments, resume, interactive ask, Operator tool success, abort/close, missing CLI, and no fallback.</li><li>Implement external tools and the SDK-backed driver; register it in runtime and SDK-free maps.</li><li>Run driver, runner, ask, registry, and API tests.</li></ol>
+
+<h2>Task 5 — Packaging and documentation</h2>
+<ol><li>Add failing packaging tests for exact CLI version, binary verification, runtime home ownership, and environment documentation.</li><li>Update Dockerfile, entrypoint, README, architecture docs, <code>.env.example</code>, and package lock.</li><li>Run typecheck, focused tests, full tests, build, and build-trace checks.</li></ol>
+
+<h2>Task 6 — Independent review and live admission</h2>
+<ol><li>Request independent review; resolve every Critical/Important issue.</li><li>Check provider-key stability read-only.</li><li>Run Kimi K3 × Kimi Code admission and write sanitized evidence.</li><li>Only if it passes, add exact gateway admission metadata, validate, safely reload, and refresh Operator.</li><li>Repeat independently for DeepSeek V4 Pro.</li></ol>
+</body></html>

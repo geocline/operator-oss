@@ -45,6 +45,8 @@ export type GlobalTaskWireEvent = Omit<GlobalTaskEvent, "event"> & {
    * open the task) instead of parsing provider error text in the browser.
    */
   failure?: "auth" | "limit" | "error";
+  /** ms epoch the current turn started at; null while idle. See lib/types.ts Task.turn_started_at. */
+  turn_started_at: number | null;
 };
 export type TaskDeletedWireEvent = {
   type: "task_deleted";

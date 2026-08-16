@@ -1,4 +1,4 @@
-export type LiteLLMHarness = "codex" | "claude" | "prime";
+export type LiteLLMHarness = "codex" | "claude" | "prime" | "kimi-code";
 
 export type LiteLLMAdmissionStatus = "passed" | "failed";
 
@@ -23,11 +23,18 @@ export interface LiteLLMModel {
   description: string;
   harnesses: LiteLLMHarness[];
   /**
-   * Optional only for legacy persisted snapshots and older in-process fixtures.
-   * Fresh catalog input never receives this compatibility path: the parser
-   * requires admission records and derives `harnesses` exclusively from them.
+   * Absent when the gateway declares plain `operator.harnesses` instead of
+   * admission records - the older dialect, and the one a local single-user
+   * setup normally speaks. Those models stay usable and are flagged `unvetted`
+   * rather than dropped.
    */
   admissions?: LiteLLMAdmissionEvidence[];
+  /**
+   * True when `harnesses` came from the gateway's own declaration rather than
+   * from a passing admission record. Nothing is claimed about testing, so the
+   * picker says so instead of the app pretending either way.
+   */
+  unvetted?: boolean;
   kind: "coding";
   contextWindow: number | null;
   reasoningOptions: string[];

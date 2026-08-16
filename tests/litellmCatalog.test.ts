@@ -11,7 +11,7 @@ import { getCapabilities, isKnownAgent, knownAgentIds } from "@/lib/agents/capab
 import { liteLLMCapabilities } from "@/lib/agents/litellm/capabilities";
 
 const admission = (
-  harness: "codex" | "claude" | "prime",
+  harness: "codex" | "claude" | "prime" | "kimi-code",
   requestedAlias: string,
   overrides: Record<string, unknown> = {},
 ) => ({
@@ -147,23 +147,100 @@ describe("Operator-tagged LiteLLM catalog", () => {
     ]);
   });
 
-  it("keeps failed and missing admission pairs invisible", () => {
+  it("keeps a failed admission pair invisible, since a recorded failure is evidence", () => {
     const result = parseLiteLLMModelInfo({
       data: [
         valid({
           admissions: [admission("prime", "operator.failed", { status: "failed" })],
         }, "operator.failed"),
-        valid({ admissions: undefined, harnesses: ["codex"] }, "operator.claimed-only"),
       ],
+    });
+
+    expect(result.models).toEqual([]);
+    expect(result.errors).toEqual([]);
+  });
+
+  // A gateway that never adopted the admission format still declares plain
+  // `harnesses`. Dropping those models left a local instance with an empty
+  // picker and an error advising a refresh that re-read the same config, so
+  // they stay usable and are flagged instead.
+  it("accepts a declared harness list with no admissions, flagged unvetted", () => {
+    const result = parseLiteLLMModelInfo({
+      data: [valid({ admissions: undefined, harnesses: ["codex", "prime"] }, "operator.claimed-only")],
+    });
+
+    expect(result.errors).toEqual([]);
+    expect(result.models).toHaveLength(1);
+    expect(result.models[0]).toMatchObject({
+      value: "operator.claimed-only",
+      harnesses: ["codex", "prime"],
+      unvetted: true,
+    });
+  });
+
+  it("never exposes Kimi Code from a legacy harness declaration without passing evidence", () => {
+    const result = parseLiteLLMModelInfo({
+      data: [
+        valid({
+          admissions: undefined,
+          harnesses: ["codex", "kimi-code"],
+        }, "operator.unadmitted-kimi"),
+      ],
+    });
+
+    expect(result.errors).toEqual([]);
+    expect(result.models).toEqual([
+      expect.objectContaining({
+        value: "operator.unadmitted-kimi",
+        harnesses: ["codex"],
+        unvetted: true,
+      }),
+    ]);
+    expect(result.models[0].harnesses).not.toContain("kimi-code");
+  });
+
+  it("exposes Kimi Code only from a passing exact admission record", () => {
+    const result = parseLiteLLMModelInfo({
+      data: [
+        valid({
+          harnesses: ["codex"],
+          admissions: [
+            admission("codex", "operator.admitted-kimi"),
+            admission("kimi-code", "operator.admitted-kimi"),
+          ],
+        }, "operator.admitted-kimi"),
+      ],
+    });
+
+    expect(result.models[0].harnesses).toEqual(["codex", "kimi-code"]);
+  });
+
+  it("still rejects an admissions key that is present but malformed", () => {
+    const result = parseLiteLLMModelInfo({
+      data: [valid({ admissions: [], harnesses: ["codex"] }, "operator.broken")],
     });
 
     expect(result.models).toEqual([]);
     expect(result.errors).toEqual([
       {
-        model: "operator.claimed-only",
+        model: "operator.broken",
         error: "operator.admissions must be an array of harness admission records",
       },
     ]);
+  });
+
+  it("lets evidence outrank the declared list when both are present", () => {
+    const result = parseLiteLLMModelInfo({
+      data: [
+        valid({
+          harnesses: ["codex", "prime"],
+          admissions: [admission("codex", "operator.mixed")],
+        }, "operator.mixed"),
+      ],
+    });
+
+    expect(result.models[0]).toMatchObject({ harnesses: ["codex"] });
+    expect(result.models[0].unvetted).toBeUndefined();
   });
 
   it("reports malformed admission evidence without exposing its harness pair", () => {
@@ -224,7 +301,7 @@ describe("Operator-tagged LiteLLM catalog", () => {
     ]);
     expect(result.errors).toEqual([
       { model: "operator.dedupe", error: "operator.admissions must not repeat harness prime" },
-      { model: "operator.bad", error: "operator.admissions[0].harness must be codex, claude, or prime" },
+      { model: "operator.bad", error: "operator.admissions[0].harness must be codex, claude, prime, or kimi-code" },
     ]);
     expect(JSON.stringify(result)).not.toMatch(/provider-secret|private\/provider-model|litellm_params/);
   });

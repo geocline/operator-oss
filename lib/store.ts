@@ -60,6 +60,16 @@ export function listRunningTaskIds(): string[] {
   ).map((r) => r.id);
 }
 
+// Same running set as listRunningTaskIds, carrying each task's project id too —
+// what the client's per-project running rollup (the ProjectsColumn dot) seeds
+// itself from on boot/reconnect, since the running set alone can't say which
+// project a background task belongs to.
+export function listRunningTasksLite(): { id: string; project_id: string }[] {
+  return getDb()
+    .prepare("SELECT id, project_id FROM tasks WHERE suggested = 0 AND running = 1")
+    .all() as { id: string; project_id: string }[];
+}
+
 // Every task across all active projects that's waiting on the user (the shared
 // NEEDS_YOU predicate: in_progress with awaiting_input set — including a turn
 // still live but parked on an AskUserQuestion) — the rows behind the titlebar
@@ -580,7 +590,7 @@ export function updateTask(id: string, patch: Partial<Task>): Task | undefined {
     .prepare(
       `UPDATE tasks SET title=?, description=?, priority=?, status=?, suggested=?, agent=?, model=?, resolved_model=?, reasoning=?, permission_mode=?, workspace_mode=?,
         launch_config_required=?, launch_config_confirmed_at=?, session_id=?, worktree_path=?, work_branch=?, base_sha=?, merged_at=?, pr_url=?,
-        generation=?, started=?, running=?, awaiting_input=?, updated_at=? WHERE id=?`
+        generation=?, started=?, running=?, awaiting_input=?, turn_started_at=?, updated_at=? WHERE id=?`
     )
     .run(
       n.title,
@@ -606,6 +616,7 @@ export function updateTask(id: string, patch: Partial<Task>): Task | undefined {
       n.started,
       n.running,
       n.awaiting_input,
+      n.turn_started_at ?? null,
       n.updated_at,
       id,
     );

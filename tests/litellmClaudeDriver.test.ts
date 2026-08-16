@@ -5,6 +5,7 @@ import { buildLiteLLMClaudeEnv } from "@/lib/agents/litellm-claude/driver";
 
 describe("LiteLLM Claude Code routing", () => {
   it("uses an isolated task config, relay auth, and pins every background model to the admitted alias", () => {
+    expect(LITELLM_CLAUDE_HOME).toContain(process.env.ORCH_TEST_TMP!);
     const env = buildLiteLLMClaudeEnv(
       "task-1",
       "operator.flex",

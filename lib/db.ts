@@ -79,6 +79,8 @@ export function init(db: Database.Database) {
       started     INTEGER NOT NULL DEFAULT 0,
       running     INTEGER NOT NULL DEFAULT 0,
       awaiting_input INTEGER NOT NULL DEFAULT 0,
+      -- When the current turn started (ms epoch); NULL while idle. See migrate().
+      turn_started_at INTEGER,
       position    INTEGER NOT NULL DEFAULT 0,
       created_at  INTEGER NOT NULL,
       updated_at  INTEGER NOT NULL
@@ -481,6 +483,11 @@ export function migrate(db: Database.Database) {
   if (!taskCols.includes("agent")) db.exec("ALTER TABLE tasks ADD COLUMN agent TEXT NOT NULL DEFAULT 'claude'");
   // GitHub PR opened from this task's branch via "Create PR" ("" = none yet).
   if (!taskCols.includes("pr_url")) db.exec("ALTER TABLE tasks ADD COLUMN pr_url TEXT NOT NULL DEFAULT ''");
+  // When the current turn started (ms epoch), so an elapsed clock survives a
+  // reload and every viewer computes the same value from the same anchor
+  // instead of guessing from the moment their own tab opened. Set by the
+  // runner at turn start, cleared back to NULL when the turn settles.
+  if (!taskCols.includes("turn_started_at")) db.exec("ALTER TABLE tasks ADD COLUMN turn_started_at INTEGER");
   // Manual task ordering (list groups + board columns both render in position
   // order). Backfill matches the sort that was implicit before the column
   // existed — priority then created_at, per project — so an upgrade doesn't

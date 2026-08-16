@@ -3,8 +3,16 @@ import { getTask, getProject, updateTask, deleteTask, listMessages, getTaskUsage
 import { removeWorktree } from "@/lib/git";
 import { removePrimeTaskState } from "@/lib/agents/prime/session-paths";
 import { settlePrimeTask } from "@/lib/agents/prime/driver";
+import { settleKimiCodeTask } from "@/lib/agents/kimi-code/driver";
+import { removeKimiCodeTaskState } from "@/lib/agents/kimi-code/session-paths";
 import { removeTaskUploads } from "@/lib/uploads";
-import { abortTurn, hasTurn } from "@/lib/abort";
+import {
+  beginTaskDeletion,
+  endTaskDeletion,
+  hasTurn,
+  abortTurn,
+  waitForTurnSettlement,
+} from "@/lib/abort";
 import { publishGlobal } from "@/lib/events";
 import { queueManualWorkstreamCompletion } from "@/lib/workstreams/worker";
 import { getCapabilities, isKnownAgent } from "@/lib/agents/capabilities";
@@ -208,10 +216,33 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const task = getTask(id);
+  if (!task) return NextResponse.json({ error: "not found" }, { status: 404 });
   // Stop any in-flight turn before tearing down its worktree, so the runner
   // isn't mid-write when the directory disappears.
-  abortTurn(id);
-  if (task?.worktree_path) {
+  if (!beginTaskDeletion(id)) {
+    return NextResponse.json(
+      { error: "This task is already being deleted." },
+      { status: 409 },
+    );
+  }
+  try {
+    await waitForTurnSettlement(id);
+    await Promise.all([
+      settlePrimeTask(id),
+      settleKimiCodeTask(id),
+    ]);
+  } catch (error) {
+    console.error(`agent process cleanup failed for task ${id}:`, error);
+    endTaskDeletion(id);
+    return NextResponse.json(
+      {
+        error:
+          "The task could not be deleted because its agent process tree could not be settled.",
+      },
+      { status: 409 },
+    );
+  }
+  if (task.worktree_path) {
     const project = getProject(task.project_id);
     if (project?.repo_path) await removeWorktree(project.repo_path, task.worktree_path, task.work_branch);
   }
@@ -222,11 +253,12 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   // outlive the delete or re-populate the retired state. The delayed re-sweep
   // mops up any straggler write a dying process flushed after removal.
   try {
-    await settlePrimeTask(id);
     removePrimeTaskState(id);
+    removeKimiCodeTaskState(id);
     setTimeout(() => {
       try {
         removePrimeTaskState(id);
+        removeKimiCodeTaskState(id);
       } catch {
         /* best-effort re-sweep */
       }
@@ -239,6 +271,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   // awaiting count: the row is gone, so /api/events' usual re-read-the-task
   // enrichment would drop the event and freeze the project's badge in every
   // other tab until the next SSE reconnect.
-  if (task) publishGlobal(id, { type: "task_deleted", projectId: task.project_id, awaiting_count: countAwaiting(task.project_id) });
+  publishGlobal(id, { type: "task_deleted", projectId: task.project_id, awaiting_count: countAwaiting(task.project_id) });
+  endTaskDeletion(id);
   return NextResponse.json({ ok: true });
 }

@@ -1,7 +1,12 @@
 import fs from "node:fs";
 import { getTask, getProject, updateTask, addMessage, listMessages, listPendingMessages, addPendingMessage } from "@/lib/store";
 import { startTurn, startResumeTurn } from "@/lib/runner";
-import { claimTurn, hasTurn, unregisterTurn } from "@/lib/abort";
+import {
+  claimTurn,
+  hasTurn,
+  isTaskDeleting,
+  unregisterTurn,
+} from "@/lib/abort";
 import { withTaskLock } from "@/lib/taskLock";
 import { subscribe, publish } from "@/lib/events";
 import { sseOpened, sseClosed } from "@/lib/idle";
@@ -25,6 +30,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   const task = getTask(id);
   if (!task) return new Response(JSON.stringify({ error: "not found" }), { status: 404 });
+  if (isTaskDeleting(id)) {
+    return new Response(JSON.stringify({ error: "This task is being deleted." }), {
+      status: 409,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
   if (task.started === 0 && task.launch_config_required === 1) {
     const configError = validateLaunchConfiguration({
       agent: task.agent,
@@ -64,6 +75,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // turns on one session, with Stop only able to reach the second).
   const controller = claimTurn(id);
   if (!controller) {
+    if (isTaskDeleting(id)) {
+      return new Response(JSON.stringify({ error: "This task is being deleted." }), {
+        status: 409,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
     const content = String(text ?? "").trim();
     if (!content) return new Response(JSON.stringify({ error: "empty message" }), { status: 400 });
     if (content.length > MAX_MESSAGE_CHARS) return new Response(JSON.stringify({ error: TOO_LARGE }), { status: 413 });
@@ -101,6 +118,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       // atomically, so no other turn can have launched in the meantime.
       const fresh = getTask(id);
       if (!fresh) return new Response(JSON.stringify({ error: "not found" }), { status: 404 });
+      if (isTaskDeleting(id)) {
+        return new Response(JSON.stringify({ error: "This task is being deleted." }), {
+          status: 409,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
       if (fresh.started === 0 && fresh.launch_config_required === 1) {
         const configError = validateLaunchConfiguration({
           agent: fresh.agent,
@@ -122,10 +145,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
 
       const isInitial = !fresh.started;
-      // The very first turn's prompt is the title + description.
-      const userText = isInitial
-        ? `${fresh.title}\n\n${fresh.description}`.trim()
-        : String(text ?? "").trim();
+      // The very first turn's prompt is the title + description — unless the
+      // user typed one. Post-/clear the composer stays open on the unstarted
+      // generation, so a typed message becomes the fresh session's opening
+      // prompt (project context + carried summaries still ride along via the
+      // system prompt); the bare Start button keeps the title+description path.
+      const typed = String(text ?? "").trim();
+      const userText = isInitial ? typed || `${fresh.title}\n\n${fresh.description}`.trim() : typed;
       if (!userText) return new Response(JSON.stringify({ error: "empty message" }), { status: 400 });
       if (userText.length > MAX_MESSAGE_CHARS) return new Response(JSON.stringify({ error: TOO_LARGE }), { status: 413 });
 
@@ -160,7 +186,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
       const gen = fresh.generation;
       if (isInitial) {
-        const userMsg = addMessage(id, gen, "user", `**${fresh.title}** — ${fresh.description}`);
+        const userMsg = addMessage(id, gen, "user", typed || `**${fresh.title}** — ${fresh.description}`);
         // Mark running immediately, but defer `started` until Claude actually opens
         // a session — so a failed launch leaves the task cleanly retryable.
         updateTask(id, { running: 1, suggested: 0, awaiting_input: 0 });

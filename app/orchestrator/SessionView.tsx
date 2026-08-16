@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import type { Status, Priority, ToolData, AskQuestion, AskAnswers } from "@/lib/types";
 import { Icon } from "../icons";
 import TaskChanges, { type ResolveResult } from "../TaskChanges";
-import { fmtTokens, fmtCost, modelLabel, isAwaiting, buildSessions, usageSplit, costDisplay, usageTooltip } from "./format";
+import { fmtTokens, fmtCost, modelLabel, isAwaiting, buildSessions, usageSplit, costDisplay, usageTooltip, elapsed, turnClockVisible } from "./format";
 import {
   SLABEL, SSUB, AWAIT_LABEL, STATUSES, PLABEL, PRIORITIES,
   modelOptions, reasoningOptions, permissionOptions, RAIL_W,
@@ -16,7 +16,7 @@ import { launchModelReady, needsLaunchConfiguration } from "./launchConfig";
 import { StatusDot, Avatar, Popover, Skel } from "./shared";
 import { Modal } from "./Modal";
 import { jsend } from "./api";
-import { isFirstAssistantReply, MessageView, SessionBreak } from "./Transcript";
+import { isFirstAssistantReply, MessageView, SessionBreak, AskPanel } from "./Transcript";
 import { Composer } from "./Composer";
 import { SessionRail } from "./SessionRail";
 import { ColResize, ColRail } from "./Layout";
@@ -275,13 +275,23 @@ function TaskHero({ task, project, agents, onStart, onEdit, running, blockedBy, 
           {Icon.lock()} Blocked until {blockedBy!.length === 1 ? <strong>{blockedBy![0]}</strong> : `${blockedBy!.length} tasks`} {blockedBy!.length === 1 ? "is" : "are"} done. Edit the task to change its dependencies.
         </div>
       )}
-      <div style={{ display: "flex", gap: 10 }}>
-        <button className="btn btn-accent" style={{ height: 38, padding: "0 20px", fontSize: 14 }} onClick={needsSetup ? onEdit : onStart} disabled={running || blocked || (!needsSetup && !agentReady)} title={blocked ? `Blocked until done: ${blockedBy!.join(", ")}` : needsSetup ? "Review Harness, Model, and Thinking strength before starting" : !agentReady ? "Connect this task's harness before starting" : undefined}>
-          {needsSetup ? Icon.sliders() : Icon.play()} {running ? "Starting…" : blocked ? "Blocked" : needsSetup ? "Review setup" : !agentReady ? "Harness not connected" : "Start session"}
-        </button>
-        <button className="btn btn-line" style={{ height: 38, padding: "0 16px", fontSize: 14 }} onClick={onEdit} disabled={running} title="Edit title & description before starting">
-          {Icon.edit()} Edit
-        </button>
+      {/* The reason a blocked/not-connected Start can't be used lives here, in a
+          visible line under the button — not just in a title tooltip nobody
+          hovers on a touch device. */}
+      <div className="hero-start">
+        <div style={{ display: "flex", gap: 10 }}>
+          <button className="btn btn-accent" style={{ height: 38, padding: "0 20px", fontSize: 14 }} onClick={needsSetup ? onEdit : onStart} disabled={running || blocked || (!needsSetup && !agentReady)}>
+            {needsSetup ? Icon.sliders() : Icon.play()} {running ? "Starting…" : blocked ? "Blocked" : needsSetup ? "Review setup" : !agentReady ? "Harness not connected" : "Start session"}
+          </button>
+          <button className="btn btn-line" style={{ height: 38, padding: "0 16px", fontSize: 14 }} onClick={onEdit} disabled={running} title="Edit title & description before starting">
+            {Icon.edit()} Edit
+          </button>
+        </div>
+        {(blocked || needsSetup || !agentReady) && (
+          <div className="start-reason">
+            {blocked ? `Blocked until done: ${blockedBy!.join(", ")}` : needsSetup ? "Review Harness, Model, and Thinking strength before starting" : "Connect this task's harness before starting"}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -299,12 +309,15 @@ function useStableHandler<A extends unknown[], R>(
   return useCallback((...args: A) => ref.current?.(...args), []);
 }
 
-export function SessionView({ project, task, agents, messages, running, blockedBy, transcriptLoading, onSend, onStart, onStop, onClear, onHandoff, onSetAgent, focused, onToggleFocus, onEdit, onReconnect, onSetStatus, onSetPriority, onSetModel, onSetReasoning, onSetPermission, onResolveWithAI, onMerged, onPrCreated, onAnswer, onCancelQueued, onBack, mobile, railW, onRailWidth, onRailReset, railCollapsed, onRailCollapse, onRailExpand }: {
+export function SessionView({ project, task, agents, messages, running, blockedBy, transcriptLoading, onSend, onStart, onStop, onClear, onHandoff, onHandoffModel, onSetAgent, focused, onToggleFocus, onEdit, onReconnect, onSetStatus, onSetPriority, onSetModel, onSetReasoning, onSetPermission, onResolveWithAI, onMerged, onPrCreated, onAnswer, onCancelQueued, onBack, mobile, railW, onRailWidth, onRailReset, railCollapsed, onRailCollapse, onRailExpand }: {
   project: ProjectRow; task: TaskRow; agents: AgentsBundle; messages: Msg[]; running: boolean; blockedBy?: string[]; transcriptLoading?: boolean;
   onSend: (t: string) => void; onStart: () => void; onStop: () => void; onClear: () => void; onEdit: () => void;
   // Hand the task to another connected driver across a /clear boundary (same
   // worktree, fresh context seeded with the summary) - the quota-handoff path.
   onHandoff?: (agent: string) => void;
+  // /handoff: write a handoff document in a final turn, then clear with it as
+  // the carried summary and the picked model (null = keep current) applied.
+  onHandoffModel?: (model: string | null) => void;
   // Move a task that has no session yet straight onto another agent (a plain
   // column write - nothing to summarize). The agent picker chooses between this
   // and onHandoff by task state; see AGENT PICKER below.
@@ -342,10 +355,15 @@ export function SessionView({ project, task, agents, messages, running, blockedB
     return () => clearTimeout(t);
   }, [armedHandoff]);
   useEffect(() => { setArmedHandoff(null); }, [task.id]);
+  // "Chat about it" swaps the composer takeover panel back to a normal
+  // textarea (see the render below). It resets on task switch and the moment
+  // there's nothing left to answer — it must never outlive the ask it was
+  // opened for.
+  const [chatAboutIt, setChatAboutIt] = useState(false);
+  useEffect(() => { setChatAboutIt(false); }, [task.id]);
   const sessions = useMemo(() => buildSessions(messages), [messages]);
   const hasSession = task.started === 1 || messages.length > 0;
   const awaiting = isAwaiting(task);
-  const stableAnswer = useStableHandler(onAnswer);
   const stableCancelQueued = useStableHandler(onCancelQueued);
   const stableClear = useStableHandler(onClear);
   const stableReconnect = useStableHandler(onReconnect);
@@ -388,12 +406,49 @@ export function SessionView({ project, task, agents, messages, running, blockedB
   const multiAgent = agents.agents.length > 1;
   // PR number for the header chip, parsed from the stored URL (…/pull/42).
   const prNum = task.pr_url?.match(/\/pull\/(\d+)/)?.[1];
-  // True while a question card is still unanswered — hides the "thinking" dots,
-  // since Claude is parked on the user, not working.
-  const awaitingAnswer = useMemo(() => messages.some((m) => {
-    if (m.role !== "tool") return false;
-    try { const d = JSON.parse(m.content) as ToolData; return !!d.ask && !d.ask.answers; } catch { return false; }
-  }), [messages]);
+  // The still-unanswered question, if any — drives the composer takeover
+  // (AskPanel replaces the textarea) and hides the "thinking" dots, since the
+  // agent is parked on the user, not working. Derived straight from message
+  // state (not local component state), so it survives pane tab switches.
+  const pendingAsk = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const m = messages[i];
+      if (m.role !== "tool") continue;
+      try {
+        const d = JSON.parse(m.content) as ToolData;
+        if (d.ask && !d.ask.answers) return { toolId: m.toolId, data: d };
+      } catch { /* not a tool-data payload */ }
+    }
+    return null;
+  }, [messages]);
+  const awaitingAnswer = !!pendingAsk;
+  useEffect(() => { if (!awaitingAnswer) setChatAboutIt(false); }, [awaitingAnswer]);
+  const submitAskAnswer = useCallback((answers: AskAnswers) => {
+    if (!pendingAsk) return Promise.resolve();
+    return onAnswer(pendingAsk.data.ask?.id || pendingAsk.toolId || "", pendingAsk.data.ask?.questions ?? [], answers);
+  }, [pendingAsk, onAnswer]);
+  // The header chip and thinking-bubble clock share one anchor + tick: the
+  // persisted turn_started_at (Package A), falling back to the last real
+  // (non-queued) user message's createdAt for older rows that predate it.
+  // Anchored math, not mount time — a reload mid-turn shows the correct
+  // elapsed immediately instead of restarting from 0.
+  const turnAnchor = useMemo(() => {
+    if (task.turn_started_at) return task.turn_started_at;
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const m = messages[i];
+      if (m.role === "user" && m.createdAt) return m.createdAt;
+    }
+    return null;
+  }, [task.turn_started_at, messages]);
+  const [clockNow, setClockNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!running || awaitingAnswer || !turnAnchor) return;
+    setClockNow(Date.now());
+    const id = setInterval(() => setClockNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [running, awaitingAnswer, turnAnchor]);
+  const showTurnClock = running && !awaitingAnswer && !!turnAnchor && turnClockVisible(turnAnchor, clockNow);
+  const turnClockText = turnAnchor ? elapsed(turnAnchor, clockNow) : "";
 
   // Auto-scroll only while the user is parked at the bottom. If they scroll up to
   // read earlier output, we leave their position alone even as new messages stream
@@ -489,17 +544,17 @@ export function SessionView({ project, task, agents, messages, running, blockedB
                 // the machinery is opt-in via the twirl. Errors still surface
                 // their output automatically (see ToolView).
                 const condensed = true;
-                return <MessageView key={m.id} m={m} initial={mi === 0 && m.role === "user"} hideWho={hideWho} condensed={condensed} running={running} agent={task.agent} agentLabel={agentLabel(agents, task.agent)} onAnswer={stableAnswer} onCancelQueued={stableCancelQueued} onClear={stableClear} onReconnect={stableReconnect} />;
+                return <MessageView key={m.id} m={m} initial={mi === 0 && m.role === "user"} hideWho={hideWho} condensed={condensed} running={running} agent={task.agent} agentLabel={agentLabel(agents, task.agent)} onCancelQueued={stableCancelQueued} onClear={stableClear} onReconnect={stableReconnect} />;
               })}
             </div>
           ))}
           {running && !awaitingAnswer && (
-            <div className="msg assistant"><div className="who"><Avatar who="cc" agent={task.agent} /> Agent</div><div className="msg-body"><span className="typing"><i /><i /><i /></span></div></div>
+            <div className="msg assistant"><div className="who"><Avatar who="cc" agent={task.agent} /> Agent</div><div className="msg-body"><span className="typing"><i /><i /><i /></span>{showTurnClock && <span className="turn-clock">{turnClockText}</span>}</div></div>
           )}
           {/* Follow-ups queued mid-turn, pinned below the live turn — they
               send in order once it ends. */}
           {messages.filter((m) => m.role === "queued").map((m) => (
-            <MessageView key={m.id} m={m} initial={false} hideWho={false} onAnswer={stableAnswer} onCancelQueued={stableCancelQueued} />
+            <MessageView key={m.id} m={m} initial={false} hideWho={false} onCancelQueued={stableCancelQueued} />
           ))}
         </div>
       </div>
@@ -517,7 +572,51 @@ export function SessionView({ project, task, agents, messages, running, blockedB
         )}
       </div>
       </div>
-      <Composer task={task} agentLabel={agentLabel(agents, task.agent)} disabled={task.started !== 1} running={running} onSend={onSend} onStop={onStop} onClear={onClear} />
+      {/* Composer takeover: while a question is pending, the input area is the
+          AskPanel (chips/options/submit), not the textarea — the decision
+          lives where the hands are. "Chat about it" swaps back to a normal
+          textarea in "answering by chat" mode (a dismissible strip says so);
+          the typed message submits through the same onAnswer path as a
+          free-text "Other". Derived from pendingAsk/chatAboutIt (task/message
+          state), so it survives pane tab switches, not remounts. */}
+      {pendingAsk && !chatAboutIt ? (
+        <AskPanel
+          data={pendingAsk.data}
+          agentLabel={agentLabel(agents, task.agent)}
+          onAnswer={submitAskAnswer}
+          onChatAboutIt={() => setChatAboutIt(true)}
+        />
+      ) : (
+        <>
+          {pendingAsk && chatAboutIt && (
+            <div className="answering-strip">
+              <span className="answering-strip-label">
+                Answering: {pendingAsk.data.ask?.questions?.[0]?.header || pendingAsk.data.ask?.questions?.[0]?.question || "your question"}
+              </span>
+              <button className="answering-strip-x" onClick={() => setChatAboutIt(false)} aria-label="Back to the question panel" title="Back to the question panel">
+                {Icon.x()}
+              </button>
+            </div>
+          )}
+          {/* Enabled whenever a transcript exists — including the just-cleared
+              state (started=0, messages kept), where the typed message becomes the
+              fresh generation's opening prompt. */}
+          <Composer
+            task={task} agentLabel={agentLabel(agents, task.agent)} disabled={!hasSession} running={running}
+            models={models.filter((m) => m.value !== null).map((m) => ({ value: m.value as string, label: m.label }))}
+            onSend={(text) => {
+              if (pendingAsk && chatAboutIt) {
+                const qs = pendingAsk.data.ask?.questions ?? [];
+                setChatAboutIt(false);
+                void submitAskAnswer(qs.map(() => [text]));
+                return;
+              }
+              onSend(text);
+            }}
+            onStop={onStop} onClear={onClear} onHandoff={(m) => onHandoffModel?.(m)}
+          />
+        </>
+      )}
     </>
   );
 
@@ -533,6 +632,7 @@ export function SessionView({ project, task, agents, messages, running, blockedB
             <div className="sh-title">{task.title}</div>
           </div>
           <div className="sh-tools">
+            {showTurnClock && <span className="turn-clock turn-clock-chip" title="Time since this turn started">{turnClockText}</span>}
             <WorkstreamTaskControls taskId={task.id} />
             {task.pr_url && (
               <a className="pr-chip" href={task.pr_url} target="_blank" rel="noreferrer" title={`Open this task's pull request — ${task.pr_url}`}>
@@ -736,8 +836,12 @@ export function SessionView({ project, task, agents, messages, running, blockedB
                 {focused ? Icon.shrink() : Icon.expand()} {focused ? "Exit focus" : "Focus"}
               </button>
             )}
-            {hasSession && task.started === 1 && (
-              <button className="btn btn-line btn-sm" title="Renew: summarize this session and continue in a fresh context window - the transcript is kept, nothing is erased" onClick={onClear} disabled={running}>{Icon.clear()} Renew</button>
+            {/* Renew is a real mid-turn capability (tests/clearMidTurn.test.ts pins
+                it) — rendered and enabled whenever a session exists, suppressed
+                (not disabled) otherwise. Same rule everywhere Renew appears:
+                Composer's foot control and SessionRail's Clear context button. */}
+            {task.started === 1 && (
+              <button className="btn btn-line btn-sm" title="Renew: summarize this session and continue in a fresh context window - the transcript is kept, nothing is erased" onClick={onClear}>{Icon.clear()} Renew</button>
             )}
           </div>
         </div>

@@ -39,7 +39,7 @@ type Attachment = {
   error?: string;
 };
 
-export function Composer({ task, agentLabel, disabled, running, onSend, onStop, onClear }: { task: TaskRow; agentLabel: string; disabled: boolean; running: boolean; onSend: (t: string) => void; onStop: () => void; onClear: () => void }) {
+export function Composer({ task, agentLabel, disabled, running, models, onSend, onStop, onClear, onHandoff }: { task: TaskRow; agentLabel: string; disabled: boolean; running: boolean; models: { value: string; label: string }[]; onSend: (t: string) => void; onStop: () => void; onClear: () => void; onHandoff: (model: string | null) => void }) {
   const [val, setVal] = useState(() => loadDraft(task.id));
   const [slash, setSlash] = useState(false);
   const [stopping, setStopping] = useState(false);
@@ -98,14 +98,40 @@ export function Composer({ task, agentLabel, disabled, running, onSend, onStop, 
   const ready = atts.filter((a) => a.status === "ready");
   const uploading = atts.some((a) => a.status === "uploading");
   const cmds = [
-    { cmd: "/clear", desc: "renew: save summary, fresh session (transcript kept)", run: () => { onClear(); setVal(""); setSlash(false); } },
+    // /clear and /handoff need a live session to act on; a fresh (or just-
+    // cleared) generation only offers /help.
+    ...(task.started === 1 ? [
+      { cmd: "/clear", desc: "renew: save summary, fresh session (transcript kept, waits for your first prompt)", run: () => { onClear(); setVal(""); setSlash(false); } },
+      { cmd: "/handoff", desc: "write a handoff doc, then fresh session — pick the model", run: () => { setVal("/handoff "); setSlash(true); ref.current?.focus(); } },
+    ] : []),
+    { cmd: "/help", desc: "show all commands", run: () => { setVal("/"); setSlash(true); ref.current?.focus(); } },
   ];
+  // /handoff's second step: a model submenu (keep current, or any of the
+  // driver's models). Chosen model rides across the clear boundary.
+  const handoffMode = val.trim().toLowerCase().startsWith("/handoff");
+  const handoffFilter = handoffMode ? val.trim().slice("/handoff".length).trim().toLowerCase() : "";
+  const handoffOpts: { key: string; label: string; model: string | null }[] = [
+    { key: "same", label: `Keep current model (${models.find((m) => m.value === task.model)?.label ?? "Default"})`, model: null },
+    ...models.map((m) => ({ key: m.value, label: m.label, model: m.value as string | null })),
+  ].filter((o) => !handoffFilter || o.label.toLowerCase().includes(handoffFilter));
+  const pickHandoff = (model: string | null) => {
+    onHandoff(model);
+    setVal(""); setSlash(false);
+    if (ref.current) ref.current.style.height = "auto";
+  };
   const submit = () => {
     const v = val.trim();
     if ((!v && ready.length === 0) || disabled || uploading) return;
     // /clear can't run mid-turn (it would collide with the live session) — while
     // running, everything you type is queued as a follow-up instead.
     if (v === "/clear" && !running && ready.length === 0) { onClear(); setVal(""); setSlash(false); if (ref.current) ref.current.style.height = "auto"; return; }
+    // /handoff opens the model submenu; Enter with one option left picks it.
+    if (handoffMode && !running && ready.length === 0 && task.started === 1) {
+      if (handoffFilter && handoffOpts.length === 1) pickHandoff(handoffOpts[0].model);
+      else { setVal("/handoff "); setSlash(true); }
+      return;
+    }
+    if (v === "/help") { setVal("/"); setSlash(true); return; }
     // Attachments ride along as marker lines after the typed text — an image or
     // file marker depending on the attachment kind.
     onSend([v, ...ready.map((a) => (a.kind === "image" ? attachmentMarker(a.path) : fileAttachmentMarker(a.path)))].filter(Boolean).join("\n\n"));
@@ -118,7 +144,19 @@ export function Composer({ task, agentLabel, disabled, running, onSend, onStop, 
   return (
     <div className="composer">
       <div className="composer-inner">
-        {slash && !running && filtered.length > 0 && (
+        {slash && !running && handoffMode && task.started === 1 && (
+          <div className="slash">
+            <div className="slash-item" style={{ pointerEvents: "none", opacity: 0.7 }}>
+              <span className="cmd">/handoff</span><span className="cd">hand off to… (type to filter, click or ⏎ to pick)</span>
+            </div>
+            {handoffOpts.map((o) => (
+              <div key={o.key} className="slash-item" onMouseDown={(e) => { e.preventDefault(); pickHandoff(o.model); }}>
+                <span className="cmd">{o.label}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {slash && !running && !handoffMode && filtered.length > 0 && (
           <div className="slash">
             {filtered.map((c) => (
               <div key={c.cmd} className="slash-item" onMouseDown={(e) => { e.preventDefault(); c.run(); }}>
@@ -154,7 +192,7 @@ export function Composer({ task, agentLabel, disabled, running, onSend, onStop, 
           <div className="comp-area">
             <textarea
               ref={ref} rows={1} value={val} disabled={disabled}
-              placeholder={disabled ? "Start the session to reply…" : running ? "Queue a follow-up… (sent when this turn ends)" : `Reply to ${agentLabel} in “${task.title}”…  (try Renew, drop a file)`}
+              placeholder={disabled ? "Start the session to reply…" : running ? "Queue a follow-up… (sent when this turn ends)" : task.started !== 1 ? "Fresh session ready — nothing runs until you send. Write its opening prompt (pick the model above first), or press Start for the task description…" : `Reply to ${agentLabel} in “${task.title}”…  (try Renew, drop a file)`}
               onChange={(e) => { setVal(e.target.value); autosize(e.target); setSlash(e.target.value.trim().startsWith("/")); }}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } if (e.key === "Escape") setSlash(false); }}
               onPaste={(e) => {
@@ -193,7 +231,13 @@ export function Composer({ task, agentLabel, disabled, running, onSend, onStop, 
             {!disabled && (
               <button className="hint" style={{ cursor: "pointer" }} title="Attach a file - image, PDF, spreadsheet, anything (or drag & drop / paste)" onMouseDown={(e) => { e.preventDefault(); fileRef.current?.click(); }}>{Icon.clip()} file</button>
             )}
-            <button className="hint" style={{ cursor: "pointer" }} onMouseDown={(e) => { e.preventDefault(); onClear(); }} title="Summarize and continue in a fresh context window (also: type /clear)">{Icon.clear()} Renew</button>
+            {/* Renew is a real mid-turn capability (tests/clearMidTurn.test.ts pins
+                it) — rendered whenever a session exists, suppressed (not
+                disabled) otherwise. Same rule as the header and SessionRail
+                Renew controls. */}
+            {task.started === 1 && (
+              <button className="hint" style={{ cursor: "pointer" }} onMouseDown={(e) => { e.preventDefault(); onClear(); }} title="Summarize and continue in a fresh context window (also: type /clear)">{Icon.clear()} Renew</button>
+            )}
           </div>
         </div>
       </div>

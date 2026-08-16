@@ -85,7 +85,10 @@ describe("LiteLLM catalog persistence", () => {
     expect(hydrateLiteLLMCatalog().models).toEqual([]);
   });
 
-  it("drops cached models that do not carry valid passed admission evidence", () => {
+  // This exact shape is what a cache written by an older build looks like, and
+  // discarding it was how a working instance woke up with an empty picker after
+  // an upgrade. It survives, flagged, matching a fresh parse of the same config.
+  it("keeps a cached model with no admissions, flagged unvetted", () => {
     setSetting(SETTING, JSON.stringify({
       models: [{
         value: "operator.unvetted",
@@ -93,6 +96,80 @@ describe("LiteLLM catalog persistence", () => {
         description: "",
         kind: "coding",
         harnesses: ["claude", "codex", "prime"],
+        contextWindow: 200_000,
+        reasoningOptions: [],
+        sortOrder: 1,
+      }],
+      errors: [],
+      refreshedAt: "2026-08-10T00:00:00.000Z",
+      stale: false,
+    }));
+    const [model] = hydrateLiteLLMCatalog().models;
+    expect(model).toMatchObject({
+      value: "operator.unvetted",
+      harnesses: ["claude", "codex", "prime"],
+      unvetted: true,
+    });
+  });
+
+  it("drops legacy cached Kimi Code claims while preserving existing harnesses", () => {
+    setSetting(SETTING, JSON.stringify({
+      models: [{
+        value: "operator.unvetted",
+        label: "Unvetted",
+        description: "",
+        kind: "coding",
+        harnesses: ["codex", "kimi-code"],
+        contextWindow: 200_000,
+        reasoningOptions: [],
+        sortOrder: 1,
+      }],
+      errors: [],
+      refreshedAt: "2026-08-10T00:00:00.000Z",
+      stale: false,
+    }));
+
+    expect(hydrateLiteLLMCatalog().models[0]).toMatchObject({
+      harnesses: ["codex"],
+      unvetted: true,
+    });
+  });
+
+  // The unit tests above cover parse and hydrate separately, which is exactly
+  // how a live instance still came up empty: the refresh persisted a snapshot
+  // that its own loader then discarded. Round-trip the real pair.
+  it("survives a refresh-then-reload round trip", async () => {
+    const model = {
+      model_name: "operator.kimi-k3",
+      model_info: {
+        operator: {
+          enabled: true,
+          kind: "coding",
+          label: "Kimi K3",
+          harnesses: ["codex", "prime"],
+          context_window: 1_048_576,
+        },
+      },
+    };
+    const fetchImpl = (async () =>
+      new Response(JSON.stringify({ data: [model] }), { status: 200 })) as unknown as typeof fetch;
+
+    const refreshed = await refreshLiteLLMCatalog(fetchImpl);
+    expect(refreshed.models.map((m) => m.value)).toEqual(["operator.kimi-k3"]);
+
+    // What the next page load does: re-read the persisted snapshot.
+    const [reloaded] = hydrateLiteLLMCatalog().models;
+    expect(reloaded).toMatchObject({ value: "operator.kimi-k3", harnesses: ["codex", "prime"], unvetted: true });
+  });
+
+  it("still drops a cached harness the current rules would reject", () => {
+    setSetting(SETTING, JSON.stringify({
+      models: [{
+        value: "operator.bogus",
+        label: "Bogus",
+        description: "",
+        kind: "coding",
+        harnesses: ["telepathy"],
         contextWindow: 200_000,
         reasoningOptions: [],
         sortOrder: 1,

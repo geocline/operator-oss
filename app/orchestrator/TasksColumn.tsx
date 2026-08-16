@@ -3,17 +3,23 @@
 import { useEffect, useState } from "react";
 import { Icon } from "../icons";
 import { isAwaiting, relTime } from "./format";
-import { SLABEL, AWAIT_LABEL, SEARCH_MIN, type ProjectRow, type TaskRow, type AgentsBundle, type TaskView } from "./types";
+import { SEARCH_MIN, type ProjectRow, type TaskRow, type AgentsBundle, type TaskView } from "./types";
 import { agentLabel } from "./agents";
 import { launchConfigurationSummary, launchModelReady, needsLaunchConfiguration } from "./launchConfig";
-import { StatusDot, PriPill, SearchBar, AgentBadge } from "./shared";
+import { rowStatus } from "./statusLadder";
+import { StatusDot, LadderDot, PriPill, SearchBar, AgentBadge } from "./shared";
 import { TaskCardSkeleton } from "./Layout";
 import { TaskBoard } from "./TaskBoard";
 
-function TaskCard({ task, agents, selected, running, blockedBy, onSelect }: { task: TaskRow; agents: AgentsBundle; selected: boolean; running: boolean; blockedBy?: string[]; onSelect: () => void }) {
+// A stable empty set so an omitted `unviewed` prop doesn't allocate a new one
+// on every render.
+const EMPTY_UNVIEWED: Set<string> = new Set();
+
+function TaskCard({ task, agents, selected, running, unviewed, blockedBy, onSelect }: { task: TaskRow; agents: AgentsBundle; selected: boolean; running: boolean; unviewed?: boolean; blockedBy?: string[]; onSelect: () => void }) {
   const sessionCount = task.started ? task.generation : Math.max(0, task.generation - 1);
   const awaiting = isAwaiting(task);
   const blocked = !!blockedBy?.length && !task.started;
+  const status = rowStatus(task, { running, unviewed: !!unviewed });
   // Awaiting wins over running: a turn parked on a question is live but really
   // waiting on you, so it should read "waiting", not "working".
   const activity = awaiting ? `waiting on you · ${relTime(task.updated_at)}`
@@ -24,9 +30,9 @@ function TaskCard({ task, agents, selected, running, blockedBy, onSelect }: { ta
   return (
     <button className={`task ${selected ? "sel" : ""} ${awaiting ? "awaiting" : ""}`} onClick={onSelect}>
       <div className="task-top">
-        <StatusDot status={task.status} running={running} awaiting={awaiting} />
+        <LadderDot status={status} />
         <span className="ttitle">{task.title}</span>
-        <span className={`slabel ${awaiting ? "await" : ""}`}>{awaiting ? AWAIT_LABEL : SLABEL[task.status]}</span>
+        {status.kind !== "none" && <span className="slabel sr-only">{status.label}</span>}
         <AgentBadge label={agentLabel(agents, task.agent)} multi={agents.agents.length > 1} />
         <PriPill p={task.priority} />
       </div>
@@ -37,7 +43,7 @@ function TaskCard({ task, agents, selected, running, blockedBy, onSelect }: { ta
       )}
       {task.description && <div className="tdesc">{task.description}</div>}
       <div className="task-foot">
-        <span className="activity">{awaiting ? <span style={{ color: "var(--blue)" }}>●</span> : running ? <span style={{ color: "var(--amber)" }}>●</span> : null}{activity}</span>
+        <span className="activity">{awaiting ? <span style={{ color: "var(--amber)" }}>●</span> : running ? <span style={{ color: "var(--blue)" }}>●</span> : null}{activity}</span>
         <span className="spacer" />
         {task.note_count > 0 && <span className="activity" title={`${task.note_count} note${task.note_count !== 1 ? "s" : ""} on this task (NOTES tab)`}>{Icon.edit()} {task.note_count}</span>}
         {sessionCount > 0 && <span className="activity">{sessionCount} session{sessionCount !== 1 ? "s" : ""}</span>}
@@ -46,7 +52,7 @@ function TaskCard({ task, agents, selected, running, blockedBy, onSelect }: { ta
   );
 }
 
-function TaskGroup({ label, tasks, agents, selTaskId, running, blockedBy, onSelect, accent, collapsible, collapsed, onToggle }: { label: string; tasks: TaskRow[]; agents: AgentsBundle; selTaskId: string | null; running: Set<string>; blockedBy: Map<string, string[]>; onSelect: (id: string) => void; accent?: boolean; collapsible?: boolean; collapsed?: boolean; onToggle?: () => void }) {
+function TaskGroup({ label, tasks, agents, selTaskId, running, unviewed, blockedBy, onSelect, accent, collapsible, collapsed, onToggle }: { label: string; tasks: TaskRow[]; agents: AgentsBundle; selTaskId: string | null; running: Set<string>; unviewed: Set<string>; blockedBy: Map<string, string[]>; onSelect: (id: string) => void; accent?: boolean; collapsible?: boolean; collapsed?: boolean; onToggle?: () => void }) {
   if (tasks.length === 0) return null;
   if (collapsible) {
     return (
@@ -55,14 +61,14 @@ function TaskGroup({ label, tasks, agents, selTaskId, running, blockedBy, onSele
           {Icon.chevDown({ className: "tgh-chev" })}
           {label} <span className="gcount">{tasks.length}</span><span className="gline" />
         </button>
-        {!collapsed && tasks.map((t) => <TaskCard key={t.id} task={t} agents={agents} selected={t.id === selTaskId} running={running.has(t.id)} blockedBy={blockedBy.get(t.id)} onSelect={() => onSelect(t.id)} />)}
+        {!collapsed && tasks.map((t) => <TaskCard key={t.id} task={t} agents={agents} selected={t.id === selTaskId} running={running.has(t.id)} unviewed={unviewed.has(t.id)} blockedBy={blockedBy.get(t.id)} onSelect={() => onSelect(t.id)} />)}
       </>
     );
   }
   return (
     <>
       <div className={`task-group-h ${accent ? "needs-you" : ""}`}>{label} <span className="gcount">{tasks.length}</span><span className="gline" /></div>
-      {tasks.map((t) => <TaskCard key={t.id} task={t} agents={agents} selected={t.id === selTaskId} running={running.has(t.id)} blockedBy={blockedBy.get(t.id)} onSelect={() => onSelect(t.id)} />)}
+      {tasks.map((t) => <TaskCard key={t.id} task={t} agents={agents} selected={t.id === selTaskId} running={running.has(t.id)} unviewed={unviewed.has(t.id)} blockedBy={blockedBy.get(t.id)} onSelect={() => onSelect(t.id)} />)}
     </>
   );
 }
@@ -84,8 +90,8 @@ function useCollapsed(key: string, def: boolean) {
   return [collapsed, toggle] as const;
 }
 
-export function TasksColumn({ project, agents, tasks, suggested, selTaskId, running, blockedBy, width, loading, view, onSetView, onMoveTask, onSelectTask, onNewTask, onEditContext, onShowSessions, onShowRecap, onEditTask, onStartSuggestion, onAcceptSuggestion, onDismissSuggestion, onCollapse, mobile, onBack }: {
-  project: ProjectRow; agents: AgentsBundle; tasks: TaskRow[]; suggested: TaskRow[]; selTaskId: string | null; running: Set<string>; blockedBy: Map<string, string[]>; width: number; loading?: boolean;
+export function TasksColumn({ project, agents, tasks, suggested, selTaskId, running, unviewed, blockedBy, width, loading, view, onSetView, onMoveTask, onSelectTask, onNewTask, onEditContext, onShowSessions, onShowRecap, onEditTask, onStartSuggestion, onAcceptSuggestion, onDismissSuggestion, onCollapse, mobile, onBack }: {
+  project: ProjectRow; agents: AgentsBundle; tasks: TaskRow[]; suggested: TaskRow[]; selTaskId: string | null; running: Set<string>; unviewed?: Set<string>; blockedBy: Map<string, string[]>; width: number; loading?: boolean;
   view: TaskView; onSetView: (v: TaskView) => void;
   onMoveTask: (id: string, patch: Partial<Pick<TaskRow, "status" | "suggested">>, orderedIds: string[]) => void;
   onSelectTask: (id: string) => void; onNewTask: () => void; onEditContext: () => void; onShowSessions: () => void; onShowRecap: () => void;
@@ -93,6 +99,11 @@ export function TasksColumn({ project, agents, tasks, suggested, selTaskId, runn
   onStartSuggestion: (id: string) => void; onAcceptSuggestion: (id: string) => void; onDismissSuggestion: (id: string) => void;
   mobile?: boolean; onBack?: () => void;
 }) {
+  const unviewedIds = unviewed ?? EMPTY_UNVIEWED;
+  // The Sessions modal has nothing to show until at least one task in this
+  // project has actually run - an empty project shouldn't offer a doorway to
+  // an empty list.
+  const hasStartedTasks = tasks.some((t) => t.started === 1);
   const [query, setQuery] = useState("");
   // Minimize the Done/Cancelled groups so a long backlog of finished (or
   // abandoned) tasks doesn't force scrolling past them. Per-project, persisted
@@ -123,7 +134,7 @@ export function TasksColumn({ project, agents, tasks, suggested, selTaskId, runn
             <span className="pb-pic" style={{ background: project.color }}>{project.name[0]}</span>
             <span className="pb-name">{project.name}</span>
           </button>
-          <button className="btn btn-line btn-sm" onClick={onShowSessions} title="Agent sessions run under this project">{Icon.clock()} Sessions</button>
+          {hasStartedTasks && <button className="btn btn-line btn-sm" onClick={onShowSessions} title="Agent sessions run under this project">{Icon.clock()} Sessions</button>}
           <button className="btn btn-line btn-sm" onClick={onNewTask}>{Icon.plus()} Task</button>
           <div className="view-toggle" role="tablist" aria-label="Task layout">
             <button className={view === "list" ? "on" : ""} role="tab" aria-selected={view === "list"} title="List view" onClick={() => onSetView("list")}>{Icon.list()}</button>
@@ -152,7 +163,7 @@ export function TasksColumn({ project, agents, tasks, suggested, selTaskId, runn
           {noMatches && <div className="search-empty">No tasks match “{query.trim()}”.</div>}
           <TaskBoard
             tasks={shown} suggested={shownSuggested} agents={agents} selTaskId={selTaskId}
-            running={running} blockedBy={blockedBy} canDrag={!q}
+            running={running} unviewed={unviewedIds} blockedBy={blockedBy} canDrag={!q}
             onSelect={onSelectTask} onEditTask={onEditTask} onMove={onMoveTask}
             onStartSuggestion={onStartSuggestion} onAcceptSuggestion={onAcceptSuggestion} onDismissSuggestion={onDismissSuggestion}
           />
@@ -162,12 +173,12 @@ export function TasksColumn({ project, agents, tasks, suggested, selTaskId, runn
         <div className="task-scroll">
           {tasks.length === 0 && <div className="empty" style={{ padding: "30px 16px" }}><div className="e-t">No tasks yet</div><div className="e-s">Create one to start an agent session.</div></div>}
           {noMatches && <div className="search-empty">No tasks match “{query.trim()}”.</div>}
-          <TaskGroup label="Needs your input" tasks={needsYou} agents={agents} selTaskId={selTaskId} running={running} blockedBy={blockedBy} onSelect={onSelectTask} accent />
-          <TaskGroup label="In progress" tasks={groups.a} agents={agents} selTaskId={selTaskId} running={running} blockedBy={blockedBy} onSelect={onSelectTask} />
-          <TaskGroup label="On hold" tasks={groups.h} agents={agents} selTaskId={selTaskId} running={running} blockedBy={blockedBy} onSelect={onSelectTask} />
-          <TaskGroup label="Not started" tasks={groups.r} agents={agents} selTaskId={selTaskId} running={running} blockedBy={blockedBy} onSelect={onSelectTask} />
-          <TaskGroup label="Done" tasks={groups.g} agents={agents} selTaskId={selTaskId} running={running} blockedBy={blockedBy} onSelect={onSelectTask} collapsible collapsed={doneCollapsed && !q} onToggle={toggleDone} />
-          <TaskGroup label="Cancelled" tasks={groups.x} agents={agents} selTaskId={selTaskId} running={running} blockedBy={blockedBy} onSelect={onSelectTask} collapsible collapsed={cancelledCollapsed && !q} onToggle={toggleCancelled} />
+          <TaskGroup label="Needs your input" tasks={needsYou} agents={agents} selTaskId={selTaskId} running={running} unviewed={unviewedIds} blockedBy={blockedBy} onSelect={onSelectTask} accent />
+          <TaskGroup label="In progress" tasks={groups.a} agents={agents} selTaskId={selTaskId} running={running} unviewed={unviewedIds} blockedBy={blockedBy} onSelect={onSelectTask} />
+          <TaskGroup label="On hold" tasks={groups.h} agents={agents} selTaskId={selTaskId} running={running} unviewed={unviewedIds} blockedBy={blockedBy} onSelect={onSelectTask} />
+          <TaskGroup label="Not started" tasks={groups.r} agents={agents} selTaskId={selTaskId} running={running} unviewed={unviewedIds} blockedBy={blockedBy} onSelect={onSelectTask} />
+          <TaskGroup label="Done" tasks={groups.g} agents={agents} selTaskId={selTaskId} running={running} unviewed={unviewedIds} blockedBy={blockedBy} onSelect={onSelectTask} collapsible collapsed={doneCollapsed && !q} onToggle={toggleDone} />
+          <TaskGroup label="Cancelled" tasks={groups.x} agents={agents} selTaskId={selTaskId} running={running} unviewed={unviewedIds} blockedBy={blockedBy} onSelect={onSelectTask} collapsible collapsed={cancelledCollapsed && !q} onToggle={toggleCancelled} />
         </div>
         {shownSuggested.length > 0 && (
           <div className="suggest">

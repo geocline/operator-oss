@@ -245,6 +245,12 @@ async function run(task: Task, project: Project, userText: string, syncNote: str
     // unregisters and running never settles — the task would show "running"
     // forever and its queued follow-ups would never drain.
     //
+    // Persisted anchor for the elapsed-time clock (app/orchestrator SessionView),
+    // so a reload recomputes the identical value instead of guessing from
+    // whenever the viewing tab happened to open. Cleared back to null in the
+    // finally below once this turn settles.
+    updateTask(id, { turn_started_at: startedAt });
+    //
     // Funnel: the first-ever turn on this instance (tutorial included — `seeded`
     // tells them apart). The settings flag makes it exactly-once across restarts.
     if (!getSetting("first_task_started")) {
@@ -419,7 +425,7 @@ async function run(task: Task, project: Project, userText: string, syncNote: str
     // own or was Stopped — is now waiting on the user, so flag awaiting_input
     // (cleared on the next send / done) leaving it cleanly resumable.
     if (!generationAdvanced && !superseded) {
-      updateTask(id, { running: 0, session_id: sessionId, awaiting_input: opened ? 1 : 0 });
+      updateTask(id, { running: 0, session_id: sessionId, awaiting_input: opened ? 1 : 0, turn_started_at: null });
     }
     // Keyed by (task_id, generation), so this settles THIS generation's session
     // row and never touches the fresh generation — safe to run either way.
@@ -531,7 +537,7 @@ async function run(task: Task, project: Project, userText: string, syncNote: str
             const content = `⚠ ${err instanceof Error ? err.message : String(err)}`;
             const m = addMessage(id, gen, "system", content);
             publish(id, { type: "error", content, msgId: m.id, generation: gen, createdAt: m.created_at });
-            updateTask(id, { running: 0, awaiting_input: opened ? 1 : 0 });
+            updateTask(id, { running: 0, awaiting_input: opened ? 1 : 0, turn_started_at: null });
             publish(id, { type: "turn_end" });
           });
         } else {

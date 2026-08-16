@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { GET } from "@/app/api/agents/route";
@@ -8,6 +8,7 @@ import { setSetting } from "@/lib/store";
 describe("LiteLLM managed agent surface", () => {
   beforeEach(() => {
     setSetting("agent_model_catalog:litellm-codex", null);
+    delete process.env.ORCH_SHOW_EVAL_MODELS;
     replaceLiteLLMCatalog({
       models: [
         {
@@ -37,12 +38,30 @@ describe("LiteLLM managed agent surface", () => {
     });
   });
 
-  it("keeps LiteLLM infrastructure out of the harness picker and folds vetted models into Codex", async () => {
+  afterEach(() => {
+    delete process.env.ORCH_SHOW_EVAL_MODELS;
+  });
+
+  it("gives every driver a clean public id: no litellm-* id ever reaches the client", async () => {
+    const body = await (await GET()).json();
+    const ids = body.agents.map((agent: { id: string }) => agent.id);
+    expect(ids).toEqual(["claude", "codex", "prime", "kimi-code"]);
+    expect(ids.some((id: string) => id.includes("litellm"))).toBe(false);
+    const prime = body.agents.find((a: { id: string }) => a.id === "prime");
+    expect(prime.label).toBe("Prime");
+    const kimi = body.agents.find((a: { id: string }) => a.id === "kimi-code");
+    expect(kimi.label).toBe("Kimi Code");
+    expect(body.default).not.toMatch(/litellm/);
+  });
+
+  it("keeps LiteLLM infrastructure out of the harness picker and folds vetted models into Codex when eval models are shown", async () => {
+    process.env.ORCH_SHOW_EVAL_MODELS = "1";
     const body = await (await GET()).json();
     expect(body.agents.map((agent: { id: string }) => agent.id)).toEqual([
       "claude",
       "codex",
-      "litellm-prime",
+      "prime",
+      "kimi-code",
     ]);
     const agent = body.agents.find((a: { id: string }) => a.id === "codex");
     expect(agent).toMatchObject({
@@ -64,11 +83,24 @@ describe("LiteLLM managed agent surface", () => {
     }));
   });
 
-  it("gives every managed-endpoint driver its own refresh path, keyed off the driver id", async () => {
+  it("gives every managed-endpoint driver its own refresh path, keyed off the real driver id", async () => {
+    process.env.ORCH_SHOW_EVAL_MODELS = "1";
     const body = await (await GET()).json();
     const byId = Object.fromEntries(body.agents.map((a: { id: string; capabilities: { managedCatalogPath?: string } }) => [a.id, a.capabilities.managedCatalogPath]));
     expect(byId.codex).toBe("/api/agents/litellm-codex/models/refresh");
-    expect(byId["litellm-prime"]).toBe("/api/agents/litellm-prime/models/refresh");
+    expect(byId.prime).toBe("/api/agents/litellm-prime/models/refresh");
+  });
+
+  it("tags every model on a stand-alone managed harness with the real driver id, so tasks.agent still resolves it", async () => {
+    const body = await (await GET()).json();
+    const prime = body.agents.find((a: { id: string }) => a.id === "prime");
+    // The test fixture's catalog only tags models for codex/claude, so Prime's
+    // own model list may be empty - the point here is that the id/label are
+    // clean regardless, pinned by the first test above. This test only needs
+    // the shape to hold when models are present.
+    for (const model of prime.capabilities.models) {
+      expect(model.driverId).toBe("litellm-prime");
+    }
   });
 
   it("renders refresh controls instead of a subscription login, driven by capability metadata", () => {

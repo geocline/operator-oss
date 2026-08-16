@@ -568,7 +568,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 .ny-row .ny-title{font-size:13px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .ny-row .ny-sub{font-size:11px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 /* sidebar per-project badge, pinned to the project glyph */
-.proj-await{position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:var(--blue);color:#fff;font-size:10px;font-weight:700;line-height:16px;text-align:center;box-shadow:0 0 0 2px var(--surface);}
+.proj-await{position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:var(--amber);color:#fff;font-size:10px;font-weight:700;line-height:16px;text-align:center;box-shadow:0 0 0 2px var(--surface);}
 
 /* priority pill */
 .pri{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 6px;border-radius:5px;flex:0 0 auto;line-height:1.35;}
@@ -1676,3 +1676,60 @@ button.tpeek-more:hover{color:var(--accent-ink);}
 .note-del{background:none;border:none;color:var(--ink-4);cursor:pointer;padding:0 2px;line-height:1;font-size:12px;}
 .note-del:hover{color:var(--red,#e5484d);}
 .note-body{font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-word;}
+
+/* --- batch-one: session pane (Package C) --- */
+/* Turn clock: anchored elapsed time, muted so it reads as ambient status, not
+   a stat to watch. Same look in the thinking bubble and the header chip. */
+.turn-clock{font-family:var(--mono);font-size:10.5px;color:var(--ink-4);letter-spacing:.02em;}
+.turn-clock-chip{display:inline-flex;align-items:center;padding:0 8px;height:26px;}
+
+/* Ask composer takeover: AskPanel reuses the .ask-* card look (see the
+   AskUserQuestion rules above) with its own outer class since it now lives in
+   the composer, not the transcript. */
+.ask-panel{border:1px solid var(--accent-soft);border-radius:var(--r);background:var(--surface-2);overflow:hidden;margin:0 14px 10px;}
+.ask-panel .ask-foot{justify-content:flex-start;gap:10px;}
+.ask-incomplete{padding:0 13px 11px;font-size:11px;color:var(--ink-3);}
+
+/* Pending AskUserQuestion card in the transcript is now read-only context —
+   the controls live in the composer below, this just points at them. */
+.ask-pending .ask-q{padding-bottom:9px;}
+.ask-pointer{padding:0 13px 11px;font-size:11px;font-weight:600;color:var(--accent-ink);}
+
+/* "Chat about it" mode strip: dismissible banner above the textarea naming
+   what's being answered by plain text instead of the panel. */
+.answering-strip{display:flex;align-items:center;gap:8px;margin:0 14px 8px;padding:7px 11px;border:1px solid var(--accent-soft);border-radius:var(--r-sm);background:var(--accent-soft);font-size:12px;color:var(--accent-ink);}
+.answering-strip-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.answering-strip-x{background:none;border:none;color:inherit;cursor:pointer;padding:2px;line-height:1;opacity:.8;}
+.answering-strip-x:hover{opacity:1;}
+
+/* Hero Start button: the blocked/not-connected reason as a visible line, not
+   just a title tooltip. */
+.hero-start{display:flex;flex-direction:column;gap:8px;align-items:flex-start;}
+.start-reason{font-size:12px;color:var(--amber);}
+
+/* --- batch-one: status ladder (Package B) --- */
+/* One status dot per task row (TasksColumn TaskCard / TaskBoard BoardCard),
+   hard precedence awaiting > running > unviewed > none (see
+   app/orchestrator/statusLadder.ts + shared.tsx's LadderDot). Fixed-size slot
+   so idle rows never reflow when a status changes. Color convention: amber =
+   waiting on you, blue = running, green = finished while you were away (a
+   local unread marker, cleared the moment the task is opened). */
+.dot-slot{width:9px;height:9px;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;}
+.bc-top .dot-slot{margin-top:4px;}
+.bcard.mini .bc-top .dot-slot{margin-top:0;}
+.ldot{width:9px;height:9px;border-radius:50%;display:inline-block;position:relative;}
+.ldot.awaiting{background:var(--amber);box-shadow:0 0 7px var(--amber);}
+.ldot.running{background:var(--blue);box-shadow:var(--glow-blue,0 0 7px var(--blue));}
+.ldot.unviewed{background:var(--green);box-shadow:var(--glow-green,0 0 7px var(--green));}
+.ldot.awaiting::after,.ldot.running::after{content:"";position:absolute;inset:0;border-radius:50%;background:inherit;box-shadow:none;animation:ping 1.6s cubic-bezier(0,0,.2,1) infinite;}
+
+/* Accessible label for the ladder dot: visually hidden (NOT display:none, so
+   screen readers still see it), text is the ladder's own label. Overrides
+   .slabel's default display:none via the extra class's higher specificity. */
+.slabel.sr-only{display:block;position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
+
+/* Project-row rollup (ProjectsColumn): a plain blue dot pinned to the project
+   glyph when any of its tasks is running - it only shows when the amber
+   .proj-await badge above isn't (awaiting always wins, a project row can
+   never hide a task waiting on you behind "just running"). */
+.proj-running{position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:50%;background:var(--blue);box-shadow:0 0 0 2px var(--surface),0 0 6px var(--blue);}
