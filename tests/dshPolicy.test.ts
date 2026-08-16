@@ -37,4 +37,34 @@ describe("buildDshHarnessEnv", () => {
       expect(env[key]).toBeUndefined();
     }
   });
+
+  it("strips ambient credential-shaped names, not just known provider keys", () => {
+    // The Aug 14 admission security review found Prime's scrub only removed
+    // provider API keys; dsh uses the kimi-code launcher's broad name pattern
+    // so ambient credentials under ANY name never reach the child.
+    const env = buildDshHarnessEnv("task-1", {
+      PATH: "/usr/bin",
+      HOME: "/Users/geo",
+      GITHUB_TOKEN: "ghp-secret",
+      NPM_TOKEN: "npm-secret",
+      AWS_SECRET_ACCESS_KEY: "aws-secret",
+      SESSION_COOKIE: "cookie-secret",
+      DB_PASSWORD: "pw-secret",
+      GOOGLE_APPLICATION_CREDENTIALS: "/tmp/creds.json",
+      SSH_AUTH_SOCK: "/tmp/ssh-agent.sock",
+    });
+    expect(env.PATH).toBe("/usr/bin");
+    expect(env.HOME).toBe("/Users/geo");
+    for (const key of [
+      "GITHUB_TOKEN",
+      "NPM_TOKEN",
+      "AWS_SECRET_ACCESS_KEY",
+      "SESSION_COOKIE",
+      "DB_PASSWORD",
+      "GOOGLE_APPLICATION_CREDENTIALS",
+      "SSH_AUTH_SOCK",
+    ]) {
+      expect(env[key]).toBeUndefined();
+    }
+  });
 });

@@ -12,6 +12,15 @@ export interface KimiCodeMapState {
   malformedEvents: string[];
   thinkingParts: number;
   interrupted: boolean;
+  /**
+   * A ToolCall whose arguments had not arrived yet: the Wire CLI may emit
+   * ToolCall with empty arguments and stream the JSON via ToolCallPart deltas
+   * (no id on parts - the protocol streams one call at a time). The tool
+   * event is deferred and flushed with the accumulated arguments when its
+   * ToolResult arrives, so titles/details reflect the real call instead of
+   * an empty argument object.
+   */
+  pendingCall: { id: string; name: string; argumentsText: string } | null;
   latestTokenUsage: {
     inputTokens: number;
     outputTokens: number;
@@ -41,8 +50,34 @@ export function newKimiCodeState(): KimiCodeMapState {
     malformedEvents: [],
     thinkingParts: 0,
     interrupted: false,
+    pendingCall: null,
     latestTokenUsage: null,
   };
+}
+
+function toolEventFor(
+  id: string,
+  name: string,
+  args: Record<string, unknown>,
+): StreamEvent {
+  const described = describedKimiTool(name, args);
+  return {
+    type: "tool",
+    id,
+    title: described.title,
+    detail: described.detail,
+    peek: described.peek,
+    diff: described.diff,
+  };
+}
+
+/** Emit the deferred tool event (if any), parsing whatever arguments arrived. */
+function flushPendingCall(state: KimiCodeMapState): StreamEvent[] {
+  const pending = state.pendingCall;
+  if (!pending) return [];
+  state.pendingCall = null;
+  const args = toolArgs(pending.argumentsText, state, pending.id) ?? {};
+  return [toolEventFor(pending.id, pending.name, args)];
 }
 
 function diagnostic(state: KimiCodeMapState, message: string): void {
@@ -137,36 +172,46 @@ export function mapKimiCodeEvent(
         diagnostic(state, message);
         return [{ type: "error", content: message }];
       }
+      // A new call ends any argument stream still open for the previous one.
+      const flushed = flushPendingCall(state);
       const name = event.payload.function.name;
-      const args = toolArgs(event.payload.function.arguments, state, id);
+      const rawArguments = event.payload.function.arguments;
       state.calls.set(id, name);
+      // No argument bytes yet: the Wire CLI streams them as ToolCallPart
+      // deltas. Defer the tool event until the arguments are complete rather
+      // than describing an empty argument object (which produced blank,
+      // unclassifiable titles live on 2026-08-16).
+      if (typeof rawArguments !== "string" || !rawArguments.trim()) {
+        state.pendingCall = { id, name, argumentsText: rawArguments ?? "" };
+        return flushed;
+      }
+      const args = toolArgs(rawArguments, state, id);
       if (!args) {
-        return [{
+        return [...flushed, {
           type: "error",
           content: `Kimi Code tool ${id} had malformed arguments`,
         }];
       }
-      const described = describedKimiTool(name, args);
-      return [{
-        type: "tool",
-        id,
-        title: described.title,
-        detail: described.detail,
-        peek: described.peek,
-        diff: described.diff,
-      }];
+      return [...flushed, toolEventFor(id, name, args)];
+    }
+    case "ToolCallPart": {
+      if (state.pendingCall) {
+        state.pendingCall.argumentsText += event.payload.arguments_part ?? "";
+      }
+      return [];
     }
     case "ToolResult": {
+      const flushed = flushPendingCall(state);
       const id = event.payload.tool_call_id;
       if (!state.calls.has(id)) {
         const message = `Kimi Code emitted orphan tool result ${id}`;
         diagnostic(state, message);
-        return [{ type: "error", content: message }];
+        return [...flushed, { type: "error", content: message }];
       }
       state.calls.delete(id);
       const value = event.payload.return_value;
       const display = value.display as Array<Record<string, unknown>>;
-      return [{
+      return [...flushed, {
         type: "tool_result",
         id,
         content: clip(resultText(value.output), 6_000),
@@ -230,7 +275,6 @@ export function mapKimiCodeEvent(
     case "TurnBegin":
     case "TurnEnd":
     case "StepBegin":
-    case "ToolCallPart":
     case "SteerInput":
     case "ApprovalResponse":
     case "HookTriggered":

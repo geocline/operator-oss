@@ -13,6 +13,13 @@ export interface AdmissionPairing {
   harness: AdmissionHarness;
   harnessVersion: string;
   testRevision: string;
+  /**
+   * Whether the harness declares the Operator tool bridge
+   * (AgentCapabilities.supportsMcpTools). False waives the operator_bridge
+   * gate with an explicit waiver detail in the artifact; it never fabricates
+   * bridge evidence.
+   */
+  requiresOperatorBridge: boolean;
   requiresInteractiveAsk: boolean;
 }
 
@@ -129,6 +136,7 @@ function toolEvidence(events: StreamEvent[]): AdmissionObservation["toolLoop"] {
 
 function bridgeEvidence(
   events: StreamEvent[],
+  requiresOperatorBridge: boolean,
   requiresInteractiveAsk: boolean,
 ): AdmissionObservation["operatorBridge"] {
   const asks = new Set(
@@ -140,6 +148,7 @@ function bridgeEvidence(
       .map((event) => event.id),
   );
   return {
+    required: requiresOperatorBridge,
     toolSucceeded:
       events.some((event) => event.type === "suggested")
       || events.some(
@@ -163,6 +172,23 @@ function bridgeEvidence(
       !requiresInteractiveAsk
       || (asks.size > 0 && [...asks].every((id) => answered.has(id))),
   };
+}
+
+/**
+ * Surface the actual error text a run emitted: gate details alone ("stop run
+ * emitted an error event") proved undiagnosable after the fact on Aug 13 -
+ * the transcript lives in a throwaway test DB that is gone by the time anyone
+ * reads the artifact. Contents pass through reduceAdmission's sanitizer, so a
+ * secret-bearing message is redacted rather than recorded.
+ */
+function errorContentDiagnostics(
+  label: string,
+  events: StreamEvent[],
+): string[] {
+  return events
+    .filter((event): event is Extract<StreamEvent, { type: "error" }> => event.type === "error")
+    .slice(0, 5)
+    .map((event, index) => `${label} error[${index}]: ${event.content.slice(0, 500)}`);
 }
 
 function eventCountDiagnostic(
@@ -221,6 +247,7 @@ export async function executeAdmission(
     toolLoop: toolEvidence(fresh),
     operatorBridge: bridgeEvidence(
       fresh,
+      options.pairing.requiresOperatorBridge,
       options.pairing.requiresInteractiveAsk,
     ),
     repository,
@@ -229,10 +256,14 @@ export async function executeAdmission(
         freshSession !== null
         && resumedSession !== null
         && resumedSession === freshSession,
-      plantedFactRecalled: resume.some(
-        (event) =>
-          event.type === "assistant" && event.content.includes("PLANTED_FACT_7391"),
-      ),
+      // Join the assistant stream before searching: harnesses that emit raw
+      // streaming text parts (Kimi Code) can split the fact across chunk
+      // boundaries, which made this gate flap run to run on 2026-08-16.
+      plantedFactRecalled: resume
+        .filter((event) => event.type === "assistant")
+        .map((event) => event.content)
+        .join("")
+        .includes("PLANTED_FACT_7391"),
     },
     stop: {
       interruptRequested: stop.interruptRequested,
@@ -248,6 +279,9 @@ export async function executeAdmission(
       eventCountDiagnostic("fresh", fresh),
       eventCountDiagnostic("resume", resume),
       eventCountDiagnostic("stop", allStopEvents),
+      ...errorContentDiagnostics("fresh", fresh),
+      ...errorContentDiagnostics("resume", resume),
+      ...errorContentDiagnostics("stop", allStopEvents),
       ...(allStopEvents.some((event) => event.type === "error")
         ? ["stop run emitted an error event"]
         : []),

@@ -157,7 +157,12 @@ export function buildConflictPrompt(baseBranch: string, conflicts: string[]): st
 }
 
 export function clip(s: unknown, n = 4000): string {
-  const str = typeof s === "string" ? s : JSON.stringify(s, null, 2);
+  // JSON.stringify(undefined) returns undefined, not a string. Tool-call
+  // events can arrive with fields still missing (the Kimi wire protocol
+  // streams arguments as later ToolCallPart deltas), and one clip(undefined)
+  // in a describe path threw a TypeError that killed entire live turns
+  // (found by the 2026-08-16 kimi-k3 admission run). Never throw here.
+  const str = typeof s === "string" ? s : JSON.stringify(s, null, 2) ?? "";
   return str.length > n ? str.slice(0, n) + `\n… (${str.length - n} more chars)` : str;
 }
 

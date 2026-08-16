@@ -24,7 +24,14 @@ export function assertDshModelAllowed(model: string | null | undefined): void {
  * Provider credentials stay inside LiteLLM. A dsh child receives only the
  * loopback relay token (injected by the driver at spawn, as DEEPSEEK_API_KEY)
  * and DEEPSEEK_BASE_URL pointed at the relay - never a real provider key.
- * Mirrors lib/agents/prime/policy.ts's buildPrimeHarnessEnv verbatim.
+ *
+ * The name pattern is the broad credential-shaped one from
+ * scripts/kimi-code-launcher.mjs, not Prime's narrower provider-key list: an
+ * ambient GITHUB_TOKEN/NPM_TOKEN/COOKIE in the server's environment must not
+ * reach the child either (the gap the Aug 14 admission security review found
+ * in Prime's scrub). No allowlist is needed here because the driver injects
+ * everything the child legitimately holds (DEEPSEEK_API_KEY, DSH_SESSION_ROOT,
+ * SERVICE_TOKEN, ...) AFTER this scrub runs.
  */
 const PROVIDER_SECRET_ENV = [
   "OPENAI_API_KEY",
@@ -37,7 +44,8 @@ const PROVIDER_SECRET_ENV = [
   "DEEPSEEK_BASE_URL",
 ] as const;
 
-const SECRET_NAME_PATTERN = /(API_?KEY|APIKEY|AUTH_?TOKEN|ACCESS_?TOKEN|SECRET|OPENROUTER|LITELLM|DEEPSEEK)/i;
+const SECRET_NAME_PATTERN =
+  /(TOKEN|KEY|SECRET|PASSWORD|PASSWD|CREDENTIAL|COOKIE|AUTH|SESSION|OPENROUTER|LITELLM|DEEPSEEK)/i;
 
 export function buildDshHarnessEnv(
   taskId: string,

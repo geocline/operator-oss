@@ -6,7 +6,7 @@ import { LITELLM_DSH_HOME } from "@/lib/config";
 import { parseLiteLLMModelInfo, replaceLiteLLMCatalog } from "@/lib/agents/litellm/catalog";
 import { dshDriver } from "@/lib/agents/dsh/driver";
 import { getDriver, listDrivers } from "@/lib/agents/registry";
-import { createProject, createTask, getTask, listMessages, updateProject, updateTask } from "@/lib/store";
+import { addMessage, createProject, createTask, getTask, listMessages, updateProject, updateTask } from "@/lib/store";
 import { startResumeTurn } from "@/lib/runner";
 import { subscribe } from "@/lib/events";
 import type { Project, StreamEvent, Task, TaskStreamEvent } from "@/lib/types";
@@ -212,6 +212,12 @@ describe("litellm-dsh turns", () => {
     expect(existsSync(path.join(LITELLM_DSH_HOME, task.id, "config", "cordis.yml"))).toBe(true);
     expect(existsSync(path.join(LITELLM_DSH_HOME, task.id, "sessions", String(after.generation)))).toBe(true);
 
+    // The llm adapter's per-request output cap is pinned: its 256k default
+    // would reserve the provider's whole completion budget per call (the Kimi
+    // Code HTTP 402 failure class from Aug 13).
+    const cordis = readFileSync(path.join(LITELLM_DSH_HOME, task.id, "config", "cordis.yml"), "utf8");
+    expect(cordis).toContain("maxTokens: 16384");
+
     const index = readFileSync(path.join(LITELLM_DSH_HOME, "operator-session-index.jsonl"), "utf8");
     expect(JSON.parse(index.trim().split("\n").at(-1)!)).toMatchObject({
       task_id: task.id,
@@ -240,14 +246,41 @@ describe("litellm-dsh turns", () => {
     rmSync(envFile, { force: true });
   });
 
-  it("resumes an existing session id via the same dsh sessionId", async () => {
-    restoreEnv = makeFixture({ FAKE_DSH_EVENTS: DRIVER_EVENTS });
+  it("continues a session with a fresh wire id and a transcript replay, keeping the lineage id stable", async () => {
+    // The real dsh runtime rejects a persisted session id in a new process as
+    // an "id collision" (its jsonrpc protocol has no resume method), so the
+    // driver must NEVER reuse the stored session id on the wire. Continuity
+    // comes from replaying the persisted transcript tail into the prompt.
+    const promptFile = path.join(os.tmpdir(), `dsh-prompts-${process.pid}.jsonl`);
+    rmSync(promptFile, { force: true });
+    restoreEnv = makeFixture({
+      FAKE_DSH_EVENTS: DRIVER_EVENTS,
+      FAKE_DSH_PROMPT_FILE: promptFile,
+    });
     const project = createProject({ name: "DshResume" });
     const task = createTask({ project_id: project.id, title: "T", description: "" });
     updateTask(task.id, { model: "operator.deepseek-v4", session_id: "prior-session-id" });
+    // Prior persisted turn: the runner writes the user text before the driver
+    // runs, and the assistant reply after it - mirror that ordering here.
+    const generation = getTask(task.id)!.generation;
+    addMessage(task.id, generation, "user", "Remember the secret word BANANA_42.");
+    addMessage(task.id, generation, "assistant", "Noted: the secret word is BANANA_42.");
+    addMessage(task.id, generation, "user", "continue");
+
     const events = await collectTurn(getTask(task.id)!, project, "continue");
     expect(events.some((e) => e.type === "error")).toBe(false);
     expect(events.at(-1)).toMatchObject({ type: "done", sessionId: "prior-session-id" });
+
+    const prompts = readFileSync(promptFile, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+    expect(prompts).toHaveLength(1);
+    // Fresh wire id, never the persisted lineage id.
+    expect(prompts[0].sessionId).not.toBe("prior-session-id");
+    // The replay carries the prior conversation through the last assistant
+    // reply, and never duplicates the in-flight user message.
+    expect(prompts[0].text).toContain("BANANA_42");
+    expect(prompts[0].text).toContain("Noted: the secret word is BANANA_42.");
+    expect((prompts[0].text.match(/continue/g) ?? []).length).toBe(1);
+    rmSync(promptFile, { force: true });
   });
 
   it("settles with an error and done when the binary dies after spending money", async () => {

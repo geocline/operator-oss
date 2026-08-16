@@ -50,6 +50,7 @@ function passingObservation(
       malformedEvents: 0,
     },
     operatorBridge: {
+      required: true,
       toolSucceeded: true,
       interactiveAskClaimed: true,
       interactiveAskSucceeded: true,
@@ -135,6 +136,33 @@ describe("harness-neutral model admission evidence", () => {
     expect(Object.values(artifact.gates).some((gate) => !gate.passed)).toBe(true);
   });
 
+  it("waives the bridge gate only for a harness that declares no bridge, with an explicit detail", () => {
+    const noBridgeObserved = {
+      toolSucceeded: false,
+      interactiveAskClaimed: false,
+      interactiveAskSucceeded: true,
+    };
+
+    const waived = reduceAdmission(
+      passingObservation({
+        operatorBridge: { required: false, ...noBridgeObserved },
+      }),
+    );
+    expect(waived.status).toBe("passed");
+    expect(waived.gates.operator_bridge).toEqual({
+      passed: true,
+      detail: "harness declares no Operator tool bridge; gate waived by capability",
+    });
+
+    const required = reduceAdmission(
+      passingObservation({
+        operatorBridge: { required: true, ...noBridgeObserved },
+      }),
+    );
+    expect(required.status).toBe("failed");
+    expect(required.gates.operator_bridge.passed).toBe(false);
+  });
+
   it("treats a noisy shared-key delta as diagnostic when exact generations reconcile", () => {
     const observation = passingObservation();
     observation.providerReconciliation.keyUsageDeltaUsd = 0.25;
@@ -215,6 +243,7 @@ describe("opt-in admission runner", () => {
     harness: "claude",
     harnessVersion: "2.1.198",
     testRevision: "abc1234",
+    requiresOperatorBridge: true,
     requiresInteractiveAsk: true,
   };
 
@@ -590,6 +619,78 @@ describe("opt-in admission runner", () => {
     });
 
     expect(artifact.gates.operator_bridge.passed).toBe(false);
+  });
+
+  it("passes a bridgeless dsh-shaped harness via the explicit capability waiver, without inventing bridge evidence", async () => {
+    const dshPairing: AdmissionPairing = {
+      alias: "operator.deepseek-v4-pro",
+      expectedResolvedModel: "deepseek/deepseek-v4-pro-20260423",
+      harness: "dsh",
+      harnessVersion: "deepseek-harness-sdk 0.1.0rc6",
+      testRevision: "abc1234",
+      requiresOperatorBridge: false,
+      requiresInteractiveAsk: false,
+    };
+    const transport = fakeTransport({
+      async runFresh() {
+        // A dsh fresh run: read/edit/bash tools, no suggested/ask events at all.
+        return [
+          { type: "session", sessionId: "private-session-id" },
+          { type: "model", model: "operator.deepseek-v4-pro" },
+          { type: "tool", id: "r1", title: "Read fixture.txt", detail: "" },
+          { type: "tool_result", id: "r1", content: "seed", isError: false },
+          { type: "tool", id: "e1", title: "Edit result.txt", detail: "" },
+          { type: "tool_result", id: "e1", content: "ok", isError: false },
+          { type: "tool", id: "c1", title: "Bash npm test", detail: "" },
+          { type: "tool_result", id: "c1", content: "pass", isError: false },
+          { type: "assistant", content: "ADMISSION_OK" },
+          { type: "done", sessionId: "private-session-id" },
+        ];
+      },
+      async reconcileIdentityAndCost() {
+        return {
+          identity: {
+            requestedAlias: dshPairing.alias,
+            resolvedModel: dshPairing.expectedResolvedModel,
+            fallbackFree: true,
+            trustedSource: "provider",
+          },
+          usage: {
+            inputTokens: 100,
+            outputTokens: 20,
+            cacheReadTokens: 0,
+            cacheCreationTokens: 0,
+            costUsd: 0.001,
+            costStatus: "trusted",
+          },
+          providerReconciliation: {
+            ...passingObservation().providerReconciliation,
+            physicalModels: [dshPairing.expectedResolvedModel],
+          },
+          diagnostics: ["provider reconciliation succeeded"],
+        };
+      },
+    });
+
+    const artifact = await executeAdmission({
+      pairing: dshPairing,
+      transport,
+      optIn: true,
+    });
+
+    expect(artifact.status).toBe("passed");
+    expect(artifact.gates.operator_bridge).toEqual({
+      passed: true,
+      detail: "harness declares no Operator tool bridge; gate waived by capability",
+    });
+    // The same eventless-bridge stream under a bridge-claiming pairing still fails.
+    const strict = await executeAdmission({
+      pairing: { ...dshPairing, requiresOperatorBridge: true, requiresInteractiveAsk: true },
+      transport,
+      optIn: true,
+    });
+    expect(strict.status).toBe("failed");
+    expect(strict.gates.operator_bridge.passed).toBe(false);
   });
 
   it("never mutates catalog metadata as part of running admission", async () => {

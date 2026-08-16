@@ -90,6 +90,71 @@ describe("Kimi Code SDK event normalization", () => {
     });
   });
 
+  it.each([
+    ["Shell", "{}"],
+    ["SetTodoList", "{}"],
+    ["Agent", "{}"],
+  ])("never throws when %s arrives with an empty argument object", (name, args) => {
+    // A clip(undefined) TypeError on argument-less describe paths killed
+    // whole live turns on 2026-08-16 (kimi-k3 and deepseek-v4-pro admission
+    // runs: "Cannot read properties of undefined (reading 'length')") - the
+    // mapper must degrade, not crash.
+    const state = newKimiCodeState();
+    const out = mapKimiCodeEvent({
+      type: "ToolCall",
+      payload: {
+        type: "function",
+        id: `call-empty-${name}`,
+        function: { name, arguments: args },
+      },
+    }, state);
+    expect(out[0]).toMatchObject({ type: "tool" });
+  });
+
+  it("defers a ToolCall with streamed arguments and flushes it with the accumulated JSON", () => {
+    // The Wire CLI may emit ToolCall with no argument bytes and stream the
+    // JSON via ToolCallPart deltas (parts carry no id - one call streams at a
+    // time). The tool event must carry the real arguments, not an empty
+    // object with a blank title.
+    const state = newKimiCodeState();
+    const call = mapKimiCodeEvent({
+      type: "ToolCall",
+      payload: {
+        type: "function",
+        id: "call-stream",
+        function: { name: "Shell", arguments: "" },
+      },
+    }, state);
+    expect(call).toEqual([]);
+    expect(mapKimiCodeEvent({
+      type: "ToolCallPart",
+      payload: { arguments_part: '{"command":"npm' },
+    }, state)).toEqual([]);
+    expect(mapKimiCodeEvent({
+      type: "ToolCallPart",
+      payload: { arguments_part: ' test"}' },
+    }, state)).toEqual([]);
+    const result = mapKimiCodeEvent({
+      type: "ToolResult",
+      payload: {
+        tool_call_id: "call-stream",
+        return_value: { is_error: false, output: "ok", message: "ran", display: [] },
+      },
+    }, state);
+    expect(result[0]).toMatchObject({
+      type: "tool",
+      id: "call-stream",
+      title: expect.stringMatching(/npm test/),
+    });
+    expect(result[1]).toMatchObject({
+      type: "tool_result",
+      id: "call-stream",
+      isError: false,
+    });
+    expect(state.malformedEvents).toEqual([]);
+    expect(state.pendingCall).toBeNull();
+  });
+
   it("fails closed on malformed arguments, duplicate calls, and orphan results", () => {
     const state = newKimiCodeState();
     mapKimiCodeEvent({

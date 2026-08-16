@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "alias": "operator.deepseek-v4-pro",
+  "resolved_model": "deepseek/deepseek-v4-pro-20260423",
+  "harness": "dsh",
+  "harness_version": "deepseek-harness-sdk 0.1.0rc6",
+  "test_revision": "3cd85d7a7958+wave0.4f4cbe612e06",
+  "tested_at": "2026-08-16T18:36:59.199Z",
+  "status": "failed",
+  "gates": {
+    "identity": {
+      "passed": true,
+      "detail": "exact alias resolved to deepseek/deepseek-v4-pro-20260423"
+    },
+    "basic_turn": {
+      "passed": true,
+      "detail": "coherent result streamed through the harness"
+    },
+    "tool_loop": {
+      "passed": true,
+      "detail": "read, edit, and command calls had valid paired results"
+    },
+    "operator_bridge": {
+      "passed": true,
+      "detail": "harness declares no Operator tool bridge; gate waived by capability"
+    },
+    "repository_result": {
+      "passed": true,
+      "detail": "disposable fixture contains the expected edit and its tests pass"
+    },
+    "resume": {
+      "passed": false,
+      "detail": "same-session recall was not proven"
+    },
+    "stop": {
+      "passed": false,
+      "detail": "interrupt did not settle cleanly or a process survived"
+    },
+    "usage": {
+      "passed": true,
+      "detail": "token usage and trusted metered cost are recorded"
+    },
+    "isolation": {
+      "passed": true,
+      "detail": "task state is isolated and only the loopback relay credential was exposed"
+    }
+  },
+  "session_id_sha256": "7784e20d177f2928f1244b967fb4e8c7e3e2fbc8926c5102ff25ba6713d086f3",
+  "usage": {
+    "input_tokens": 17003,
+    "output_tokens": 3476,
+    "cache_read_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cost_usd": 0.013195361999999999,
+    "cost_status": "trusted"
+  },
+  "provider_reconciliation": {
+    "generation_ids": [
+      "gen-1786905354-oif2dY97rtYJSUJ6zuxq",
+      "gen-1786905362-qzz3N2DHdhugtr5G9U3y",
+      "gen-1786905364-zXVM5HidXvipiYZASOVY",
+      "gen-1786905367-4gSUWkJxcDzUXB3lYW8Q",
+      "gen-1786905370-QxMZnxCPEjQ5h2saxJSq"
+    ],
+    "physical_models": [
+      "deepseek/deepseek-v4-pro-20260423"
+    ],
+    "providers": [
+      "Novita"
+    ],
+    "provider_cost_usd": 0.013195361999999999,
+    "key_usage_delta_usd": 0.013195361999999378,
+    "complete": true
+  },
+  "process_settlement": {
+    "settled": false,
+    "task_busy": false,
+    "survivor_count": 0
+  },
+  "diagnostics": [
+    "5 provider generation(s) reconciled",
+    "gateway alias binding was fallback-free",
+    "fresh event counts: assistant=5, done=1, model=1, notice=1, session=1, tool=4, tool_result=4",
+    "resume event counts: done=1, error=1, model=1, session=1",
+    "stop event counts: done=2, error=2, model=2, session=2",
+    "stop run emitted an error event"
+  ]
+}

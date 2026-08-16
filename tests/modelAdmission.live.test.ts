@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  readdirSync,
   readFileSync,
   writeFileSync,
 } from "node:fs";
@@ -19,6 +20,9 @@ import {
 import { buildLiteLLMClaudeEnv } from "@/lib/agents/litellm-claude/driver";
 import { buildKimiCodeEnv } from "@/lib/agents/kimi-code/policy";
 import { readKimiCodeIsolationEvidence } from "@/lib/agents/kimi-code/session-paths";
+import { liteLLMCapabilities } from "@/lib/agents/litellm/capabilities";
+import { buildDshHarnessEnv } from "@/lib/agents/dsh/policy";
+import { dshTaskPaths } from "@/lib/agents/dsh/session-paths";
 import {
   createProject,
   createTask,
@@ -36,14 +40,15 @@ import type { StreamEvent, TaskStreamEvent } from "@/lib/types";
 const LIVE = process.env.MODEL_ADMISSION_LIVE === "1";
 const REAL_GATEWAY = "http://127.0.0.1:4000/v1";
 const liveDescribe = LIVE ? describe : describe.skip;
-type LiveHarness = "claude" | "kimi-code";
+type LiveHarness = "claude" | "kimi-code" | "dsh";
 
 const LIVE_HARNESSES: Record<LiveHarness, {
-  driver: "litellm-claude" | "litellm-kimi-code";
+  driver: "litellm-claude" | "litellm-kimi-code" | "litellm-dsh";
   reasoning: "think" | "think_hard";
 }> = {
   claude: { driver: "litellm-claude", reasoning: "think" },
   "kimi-code": { driver: "litellm-kimi-code", reasoning: "think_hard" },
+  dsh: { driver: "litellm-dsh", reasoning: "think" },
 };
 
 type Candidate = {
@@ -81,13 +86,36 @@ function privateEnv(): Record<string, string> {
 
 function selectedHarness(): LiveHarness {
   const value = process.env.MODEL_ADMISSION_HARNESS || "claude";
-  if (value !== "claude" && value !== "kimi-code") {
-    throw new Error("MODEL_ADMISSION_HARNESS must be claude or kimi-code");
+  if (value !== "claude" && value !== "kimi-code" && value !== "dsh") {
+    throw new Error("MODEL_ADMISSION_HARNESS must be claude, kimi-code, or dsh");
   }
   return value;
 }
 
+/**
+ * The dsh runtime binary has no --version flag (it prints its config usage
+ * line for any argv), so its version is read from the pip dist-info that
+ * ships alongside it: DSH_CLI_PATH lives at
+ * <venv>/.../site-packages/deepseek_harness_runtime/runtime/<binary>, and the
+ * same site-packages dir carries deepseek_harness_sdk-<version>.dist-info.
+ */
+function dshVersion(cliPath: string): string {
+  const sitePackages = path.dirname(path.dirname(path.dirname(cliPath)));
+  const distInfo = readdirSync(sitePackages).find((name) =>
+    /^deepseek_harness_sdk-.+\.dist-info$/.test(name),
+  );
+  if (!distInfo) {
+    throw new Error(`No deepseek_harness_sdk dist-info next to DSH_CLI_PATH (${sitePackages})`);
+  }
+  return `deepseek-harness-sdk ${distInfo.replace(/^deepseek_harness_sdk-/, "").replace(/\.dist-info$/, "")}`;
+}
+
 function harnessVersion(harness: LiveHarness): string {
+  if (harness === "dsh") {
+    const cli = process.env.DSH_CLI_PATH;
+    if (!cli) throw new Error("DSH_CLI_PATH must be set for a dsh live admission");
+    return dshVersion(cli);
+  }
   const executable = harness === "claude"
     ? process.env.CLAUDE_CLI_PATH || path.join(process.env.HOME!, ".local", "bin", "claude")
     : process.env.KIMI_CODE_CLI_PATH || path.join(process.cwd(), "node_modules", ".bin", "kimi");
@@ -110,6 +138,11 @@ function testRevision(): string {
     "lib/agents/kimi-code/policy.ts",
     "lib/agents/kimi-code/session-paths.ts",
     "scripts/kimi-code-launcher.mjs",
+    "lib/agents/dsh/driver.ts",
+    "lib/agents/dsh/events.ts",
+    "lib/agents/dsh/policy.ts",
+    "lib/agents/dsh/rpc.ts",
+    "lib/agents/dsh/session-paths.ts",
     "package.json",
     "package-lock.json",
     "tests/kimiCodeCliContract.test.ts",
@@ -323,6 +356,8 @@ function harnessProcessPids(
       (line) => harness === "claude"
         ? line.includes(alias)
           && /(?:^|\s)(?:claude|.*\/claude)(?:\s|$)/.test(line)
+        : harness === "dsh"
+        ? /dsh-jsonrpc-agent|\bsleep 300\b/.test(line)
         : /@moonshot-ai\/kimi-code|\/kimi-code\/dist\/main\.mjs|node_modules\/\.bin\/kimi|(?:^|\s)\S*\/kimi(?:\s|$).*(?:--wire|--work-dir)|\bsleep 300\b/.test(line),
     )
     .map((line) => line.trim().split(/\s+/, 1)[0])
@@ -423,11 +458,27 @@ liveDescribe("live harness-model admission", () => {
           agent: harnessConfig.driver,
           model: candidate.alias,
           reasoning: harnessConfig.reasoning,
-          permission_mode: harness === "kimi-code" ? "bypassPermissions" : null,
+          permission_mode: harness === "claude" ? null : "bypassPermissions",
           worktree_path: worktree.path,
           work_branch: worktree.branch,
         });
 
+        // dsh has no Operator tool bridge or interactive-ask surface
+        // (AgentCapabilities.supportsMcpTools/supportsAsks are false), so its
+        // fixture prompt omits the bridge/ask steps and the pairing waives
+        // those gates by declared capability instead of failing them.
+        const capabilities = liteLLMCapabilities(harness);
+        const bridgeSteps = capabilities.supportsMcpTools
+          ? [
+              '4. Call the orchestrator suggest_task tool once with title "Admission bridge proof", a short description, and low priority.',
+              // AskUserQuestion schemas (Claude Code and Kimi Code alike)
+              // require 2-4 options; a one-option ask fails tool validation
+              // before any QuestionRequest reaches the wire, which is exactly
+              // how the Aug 13 interactive-ask gates failed on every harness.
+              '5. Call AskUserQuestion with one single-select question, header "Continue", and exactly two options labeled "Continue" and "Stop". Wait for the answer.',
+              "6. After the answer, reply with the exact token ADMISSION_OK.",
+            ]
+          : ["4. Reply with the exact token ADMISSION_OK."];
         const transport: AdmissionTransport = {
         async runFresh() {
           const turn = collectTurn(task.id);
@@ -439,9 +490,7 @@ liveDescribe("live harness-model admission", () => {
               "1. Use the Read tool to read fixture.txt.",
               "2. Use the Edit tool (not Write) to replace the full contents of result.txt from PENDING to PLANTED_FACT_7391, preserving one trailing newline.",
               "3. Use Bash to run npm test.",
-              '4. Call the orchestrator suggest_task tool once with title "Admission bridge proof", a short description, and low priority.',
-              '5. Call AskUserQuestion with one single-select question, header "Continue", and an option labeled "Continue". Wait for the answer.',
-              "6. After the answer, reply with the exact token ADMISSION_OK.",
+              ...bridgeSteps,
               "Do not skip, reorder, or substitute any step.",
             ].join("\n"),
           );
@@ -574,6 +623,54 @@ liveDescribe("live harness-model admission", () => {
           if (harness === "kimi-code") {
             return readKimiCodeIsolationEvidence(task.id);
           }
+          if (harness === "dsh") {
+            // Reproduce the driver's exact child-env assembly: lib/agents/dsh/
+            // driver.ts injects these after buildDshHarnessEnv's scrub, and
+            // lib/agents/dsh/rpc.ts spawns with that env verbatim (no
+            // process.env re-merge, unlike the Kimi SDK). Seed the base env
+            // with canary ambient credentials to prove the scrub strips
+            // credential-shaped names, not just known provider keys.
+            const current = getTask(task.id)!;
+            const paths = dshTaskPaths(task.id, current.generation);
+            const env = buildDshHarnessEnv(task.id, {
+              ...process.env,
+              GITHUB_TOKEN: "canary-ambient-credential",
+              NPM_TOKEN: "canary-ambient-credential",
+              AWS_SECRET_ACCESS_KEY: "canary-ambient-credential",
+            });
+            env.DEEPSEEK_API_KEY = activeRelay.childApiKey;
+            env.DEEPSEEK_BASE_URL = activeRelay.baseUrl;
+            env.DSH_CWD = worktree.path;
+            env.DSH_SESSION_ROOT = paths.sessionDir;
+            env.DSH_CORDIS_CONFIG = paths.configFile;
+            env.DO_NOT_TRACK = "1";
+            env.ORCH_TASK_ID = task.id;
+            env.ORCH_PROJECT_ID = project.id;
+            env.SERVICE_TOKEN = process.env.SERVICE_TOKEN || "";
+            const credentialShaped =
+              /(TOKEN|KEY|SECRET|PASSWORD|PASSWD|CREDENTIAL|COOKIE|AUTH|SESSION)/i;
+            // The only credential-shaped names the driver deliberately
+            // re-injects: the relay key, the local service token, and the
+            // session-persistence path (a directory, matched by "SESSION").
+            const allowed = new Set([
+              "DEEPSEEK_API_KEY",
+              "SERVICE_TOKEN",
+              "DSH_SESSION_ROOT",
+            ]);
+            const unexpected = Object.keys(env).filter(
+              (key) => credentialShaped.test(key) && !allowed.has(key),
+            );
+            return {
+              taskStateIsolated:
+                paths.taskHome.startsWith(process.env.ORCH_TEST_TMP!)
+                && paths.sessionDir.startsWith(paths.taskHome),
+              relayCredentialOnly:
+                env.DEEPSEEK_API_KEY === activeRelay.childApiKey
+                && env.SERVICE_TOKEN === (process.env.SERVICE_TOKEN || "")
+                && unexpected.length === 0,
+              ambientCredentialLeak: unexpected.length > 0,
+            };
+          }
           const env = harness === "claude"
             ? buildLiteLLMClaudeEnv(
                 task.id,
@@ -622,7 +719,8 @@ liveDescribe("live harness-model admission", () => {
             harness,
             harnessVersion: harnessVersion(harness),
             testRevision: testRevision(),
-            requiresInteractiveAsk: true,
+            requiresOperatorBridge: capabilities.supportsMcpTools,
+            requiresInteractiveAsk: capabilities.supportsAsks,
           },
           transport,
           optIn: true,
@@ -636,7 +734,7 @@ liveDescribe("live harness-model admission", () => {
         process.cwd(),
         "docs",
         "evaluations",
-        `2026-08-13-${harness}-${candidate.artifactSlug}-admission.json`,
+        `${artifact.tested_at.slice(0, 10)}-${harness}-${candidate.artifactSlug}-admission.json`,
       );
       writeFileSync(artifactPath, `${JSON.stringify(artifact, null, 2)}\n`, {
         mode: 0o600,

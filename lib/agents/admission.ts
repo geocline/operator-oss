@@ -35,6 +35,15 @@ export interface AdmissionObservation {
     malformedEvents: number;
   };
   operatorBridge: {
+    /**
+     * Whether this pairing's harness declares the Operator tool bridge at all
+     * (AgentCapabilities.supportsMcpTools). A harness with no bridge (dsh's
+     * packaged runtime has no MCP client compiled in) gets this gate waived
+     * explicitly - recorded in the gate detail - instead of failing a
+     * capability it never claimed. The waiver never invents evidence:
+     * toolSucceeded stays whatever was actually observed.
+     */
+    required: boolean;
     toolSucceeded: boolean;
     interactiveAskClaimed: boolean;
     interactiveAskSucceeded: boolean;
@@ -192,11 +201,15 @@ export function reduceAdmission(
     && observation.identity.resolvedModel === observation.expectedResolvedModel
     && observation.identity.fallbackFree
     && observation.identity.trustedSource !== "incomplete";
+  const bridgeWaived = !observation.operatorBridge.required;
   const bridgePassed =
-    observation.operatorBridge.toolSucceeded
-    && (
-      !observation.operatorBridge.interactiveAskClaimed
-      || observation.operatorBridge.interactiveAskSucceeded
+    bridgeWaived
+    || (
+      observation.operatorBridge.toolSucceeded
+      && (
+        !observation.operatorBridge.interactiveAskClaimed
+        || observation.operatorBridge.interactiveAskSucceeded
+      )
     );
   const usagePassed =
     Number.isFinite(observation.usage.inputTokens)
@@ -231,9 +244,11 @@ export function reduceAdmission(
     tool_loop: toolLoopGate(observation.toolLoop),
     operator_bridge: gate(
       bridgePassed,
-      bridgePassed
-        ? "scoped Operator tool succeeded"
-        : "Operator tool or claimed interactive ask did not complete",
+      bridgeWaived
+        ? "harness declares no Operator tool bridge; gate waived by capability"
+        : bridgePassed
+          ? "scoped Operator tool succeeded"
+          : "Operator tool or claimed interactive ask did not complete",
     ),
     repository_result: gate(
       observation.repository.disposable

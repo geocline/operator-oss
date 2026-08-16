@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "alias": "operator.kimi-k3",
+  "resolved_model": "moonshotai/kimi-k3-20260715",
+  "harness": "kimi-code",
+  "harness_version": "kimi, version 1.49.0",
+  "test_revision": "3cd85d7a7958+wave0.04cc0a5f5689",
+  "tested_at": "2026-08-16T19:10:45.942Z",
+  "status": "failed",
+  "gates": {
+    "identity": {
+      "passed": true,
+      "detail": "exact alias resolved to moonshotai/kimi-k3-20260715"
+    },
+    "basic_turn": {
+      "passed": true,
+      "detail": "coherent result streamed through the harness"
+    },
+    "tool_loop": {
+      "passed": false,
+      "detail": "missing command tool call"
+    },
+    "operator_bridge": {
+      "passed": true,
+      "detail": "scoped Operator tool succeeded"
+    },
+    "repository_result": {
+      "passed": true,
+      "detail": "disposable fixture contains the expected edit and its tests pass"
+    },
+    "resume": {
+      "passed": false,
+      "detail": "same-session recall was not proven"
+    },
+    "stop": {
+      "passed": true,
+      "detail": "interrupt settled with no busy task or surviving process"
+    },
+    "usage": {
+      "passed": true,
+      "detail": "token usage and trusted metered cost are recorded"
+    },
+    "isolation": {
+      "passed": true,
+      "detail": "task state is isolated and only the loopback relay credential was exposed"
+    }
+  },
+  "session_id_sha256": "23936d791880276bded205014175b8c8c8c77f962724a59e630527a37277e89f",
+  "usage": {
+    "input_tokens": 110963,
+    "output_tokens": 2398,
+    "cache_read_tokens": 0,
+    "cache_creation_tokens": 0,
+    "cost_usd": 0.1587342,
+    "cost_status": "trusted"
+  },
+  "provider_reconciliation": {
+    "generation_ids": [
+      "gen-1786907347-K3KS7O9lhdulGiSBO1NY",
+      "gen-1786907364-8jQmgexeGufiSZGMT2dE",
+      "gen-1786907371-aMnBW0L4VzU2q00SUr7f",
+      "gen-1786907374-NQ1mVxvP7db3Nb02gIJh",
+      "gen-1786907382-tsMwz6sfbsldqL2OcI5O",
+      "gen-1786907387-Evd3tOH9oxYRBN3dd8cx",
+      "gen-1786907397-3zumVavWEJPgTHOMBDsA",
+      "gen-1786907407-TGRZtGnxGzYfEZp2Jzxw"
+    ],
+    "physical_models": [
+      "moonshotai/kimi-k3-20260715"
+    ],
+    "providers": [
+      "Moonshot AI"
+    ],
+    "provider_cost_usd": 0.1587342,
+    "key_usage_delta_usd": 0.05852639999999987,
+    "complete": true
+  },
+  "process_settlement": {
+    "settled": true,
+    "task_busy": false,
+    "survivor_count": 0
+  },
+  "diagnostics": [
+    "8 provider generation(s) reconciled",
+    "gateway alias binding was fallback-free",
+    "fresh event counts: ask=1, ask_answered=1, assistant=92, done=1, model=1, notice=1, session=1, suggested=1, tool=6, tool_result=6",
+    "resume event counts: assistant=7, done=1, model=1, notice=1, session=1",
+    "stop event counts: assistant=46, done=2, model=2, session=2, tool=2"
+  ]
+}

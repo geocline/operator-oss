@@ -8,7 +8,7 @@
 // this fixture was captured from. Scenario knobs come from FAKE_DSH_* env
 // vars so the client under test runs unmodified (mirrors
 // tests/fixtures/prime/fake-prime-agent.mjs).
-import { readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 
 const send = (value) => process.stdout.write(`${JSON.stringify(value)}\n`);
 const respond = (id, result) => send({ jsonrpc: "2.0", id, result });
@@ -60,6 +60,12 @@ function handle(request) {
     case "session/prompt": {
       if (process.env.FAKE_DSH_NO_RESPONSE === "1") return;
       const sessionId = params.sessionId;
+      if (process.env.FAKE_DSH_PROMPT_FILE) {
+        appendFileSync(
+          process.env.FAKE_DSH_PROMPT_FILE,
+          `${JSON.stringify({ sessionId, text: params.contentBlocks?.[0]?.text ?? "" })}\n`,
+        );
+      }
       const messageId = "fake-message-id";
       respond(id, { messageId });
       streamScripted(sessionId);

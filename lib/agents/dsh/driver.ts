@@ -6,6 +6,7 @@ import type { AgentDriver, AgentLoginSession } from "../types";
 import { DSH_CLI_PATH, INTERNAL_BASE_URL, LITELLM_DSH_HOME } from "../../config";
 import { buildProjectContext, buildWorkstreamRuntimeGuidance, makeQueue } from "../shared";
 import { getWorkstreamByTask } from "../../workstreams/store";
+import { listMessages } from "../../store";
 import { liteLLMCapabilities } from "../litellm/capabilities";
 import { modelForHarness } from "../litellm/catalog";
 import { refreshLiteLLMCatalog } from "../litellm/catalog-store";
@@ -99,6 +100,13 @@ function writeDshConfig(configFile: string): void {
     "",
     "- id: llm-deepseek",
     "  name: '@deepseek-ai/dsh-llm-deepseek'",
+    "  config:",
+    // The adapter's default per-request output cap is 256,000 tokens and it
+    // never clamps against the context window (llm-deepseek README). An
+    // uncapped request reserves that much completion budget at the provider -
+    // the same failure class as Kimi Code's 929k-token HTTP 402 on Aug 13
+    // (kimi caps at 16384 via KIMI_MODEL_MAX_COMPLETION_TOKENS; same value).
+    "    maxTokens: 16384",
     "",
     "- id: sessions",
     "  name: '@deepseek-ai/dsh-session-persistence-jsonl'",
@@ -129,6 +137,43 @@ function writeDshConfig(configFile: string): void {
     "",
   ].join("\n");
   writeFileSync(configFile, yaml, { mode: 0o600 });
+}
+
+// Continuity across turns is prompt-level, not wire-level (see runTurn):
+// bounded so a long chat cannot balloon every request. Newest turns win.
+const REPLAY_MAX_MESSAGES = 40;
+const REPLAY_MAX_CHARS = 24_000;
+
+/**
+ * Replay a bounded tail of this generation's persisted transcript, ending at
+ * the LAST assistant message: the runner persists the current turn's user
+ * text before runTurn starts (lib/runner.ts), so anything after the final
+ * assistant reply is the in-flight message and must not be duplicated.
+ */
+export function buildDshTranscriptReplay(taskId: string, generation: number): string {
+  const conversational = listMessages(taskId).filter(
+    (message) =>
+      message.generation === generation
+      && (message.role === "user" || message.role === "assistant"),
+  );
+  const lastAssistant = conversational.map((m) => m.role).lastIndexOf("assistant");
+  if (lastAssistant === -1) return "";
+  const tail = conversational.slice(0, lastAssistant + 1).slice(-REPLAY_MAX_MESSAGES);
+  const lines: string[] = [];
+  let used = 0;
+  for (let index = tail.length - 1; index >= 0; index -= 1) {
+    const message = tail[index];
+    const text = `${message.role === "user" ? "User" : "Assistant"}: ${message.content}`;
+    if (used + text.length > REPLAY_MAX_CHARS && lines.length) break;
+    lines.unshift(
+      text.length > REPLAY_MAX_CHARS ? `${text.slice(0, REPLAY_MAX_CHARS)} [truncated]` : text,
+    );
+    used += text.length;
+  }
+  return [
+    "Conversation so far, replayed verbatim (treat it as your own prior turns in this session):",
+    ...lines,
+  ].join("\n\n");
 }
 
 async function* runTurn(
@@ -169,7 +214,16 @@ async function* runTurn(
   const queue = makeQueue<StreamEvent>();
   let agentEnded = false;
 
-  const dshSessionId = task.session_id || randomUUID();
+  // The stable session id Operator persists for this task's lineage. The
+  // WIRE-level session id is fresh every turn: the pinned dsh jsonrpc runtime
+  // cannot resume a persisted session across processes - the protocol has no
+  // resume method, `session/prompt` on an unknown id always agents.create()s,
+  // and the persistence coordinator rejects a previously persisted id as an
+  // "id collision" (verified against the real 0.1.0rc6 binary, 2026-08-16).
+  // Continuity is re-established by replaying the persisted transcript tail
+  // into the prompt instead.
+  const lineageSessionId = task.session_id || randomUUID();
+  const wireSessionId = randomUUID();
 
   try {
     const paths = ensureDshTaskDirs(task.id, task.generation);
@@ -216,17 +270,19 @@ async function* runTurn(
     void client.settled.then(() => queue.close());
 
     await client.request("initialize", { cwd: workDir, provider: "deepseek-official", model: selected.value });
-    queue.push({ type: "session", sessionId: dshSessionId });
+    queue.push({ type: "session", sessionId: lineageSessionId });
     queue.push({ type: "model", model: selected.value });
 
     const guidance = buildWorkstreamRuntimeGuidance(getWorkstreamByTask(task.id)?.state === "active");
     const prompt = task.session_id
-      ? [guidance, userText].filter(Boolean).join("\n\n---\n\n")
+      ? [buildDshTranscriptReplay(task.id, task.generation), guidance, userText]
+          .filter(Boolean)
+          .join("\n\n---\n\n")
       : [buildProjectContext(project, task), guidance, userText].filter(Boolean).join("\n\n---\n\n");
 
     let promptError: Error | null = null;
     const promptDone = client
-      .request("session/prompt", { sessionId: dshSessionId, contentBlocks: [{ type: "text", text: prompt }] })
+      .request("session/prompt", { sessionId: wireSessionId, contentBlocks: [{ type: "text", text: prompt }] })
       .catch((error: Error) => {
         promptError = error;
         queue.close();
@@ -260,7 +316,7 @@ async function* runTurn(
   }
 
   appendOperatorSessionIndex(LITELLM_DSH_HOME, {
-    session_id: dshSessionId,
+    session_id: lineageSessionId,
     task_id: task.id,
     project_id: project.id,
     task_title: task.title,
@@ -269,7 +325,7 @@ async function* runTurn(
     model: selected.value,
     updated_at: new Date().toISOString(),
   });
-  yield { type: "done", sessionId: dshSessionId };
+  yield { type: "done", sessionId: lineageSessionId };
 }
 
 const managedLogin = (error: string | null): AgentLoginSession => ({
