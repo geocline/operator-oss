@@ -32,8 +32,15 @@ export function liteLLMCapabilities(harness: LiteLLMHarness = "codex"): AgentCap
   );
   const reasoning = new Set(models.flatMap((m) => m.reasoningOptions));
   // Prime is not an OS sandbox, so Plan mode stays hidden until an external
-  // restriction test proves writes and network access are blocked.
-  const autoRunOnly = harness === "prime" || harness === "kimi-code";
+  // restriction test proves writes and network access are blocked. dsh runs
+  // the same way (bash/fs tools with no sandbox plugin wired in the
+  // composition Operator drives it with) - see lib/agents/dsh/driver.ts.
+  const autoRunOnly = harness === "prime" || harness === "kimi-code" || harness === "dsh";
+  // dsh has no orchestrator-tool bridge yet: its packaged runtime binary does
+  // not bundle an MCP client plugin (verified by scanning it for
+  // @deepseek-ai/dsh-mcp-client - absent), so suggest_task/expose_service/
+  // ask_user cannot attach and there is no interactive ask surface either.
+  const supportsOperatorTools = harness !== "dsh";
   return {
     models: models.map((m) => ({
       value: m.value,
@@ -56,8 +63,8 @@ export function liteLLMCapabilities(harness: LiteLLMHarness = "codex"): AgentCap
     permissionModes: autoRunOnly ? [AUTO_RUN] : [AUTO_RUN, PLAN_MODE],
     // Prime asks/tools run through the Operator extension; enabled once the
     // tool-parity suite (tests/primeOperatorTools.test.ts) went green.
-    supportsAsks: true,
-    supportsMcpTools: true,
+    supportsAsks: supportsOperatorTools,
+    supportsMcpTools: supportsOperatorTools,
     reportsCostUsd: harness === "prime",
     costIsEstimated: false,
     supportsResume: true,

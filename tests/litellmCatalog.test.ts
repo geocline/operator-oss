@@ -301,7 +301,7 @@ describe("Operator-tagged LiteLLM catalog", () => {
     ]);
     expect(result.errors).toEqual([
       { model: "operator.dedupe", error: "operator.admissions must not repeat harness prime" },
-      { model: "operator.bad", error: "operator.admissions[0].harness must be codex, claude, prime, or kimi-code" },
+      { model: "operator.bad", error: "operator.admissions[0].harness must be codex, claude, prime, kimi-code, or dsh" },
     ]);
     expect(JSON.stringify(result)).not.toMatch(/provider-secret|private\/provider-model|litellm_params/);
   });

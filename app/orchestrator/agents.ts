@@ -14,6 +14,7 @@ const PUBLIC_HARNESS_IDS: Record<string, string> = {
   "litellm-claude": "claude",
   "litellm-prime": "prime",
   "litellm-kimi-code": "kimi-code",
+  "litellm-dsh": "dsh",
 };
 
 export function publicHarnessId(id: string | null | undefined): string | null | undefined {

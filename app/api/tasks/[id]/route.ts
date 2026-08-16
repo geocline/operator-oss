@@ -5,6 +5,8 @@ import { removePrimeTaskState } from "@/lib/agents/prime/session-paths";
 import { settlePrimeTask } from "@/lib/agents/prime/driver";
 import { settleKimiCodeTask } from "@/lib/agents/kimi-code/driver";
 import { removeKimiCodeTaskState } from "@/lib/agents/kimi-code/session-paths";
+import { settleDshTask } from "@/lib/agents/dsh/driver";
+import { removeDshTaskState } from "@/lib/agents/dsh/session-paths";
 import { removeTaskUploads } from "@/lib/uploads";
 import {
   beginTaskDeletion,
@@ -230,6 +232,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     await Promise.all([
       settlePrimeTask(id),
       settleKimiCodeTask(id),
+      settleDshTask(id),
     ]);
   } catch (error) {
     console.error(`agent process cleanup failed for task ${id}:`, error);
@@ -255,10 +258,12 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   try {
     removePrimeTaskState(id);
     removeKimiCodeTaskState(id);
+    removeDshTaskState(id);
     setTimeout(() => {
       try {
         removePrimeTaskState(id);
         removeKimiCodeTaskState(id);
+        removeDshTaskState(id);
       } catch {
         /* best-effort re-sweep */
       }

@@ -1,0 +1,4 @@
+{"type":"tool/call","data":{"turn":1,"step":1,"callId":"call-1","name":"bash","arguments":"{\"command\":\"echo hi\",\"description\":\"echo hi\"}"}}
+{"type":"tool/result","data":{"turn":1,"step":1,"message":{"role":"user","content":[{"type":"tool-result","toolCallId":"call-1","isError":false,"content":[{"type":"text","text":"hi\n[exit code: 0]"}]}],"source":{"kind":"tool"},"id":"msg-1"}}}
+{"type":"assistant/message","data":{"turn":1,"step":1,"message":{"role":"assistant","content":[{"type":"text","text":"Task complete."}],"source":{"kind":"model"},"id":"msg-2"},"usage":{"inputTokens":120,"outputTokens":45,"cacheReadTokens":10,"cacheWriteTokens":0}}}
+{"type":"turn/end","data":{"turn":1,"reason":{"kind":"completed"}}}

@@ -32,10 +32,12 @@ export const DEFAULT_AGENT = "claude";
 export const PUBLIC_AGENT_IDS: Record<string, string> = {
   "litellm-prime": "prime",
   "litellm-kimi-code": "kimi-code",
+  "litellm-dsh": "dsh",
 };
 export const PUBLIC_AGENT_LABELS: Record<string, string> = {
   "litellm-prime": "Prime",
   "litellm-kimi-code": "Kimi Code",
+  "litellm-dsh": "DSH (DeepSeek)",
 };
 const REAL_AGENT_IDS: Record<string, string> = Object.fromEntries(
   Object.entries(PUBLIC_AGENT_IDS).map(([real, pub]) => [pub, real]),
@@ -58,6 +60,7 @@ const CAPABILITIES: Record<string, AgentCapabilities> = {
   "litellm-claude": liteLLMCapabilities("claude"),
   "litellm-prime": liteLLMCapabilities("prime"),
   "litellm-kimi-code": liteLLMCapabilities("kimi-code"),
+  "litellm-dsh": liteLLMCapabilities("dsh"),
 };
 
 /** Capability descriptor by agent id; unknown/null ids fall back to the default
@@ -68,6 +71,7 @@ export function getCapabilities(id: string | null | undefined): AgentCapabilitie
   if (id === "litellm-claude") return liteLLMCapabilities("claude");
   if (id === "litellm-prime") return liteLLMCapabilities("prime");
   if (id === "litellm-kimi-code") return liteLLMCapabilities("kimi-code");
+  if (id === "litellm-dsh") return liteLLMCapabilities("dsh");
   return (id && CAPABILITIES[id]) || CAPABILITIES[DEFAULT_AGENT];
 }
 

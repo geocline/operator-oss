@@ -1,0 +1,1 @@
+{"type":"turn/end","data":{"turn":1,"reason":{"kind":"error","error":{"message":"smoke test: no real key","code":"AUTH","status":401}}}}

@@ -1,4 +1,4 @@
-export type LiteLLMHarness = "codex" | "claude" | "prime" | "kimi-code";
+export type LiteLLMHarness = "codex" | "claude" | "prime" | "kimi-code" | "dsh";
 
 export type LiteLLMAdmissionStatus = "passed" | "failed";
 

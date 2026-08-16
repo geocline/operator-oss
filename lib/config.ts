@@ -93,6 +93,34 @@ export const LITELLM_KIMI_CODE_HOME =
 /** Pinned Kimi Code CLI path; blank resolves `kimi` on PATH. */
 export const KIMI_CODE_CLI_PATH = process.env.KIMI_CODE_CLI_PATH || "kimi";
 
+const configuredDshHome = process.env.LITELLM_DSH_HOME;
+if (configuredDshHome && !path.isAbsolute(configuredDshHome)) {
+  throw new Error("LITELLM_DSH_HOME must be an absolute path");
+}
+
+/**
+ * Task-local dsh (DeepSeek Harness) state root for metered LiteLLM-backed
+ * turns. Each task gets `<home>/<task-id>/` (cordis config + per-generation
+ * sessions), so a hard delete can retire one task's dsh state without
+ * touching any other's.
+ */
+export const LITELLM_DSH_HOME =
+  configuredDshHome || path.join(os.homedir(), ".operator", "litellm-dsh");
+
+/**
+ * Path to the pinned `dsh-jsonrpc-agent` runtime executable the litellm-dsh
+ * driver spawns directly over stdio JSON-RPC. There is no npm package for
+ * this composition (the published `@deepseek-ai/dsh-sdk-jsonrpc-server` /
+ * `dsh-llm-deepseek` peer graph is broken on the npm registry as of this
+ * writing - see docs/superpowers/specs/2026-08-16-litellm-dsh-driver.md); the
+ * binary instead comes from the `deepseek-harness-runtime-bin` platform wheel
+ * pulled in by `pip install deepseek-harness-sdk`. Blank = no CLI configured
+ * (the driver reports an actionable connect-surface error naming the pip
+ * install and this env var; the Docker image pins
+ * /usr/local/bin/dsh-jsonrpc-agent).
+ */
+export const DSH_CLI_PATH = process.env.DSH_CLI_PATH || "";
+
 /**
  * Models the INTERNAL one-shot jobs run on (lib/agents/oneshots.ts) — the turns
  * that run outside the main chat and that the user never picks a model for:

@@ -1,0 +1,1 @@
+{"type":"tool/call","data":{"turn":1,"step":1,"callId":"call-1","name":"bash","arguments":"{\"command\":\"sleep 300\",\"description\":\"long running\"}"}}

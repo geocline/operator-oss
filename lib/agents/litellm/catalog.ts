@@ -37,6 +37,7 @@ const cleanHarness = (value: unknown): LiteLLMHarness | null =>
   || value === "claude"
   || value === "prime"
   || value === "kimi-code"
+  || value === "dsh"
     ? value
     : null;
 
@@ -75,7 +76,7 @@ function parseAdmissions(
 
     const harness = cleanHarness(entry.harness);
     if (!harness) {
-      errors.push(`${prefix}.harness must be codex, claude, prime, or kimi-code`);
+      errors.push(`${prefix}.harness must be codex, claude, prime, kimi-code, or dsh`);
       return;
     }
     if (seenHarnesses.has(harness)) {
@@ -167,8 +168,8 @@ export function parseLiteLLMModelInfo(raw: unknown): LiteLLMParseResult {
       ? operator.harnesses
           .map(cleanHarness)
           .filter(
-            (h): h is Exclude<LiteLLMHarness, "kimi-code"> =>
-              !!h && h !== "kimi-code",
+            (h): h is Exclude<LiteLLMHarness, "kimi-code" | "dsh"> =>
+              !!h && h !== "kimi-code" && h !== "dsh",
           )
       : [];
     const hasAdmissions = operator.admissions !== undefined;

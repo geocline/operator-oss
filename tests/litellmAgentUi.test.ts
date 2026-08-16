@@ -45,12 +45,14 @@ describe("LiteLLM managed agent surface", () => {
   it("gives every driver a clean public id: no litellm-* id ever reaches the client", async () => {
     const body = await (await GET()).json();
     const ids = body.agents.map((agent: { id: string }) => agent.id);
-    expect(ids).toEqual(["claude", "codex", "prime", "kimi-code"]);
+    expect(ids).toEqual(["claude", "codex", "prime", "kimi-code", "dsh"]);
     expect(ids.some((id: string) => id.includes("litellm"))).toBe(false);
     const prime = body.agents.find((a: { id: string }) => a.id === "prime");
     expect(prime.label).toBe("Prime");
     const kimi = body.agents.find((a: { id: string }) => a.id === "kimi-code");
     expect(kimi.label).toBe("Kimi Code");
+    const dsh = body.agents.find((a: { id: string }) => a.id === "dsh");
+    expect(dsh.label).toBe("DSH (DeepSeek)");
     expect(body.default).not.toMatch(/litellm/);
   });
 
@@ -62,6 +64,7 @@ describe("LiteLLM managed agent surface", () => {
       "codex",
       "prime",
       "kimi-code",
+      "dsh",
     ]);
     const agent = body.agents.find((a: { id: string }) => a.id === "codex");
     expect(agent).toMatchObject({

@@ -23,6 +23,12 @@ chmod 700 "$HOME/.operator/litellm-prime"
 mkdir -p "$HOME/.operator/litellm-kimi-code"
 chmod 700 "$HOME/.operator/litellm-kimi-code"
 
+# dsh receives a separate home per task beneath this restrictive root. Its
+# per-turn cordis.yml config carries no secret (the relay base URL/key arrive
+# as env only, never written to disk).
+mkdir -p "$HOME/.operator/litellm-dsh"
+chmod 700 "$HOME/.operator/litellm-dsh"
+
 # Subscription login by default. If an agent key/token env var is present, the
 # `claude`/`codex` CLIs (and the Agent SDK child processes, and every pty shell
 # — all inherit this environment) prefer it over the volume's stored login and

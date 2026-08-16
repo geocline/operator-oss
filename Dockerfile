@@ -101,6 +101,35 @@ RUN curl -fsSL -o /tmp/prime-agent.tgz \
   && [ "$(prime-agent --version 2>&1)" = "${PRIME_AGENT_VERSION}" ] \
   && prime-agent --version
 
+# The dsh (DeepSeek Harness) runtime for the litellm-dsh driver, which drives
+# it directly over stdio JSON-RPC (task-local state lives under
+# ~/.operator/litellm-dsh on the volume). There is no npm package for this
+# composition: `@deepseek-ai/dsh-sdk-jsonrpc-server` and every LLM-adapter
+# plugin (`dsh-llm-deepseek`, `dsh-llm-pi-ai`) peer-depend on
+# `@deepseek-ai/dsh-environment`, which does not exist on the npm registry
+# (confirmed via `npm view`/`pnpm add` 404s - see docs/superpowers/specs/
+# 2026-08-16-litellm-dsh-driver.md). The Python SDK's platform wheel instead
+# ships a prebuilt single-file executable of the exact same composition; pip
+# resolves the linux-x64 wheel for this image automatically. Pinned - never
+# latest - to the exact pre-release; verified with a real protocol smoke (no
+# model call, no API key) instead of a --version flag, since the binary has
+# none.
+ARG DSH_RUNTIME_VERSION=0.1.0rc6
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 python3-venv \
+  && rm -rf /var/lib/apt/lists/* \
+  && python3 -m venv /opt/dsh-runtime \
+  && /opt/dsh-runtime/bin/pip install --no-cache-dir "deepseek-harness-sdk==${DSH_RUNTIME_VERSION}" \
+  && /opt/dsh-runtime/bin/python -c "\
+from deepseek_harness_runtime import bundled_runtime_path; \
+import shutil, os; \
+p = str(bundled_runtime_path()); \
+shutil.copy(p, '/usr/local/bin/dsh-jsonrpc-agent'); \
+os.chmod('/usr/local/bin/dsh-jsonrpc-agent', 0o755)" \
+  && rm -rf /opt/dsh-runtime \
+  && [ -x /usr/local/bin/dsh-jsonrpc-agent ] \
+  && (/usr/local/bin/dsh-jsonrpc-agent 2>&1 || true) | grep -F "usage: dsh-jsonrpc-agent"
+
 # Replace the base image's `node` user so uid 1000 owns /home/orch — named
 # volumes initialize from this skeleton with correct ownership on first mount.
 RUN userdel -r node \
@@ -150,6 +179,7 @@ ENV NODE_ENV=production \
     CODEX_CLI_PATH=/usr/local/bin/codex \
     PRIME_CLI_PATH=/usr/local/bin/prime-agent \
     KIMI_CODE_CLI_PATH=/usr/local/bin/kimi \
+    DSH_CLI_PATH=/usr/local/bin/dsh-jsonrpc-agent \
     DISABLE_AUTOUPDATER=1
 
 USER orch
