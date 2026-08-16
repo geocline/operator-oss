@@ -276,7 +276,13 @@ describe("Operator-tagged LiteLLM catalog", () => {
   it("accepts prime and mixed harness tags and rejects unknown strings", () => {
     const result = parseLiteLLMModelInfo({
       data: [
-        valid({ admissions: [admission("prime", "operator.kimi-k3")] }, "operator.kimi-k3"),
+        // Distinct litellm_params.model so this fixture doesn't collide with
+        // operator.dedupe's default backing model below (they're meant to be
+        // two unrelated aliases here, not duplicate-alias-collapsing cases).
+        {
+          ...valid({ admissions: [admission("prime", "operator.kimi-k3")] }, "operator.kimi-k3"),
+          litellm_params: { model: "openrouter/moonshotai/kimi-k3", api_key: "provider-secret" },
+        },
         valid({
           admissions: [
             admission("codex", "operator.dual"),
@@ -304,6 +310,71 @@ describe("Operator-tagged LiteLLM catalog", () => {
       { model: "operator.bad", error: "operator.admissions[0].harness must be codex, claude, prime, kimi-code, or dsh" },
     ]);
     expect(JSON.stringify(result)).not.toMatch(/provider-secret|private\/provider-model|litellm_params/);
+  });
+
+  it("collapses redundant gateway aliases that share one physical model, label, and harness set", () => {
+    // A shared multi-tenant gateway can expose the same physical model under
+    // several model_name deployments (e.g. other apps' task-scoped aliases
+    // that happen to carry the same operator.* coding tags). That is not
+    // three different models mislabeled the same - it is one model wearing
+    // three names, and the picker should show it once. The "operator."
+    // alias is preferred as canonical.
+    const kimiK3 = (modelName: string) => ({
+      model_name: modelName,
+      model_info: {
+        operator: {
+          enabled: true,
+          label: "Kimi K3",
+          kind: "coding",
+          harnesses: ["codex", "prime"],
+          description: "Frontier multimodal coding",
+          context_window: 1_048_576,
+          sort_order: 30,
+        },
+      },
+      litellm_params: { model: "openrouter/moonshotai/kimi-k3", api_key: "provider-secret" },
+    });
+    const result = parseLiteLLMModelInfo({
+      data: [
+        kimiK3("task.tools.ceo"),
+        kimiK3("task.tools.fitcheck"),
+        kimiK3("operator.kimi-k3"),
+      ],
+    });
+    expect(result.models.map((m) => m.value)).toEqual(["operator.kimi-k3"]);
+    expect(result.models[0].label).toBe("Kimi K3");
+    expect(result.errors).toEqual([]);
+  });
+
+  it("keeps aliases of the same physical model distinct when their harness set or label differs", () => {
+    const base = {
+      model_info: {
+        operator: {
+          enabled: true,
+          label: "Kimi K3",
+          kind: "coding",
+          harnesses: ["codex"],
+          description: "Frontier multimodal coding",
+          context_window: 1_048_576,
+          sort_order: 30,
+        },
+      },
+      litellm_params: { model: "openrouter/moonshotai/kimi-k3", api_key: "provider-secret" },
+    };
+    const result = parseLiteLLMModelInfo({
+      data: [
+        { ...base, model_name: "operator.kimi-k3-codex" },
+        {
+          ...base,
+          model_name: "operator.kimi-k3-prime",
+          model_info: { operator: { ...base.model_info.operator, harnesses: ["prime"] } },
+        },
+      ],
+    });
+    expect(result.models.map((m) => m.value)).toEqual([
+      "operator.kimi-k3-codex",
+      "operator.kimi-k3-prime",
+    ]);
   });
 
   it("filters modelForHarness and capability model lists per harness", () => {

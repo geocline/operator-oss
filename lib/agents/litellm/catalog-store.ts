@@ -32,6 +32,10 @@ function admittedSnapshot(value: LiteLLMCatalogSnapshot): LiteLLMCatalogSnapshot
           harness === "claude"
           || harness === "codex"
           || harness === "prime",
+        // Note: kimi-code/dsh are deliberately excluded from the legacy
+        // (no-admissions) declared-harness path — those two harnesses only
+        // ever become visible via a passing admission record, never a bare
+        // declaration. See the admissions-evidence branch below.
       );
       return harnesses.length ? [{ ...model, harnesses, unvetted: true }] : [];
     }
@@ -42,6 +46,7 @@ function admittedSnapshot(value: LiteLLMCatalogSnapshot): LiteLLMCatalogSnapshot
         || entry.harness === "codex"
         || entry.harness === "prime"
         || entry.harness === "kimi-code"
+        || entry.harness === "dsh"
       )
       && (entry.status === "passed" || entry.status === "failed")
       && typeof entry.harnessVersion === "string"

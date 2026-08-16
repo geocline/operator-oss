@@ -162,6 +162,39 @@ describe("LiteLLM catalog persistence", () => {
     expect(reloaded).toMatchObject({ value: "operator.kimi-k3", harnesses: ["codex", "prime"], unvetted: true });
   });
 
+  it("keeps a passed dsh admission across a cache reload", () => {
+    setSetting(SETTING, JSON.stringify({
+      models: [{
+        value: "operator.deepseek-v4-pro",
+        label: "DeepSeek V4 Pro",
+        description: "",
+        kind: "coding",
+        harnesses: ["dsh"],
+        admissions: [{
+          harness: "dsh",
+          status: "passed",
+          harnessVersion: "dsh-2026.08",
+          testRevision: "operator-admission-v1",
+          testedAt: "2026-08-16T00:00:00.000Z",
+          requestedAlias: "operator.deepseek-v4-pro",
+          resolvedModel: "deepseek/deepseek-v4-pro-20260423",
+        }],
+        contextWindow: 200_000,
+        reasoningOptions: [],
+        sortOrder: 1,
+      }],
+      errors: [],
+      refreshedAt: "2026-08-16T00:00:00.000Z",
+      stale: false,
+    }));
+
+    expect(hydrateLiteLLMCatalog().models[0]).toMatchObject({
+      value: "operator.deepseek-v4-pro",
+      harnesses: ["dsh"],
+      unvetted: false,
+    });
+  });
+
   it("still drops a cached harness the current rules would reject", () => {
     setSetting(SETTING, JSON.stringify({
       models: [{

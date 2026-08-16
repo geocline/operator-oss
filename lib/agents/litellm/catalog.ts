@@ -134,6 +134,10 @@ export function parseLiteLLMModelInfo(raw: unknown): LiteLLMParseResult {
   const root = record(raw);
   const data = Array.isArray(root?.data) ? root.data : [];
   const models: LiteLLMModel[] = [];
+  // Parallel to `models` — the gateway's own resolved backing model for each
+  // entry (litellm_params.model, e.g. "openrouter/moonshotai/kimi-k3"), used
+  // only to collapse redundant aliases below. Never exposed on LiteLLMModel.
+  const resolvedKeys: (string | null)[] = [];
   const errors: LiteLLMParseResult["errors"] = [];
   const seen = new Set<string>();
 
@@ -142,6 +146,9 @@ export function parseLiteLLMModelInfo(raw: unknown): LiteLLMParseResult {
     const value = cleanString(entry?.model_name) ?? "(unknown)";
     const modelInfo = record(entry?.model_info);
     const operator = record(modelInfo?.operator);
+    const litellmParams = record(entry?.litellm_params);
+    const resolvedKey =
+      cleanString(litellmParams?.model) ?? cleanString(modelInfo?.key);
 
     // Untagged/disabled entries are intentionally invisible, not errors.
     if (!operator || operator.enabled !== true) continue;
@@ -220,12 +227,55 @@ export function parseLiteLLMModelInfo(raw: unknown): LiteLLMParseResult {
       reasoningOptions,
       sortOrder,
     });
+    resolvedKeys.push(resolvedKey);
   }
 
-  models.sort((a, b) =>
+  // Collapse redundant aliases: the shared gateway also serves other apps'
+  // task-scoped deployments (e.g. "task.tools.ceo"), and some of those happen
+  // to carry the same operator.* coding tags as Operator's own canonical
+  // "operator.*" alias for the identical backing model. Showing every alias
+  // as its own picker entry reads as several different models when it is
+  // really one model wearing several names - not a labeling bug, a
+  // deduplication gap. Prefer the "operator."-prefixed alias (Operator's own
+  // naming convention) as the canonical entry; a resolvedKey of null never
+  // collapses (nothing to compare against).
+  // Only collapse when the entries are actual duplicates - same label AND
+  // same harness set - so two aliases of one physical model that are
+  // deliberately scoped to different harnesses (or carry different
+  // labels/descriptions) are both kept.
+  const harnessSetKey = (m: LiteLLMModel) => [...m.harnesses].sort().join(",");
+  const duplicateGroupKey = (m: LiteLLMModel, resolvedKey: string) =>
+    `${resolvedKey} ${m.label} ${harnessSetKey(m)}`;
+
+  const canonicalIndexByGroup = new Map<string, number>();
+  for (let index = 0; index < models.length; index += 1) {
+    const key = resolvedKeys[index];
+    if (!key) continue;
+    const group = duplicateGroupKey(models[index], key);
+    const current = canonicalIndexByGroup.get(group);
+    if (current === undefined) {
+      canonicalIndexByGroup.set(group, index);
+      continue;
+    }
+    const existing = models[current];
+    const candidate = models[index];
+    const candidateIsCanonicalAlias = candidate.value.startsWith("operator.");
+    const existingIsCanonicalAlias = existing.value.startsWith("operator.");
+    if (candidateIsCanonicalAlias && !existingIsCanonicalAlias) {
+      canonicalIndexByGroup.set(group, index);
+    }
+  }
+  const deduped = models.filter((model, index) => {
+    const key = resolvedKeys[index];
+    if (!key) return true;
+    const group = duplicateGroupKey(model, key);
+    return canonicalIndexByGroup.get(group) === index;
+  });
+
+  deduped.sort((a, b) =>
     a.sortOrder - b.sortOrder || a.label.localeCompare(b.label) || a.value.localeCompare(b.value)
   );
-  return { models, errors };
+  return { models: deduped, errors };
 }
 
 export function replaceLiteLLMCatalog(next: LiteLLMCatalogSnapshot): void {
