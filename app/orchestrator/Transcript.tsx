@@ -4,13 +4,14 @@ import { memo, useState } from "react";
 import type { ToolData, ToolPeek, AskAnswers } from "@/lib/types";
 import { Icon } from "../icons";
 import { Markdown } from "../Markdown";
-import { diffCls, splitAttachments, type MsgAttachment } from "./format";
+import { diffCls, splitAttachments, type MsgAttachment, type ProducedFile } from "./format";
 import { CONTEXT_OVERFLOW_NOTICE } from "@/lib/promptLimits";
 import { AUTH_EXPIRED_NOTICE } from "@/lib/authFailure";
 import { USAGE_LIMIT_NOTICE } from "@/lib/usageLimit";
 import type { Msg } from "./types";
 import { Avatar } from "./shared";
 import { CopyButton } from "../CopyButton";
+import { registerToolCard, getToolCard } from "./registry";
 import {
   ARTIFACT_NOTICE_PREFIX,
   decodeArtifactNotice,
@@ -262,6 +263,14 @@ export function AskPanel({ data, agentLabel, onAnswer, onChatAboutIt }: {
   );
 }
 
+// F1 proof case (batch two, Package F): the ask card is the one specialized
+// tool-message rendering that existed before the registry, so it's the first
+// to move onto it. Registered under the synthetic intent key "ask" (there's
+// no real tool name for it) - MessageView's tool dispatch below consults the
+// registry first and falls back to the generic ToolView when a key isn't
+// registered.
+registerToolCard("ask", AskView);
+
 // Attachment chips parsed out of a user message's markers: image thumbnails
 // (click opens full size) and text-file chips (a big paste diverted to a file;
 // click opens it). Both are served from the task's uploads dir.
@@ -290,33 +299,16 @@ function AttachmentStrip({ items }: { items: MsgAttachment[] }) {
 // changes), so unchanged messages skip re-rendering — and re-parsing their
 // markdown — entirely. Callers must pass identity-stable handlers or the memo
 // is defeated (SessionView wraps its handlers for exactly this reason).
-export const MessageView = memo(function MessageView({ m, initial, hideWho, running, agent, agentLabel = "The agent", condensed, onCancelQueued, onClear, onReconnect }: { m: Msg; initial: boolean; hideWho: boolean; running?: boolean; agent?: string | null; agentLabel?: string; condensed?: boolean; onCancelQueued?: (pendingId: string) => void; onClear?: () => void; onReconnect?: () => void }) {
-  if (m.role === "queued") {
-    // A follow-up the user typed mid-turn, waiting its turn. Reads like a user
-    // bubble but dimmed, tagged "Queued", with an × to drop it before it runs.
-    const { text, attachments } = splitAttachments(m.content);
-    return (
-      <div className="msg user queued">
-        <div className="who">
-          <MessageTime value={m.createdAt} />
-          <Avatar who="user" /> You
-          <span className="badge queued-badge">queued</span>
-          <span className="msg-meta-spacer" />
-          {text && <CopyButton text={text} label="Copy message" className="msg-copy" />}
-        </div>
-        <div className="msg-body">
-          {text && <Markdown>{text}</Markdown>}
-          <AttachmentStrip items={attachments} />
-          {onCancelQueued && <button className="queued-x" title="Remove from queue" aria-label="Remove from queue" onClick={() => onCancelQueued(m.id)}>{Icon.x()}</button>}
-        </div>
-      </div>
-    );
-  }
+export const MessageView = memo(function MessageView({ m, initial, hideWho, running, agent, agentLabel = "The agent", condensed, onClear, onReconnect }: { m: Msg; initial: boolean; hideWho: boolean; running?: boolean; agent?: string | null; agentLabel?: string; condensed?: boolean; onClear?: () => void; onReconnect?: () => void }) {
+  // "queued" (a follow-up parked mid-turn) is rendered by the queue dock in
+  // SessionView now (batch two, Package E) - never as a transcript bubble.
+  if (m.role === "queued") return null;
   if (m.role === "tool") {
     let data: ToolData;
     try { data = JSON.parse(m.content) as ToolData; } catch { data = { title: m.content }; }
-    if (data.ask) {
-      return <div className="msg msg-tool"><AskView data={data} agentLabel={agentLabel} /></div>;
+    const ToolCard = getToolCard(data.ask ? "ask" : undefined);
+    if (ToolCard) {
+      return <div className="msg msg-tool"><ToolCard data={data} agentLabel={agentLabel} /></div>;
     }
     return <div className="msg msg-tool"><ToolView data={data} condensed={condensed} /></div>;
   }
@@ -408,6 +400,26 @@ export const MessageView = memo(function MessageView({ m, initial, hideWho, runn
     </div>
   );
 });
+
+// Produced-files footer (batch two, E2): a quiet lane of file chips under the
+// last assistant message of a run that just settled, derived from that run's
+// tool calls (see format.ts's producedFiles - never from prose). Plain
+// informational spans this batch: clicking a chip is explicitly out of scope,
+// so there's no click handler to half-wire.
+const PRODUCED_FILES_MAX = 6;
+export function ProducedFilesFooter({ files }: { files: ProducedFile[] }) {
+  if (!files.length) return null;
+  const shown = files.slice(0, PRODUCED_FILES_MAX);
+  const overflow = files.length - shown.length;
+  return (
+    <div className="produced-files" aria-label="Files touched this run">
+      {shown.map((f) => (
+        <span key={f.path} className="produced-chip" title={f.path}>{Icon.clip()} {f.basename}</span>
+      ))}
+      {overflow > 0 && <span className="produced-chip produced-chip-more">+{overflow} more</span>}
+    </div>
+  );
+}
 
 export function SessionBreak({ summary }: { summary: string }) {
   return (

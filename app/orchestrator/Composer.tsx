@@ -5,6 +5,13 @@ import { Icon } from "../icons";
 import { attachmentMarker, fileAttachmentMarker } from "./format";
 import { PASTE_ATTACH_THRESHOLD } from "@/lib/promptLimits";
 import type { TaskRow } from "./types";
+import {
+  registerCommand,
+  listCommands,
+  registerComposerSeat,
+  composerSeatsFor,
+  type ComposerSeatCtx,
+} from "./registry";
 
 // Drafts persist per-task in localStorage so switching tasks, opening Settings,
 // or reloading the page doesn't throw away half-typed messages. (SessionView is
@@ -39,7 +46,49 @@ type Attachment = {
   error?: string;
 };
 
-export function Composer({ task, agentLabel, disabled, running, models, onSend, onStop, onClear, onHandoff }: { task: TaskRow; agentLabel: string; disabled: boolean; running: boolean; models: { value: string; label: string }[]; onSend: (t: string) => void; onStop: () => void; onClear: () => void; onHandoff: (model: string | null) => void }) {
+// F2 proof case (batch two, Package F): the three built-in slash commands,
+// moved onto the registry with behavior identical to the inline array they
+// replace. `visible` mirrors the old inline gating (a fresh, unstarted
+// session only offers /help); `run` takes the live composer instance state
+// since a module-level registration can't close over any one render.
+registerCommand({
+  name: "/clear",
+  description: "renew: save summary, fresh session (transcript kept, waits for your first prompt)",
+  visible: (ctx) => ctx.task.started === 1,
+  run: (ctx) => { ctx.onClear(); ctx.setVal(""); ctx.setSlash(false); },
+});
+registerCommand({
+  name: "/handoff",
+  description: "write a handoff doc, then fresh session — pick the model",
+  visible: (ctx) => ctx.task.started === 1,
+  run: (ctx) => { ctx.setVal("/handoff "); ctx.setSlash(true); ctx.focus(); },
+});
+registerCommand({
+  name: "/help",
+  description: "show all commands",
+  visible: () => true,
+  run: (ctx) => { ctx.setVal("/"); ctx.setSlash(true); ctx.focus(); },
+});
+
+// F4 proof case: the attach-file button, moved onto a composer seat. Hidden
+// (not disabled) whenever the composer itself is disabled, same as before.
+function AttachSeat({ disabled, openFilePicker }: ComposerSeatCtx) {
+  if (disabled) return null;
+  return (
+    <button className="hint" style={{ cursor: "pointer" }} title="Attach a file - image, PDF, spreadsheet, anything (or drag & drop / paste)" onMouseDown={(e) => { e.preventDefault(); openFilePicker(); }}>{Icon.clip()} file</button>
+  );
+}
+registerComposerSeat("attach-file", "right", { order: 0, Component: AttachSeat });
+
+export function Composer({ task, agentLabel, disabled, running, models, onSend, onStop, onClear, onHandoff, seedDraft }: { task: TaskRow; agentLabel: string; disabled: boolean; running: boolean; models: { value: string; label: string }[]; onSend: (t: string) => void; onStop: () => void; onClear: () => void; onHandoff: (model: string | null) => void;
+  // Queue dock's "Edit" (batch two, E1): the row is cancelled, then its text
+  // lands here. A prop, not a localStorage write - localStorage is only read
+  // by Composer on mount/task-switch, so it can't reach an already-mounted
+  // Composer while the user keeps working the same task. `key` is a bump so
+  // re-editing the same text still re-applies (a plain string prop wouldn't
+  // change identity and the effect wouldn't re-fire).
+  seedDraft?: { text: string; key: number } | null;
+}) {
   const [val, setVal] = useState(() => loadDraft(task.id));
   const [slash, setSlash] = useState(false);
   const [stopping, setStopping] = useState(false);
@@ -62,6 +111,14 @@ export function Composer({ task, agentLabel, disabled, running, models, onSend, 
     setSlash(val.trim().startsWith("/"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task.id]);
+  // Apply an edited queued message into the live draft, keyed off seedDraft's
+  // bump counter so it fires once per Edit click (not on every render).
+  useEffect(() => {
+    if (!seedDraft) return;
+    setVal(seedDraft.text);
+    if (ref.current) { autosize(ref.current); ref.current.focus(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seedDraft?.key]);
 
   const addFiles = (files: File[]) => {
     if (disabled) return;
@@ -97,15 +154,14 @@ export function Composer({ task, agentLabel, disabled, running, models, onSend, 
 
   const ready = atts.filter((a) => a.status === "ready");
   const uploading = atts.some((a) => a.status === "uploading");
-  const cmds = [
-    // /clear and /handoff need a live session to act on; a fresh (or just-
-    // cleared) generation only offers /help.
-    ...(task.started === 1 ? [
-      { cmd: "/clear", desc: "renew: save summary, fresh session (transcript kept, waits for your first prompt)", run: () => { onClear(); setVal(""); setSlash(false); } },
-      { cmd: "/handoff", desc: "write a handoff doc, then fresh session — pick the model", run: () => { setVal("/handoff "); setSlash(true); ref.current?.focus(); } },
-    ] : []),
-    { cmd: "/help", desc: "show all commands", run: () => { setVal("/"); setSlash(true); ref.current?.focus(); } },
-  ];
+  // F2 (batch two, Package F): built from the registry (registered above)
+  // instead of a hardcoded array - /clear and /handoff need a live session to
+  // act on, so their `visible` predicate hides them until one exists (a
+  // fresh, or just-cleared, generation only offers /help).
+  const commandCtx = { task, setVal, setSlash, onClear, focus: () => ref.current?.focus() };
+  const cmds = listCommands()
+    .filter((c) => c.visible(commandCtx))
+    .map((c) => ({ cmd: c.name, desc: c.description, run: () => c.run(commandCtx) }));
   // /handoff's second step: a model submenu (keep current, or any of the
   // driver's models). Chosen model rides across the clear boundary.
   const handoffMode = val.trim().toLowerCase().startsWith("/handoff");
@@ -220,6 +276,14 @@ export function Composer({ task, agentLabel, disabled, running, models, onSend, 
             )}
           </div>
           <div className="comp-foot">
+            {/* F4 (batch two, Package F): registered seats, left then right.
+                Nothing is registered on the left this batch, so that fold
+                renders nothing - the attach-file button (registered above)
+                is the sole right-seat entry, in the same DOM position it
+                held before the registry. */}
+            {composerSeatsFor("left").map((s) => (
+              <s.Component key={s.name} disabled={disabled} openFilePicker={() => fileRef.current?.click()} />
+            ))}
             <span className="hint"><span className="kbd">⏎</span> send</span>
             <span className="hint"><span className="kbd">⇧⏎</span> newline</span>
             <span className="hint"><span className="kbd">/</span> commands</span>
@@ -228,9 +292,9 @@ export function Composer({ task, agentLabel, disabled, running, models, onSend, 
               ref={fileRef} type="file" multiple hidden
               onChange={(e) => { addFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }}
             />
-            {!disabled && (
-              <button className="hint" style={{ cursor: "pointer" }} title="Attach a file - image, PDF, spreadsheet, anything (or drag & drop / paste)" onMouseDown={(e) => { e.preventDefault(); fileRef.current?.click(); }}>{Icon.clip()} file</button>
-            )}
+            {composerSeatsFor("right").map((s) => (
+              <s.Component key={s.name} disabled={disabled} openFilePicker={() => fileRef.current?.click()} />
+            ))}
             {/* Renew is a real mid-turn capability (tests/clearMidTurn.test.ts pins
                 it) — rendered whenever a session exists, suppressed (not
                 disabled) otherwise. Same rule as the header and SessionRail

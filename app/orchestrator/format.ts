@@ -1,5 +1,5 @@
 // Pure formatting + derivation helpers shared across the orchestrator modules.
-import type { AskQuestion, AskAnswers } from "@/lib/types";
+import type { AskQuestion, AskAnswers, ToolData } from "@/lib/types";
 import type { Msg, TaskRow, AgentCapabilities, AgentInfo } from "./types";
 
 // Compact token count: 1234 → "1.2k", 1_200_000 → "1.2M".
@@ -288,4 +288,29 @@ export function splitAttachments(content: string): { text: string; attachments: 
     }
   }
   return { text: kept.join("\n").trim(), attachments };
+}
+
+// ---------- produced-files footer (batch two, Package E) ----------
+// After a reply run settles, the last assistant message gets a quiet footer
+// of the files that run's tool calls actually touched. Derived ONLY from tool
+// messages' structured ToolData, never assistant prose: an Edit/Write/
+// NotebookEdit call carries both a `diff` and a `detail` (the absolute file
+// path — see lib/agents/shared.ts describeToolUse) while read-only calls
+// (Read/Grep/Glob/Bash) carry neither, so "has a diff" is exactly "actually
+// touched a file". Deduped by path, ordered most-recently-touched first (a
+// file edited twice in the same run keeps its LAST touch's position).
+export interface ProducedFile { path: string; basename: string }
+export function producedFiles(messages: Msg[], fromIndex: number): ProducedFile[] {
+  const lastIndexByPath = new Map<string, number>();
+  for (let i = fromIndex + 1; i < messages.length; i += 1) {
+    const m = messages[i];
+    if (m.role !== "tool") continue;
+    let data: ToolData;
+    try { data = JSON.parse(m.content) as ToolData; } catch { continue; }
+    if (!data.diff?.length || !data.detail) continue;
+    lastIndexByPath.set(data.detail, i);
+  }
+  return Array.from(lastIndexByPath.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([path]) => ({ path, basename: path.split(/[\\/]/).filter(Boolean).pop() || path }));
 }

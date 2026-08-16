@@ -21,6 +21,165 @@ export function LadderDot({ status }: { status: RowStatus }) {
   );
 }
 
+// ---- hover cards (batch two, Package D) ----
+// The row ladder above shows exactly ONE dot by precedence (awaiting beats
+// running beats unviewed) so a busy row doesn't turn into a wall of badges.
+// The hover card is what makes that demotion safe: unlike rowStatus (which
+// picks the single winner), this returns every status that's actually true,
+// so a task that's both "awaiting" and would-be "running" shows both lines.
+export type LadderEntry = Exclude<RowStatus, { kind: "none" }>;
+export function ladderStatuses(
+  task: { status: string; awaiting_input: number | boolean },
+  opts: { running: boolean; unviewed: boolean },
+): LadderEntry[] {
+  const out: LadderEntry[] = [];
+  const awaiting = task.status === "in_progress" && !!task.awaiting_input;
+  if (awaiting) out.push({ kind: "awaiting", label: "Needs your input" });
+  if (opts.running) out.push({ kind: "running", label: "Working" });
+  if (opts.unviewed) out.push({ kind: "unviewed", label: "Finished while you were away" });
+  return out;
+}
+
+// Timing for the hover card lives in one place so it's a single knob to tune
+// and so tests can drive it with fake timers instead of relying on jsdom's
+// nonexistent real `:hover`.
+export const HOVER_OPEN_DELAY_MS = 350;
+export const HOVER_CLOSE_GRACE_MS = 200;
+
+// Open-state machine for a hover card: a short delay before opening (so a
+// pointer passing over a row doesn't flash a card), and a short grace period
+// before closing (so crossing the gap between the anchor and the portaled
+// card itself doesn't dismiss it). `scheduleOpen`/`scheduleClose` are meant to
+// be wired to BOTH the anchor's and the card's own mouse enter/leave — the
+// card re-entering cancels the pending close exactly like the anchor does.
+export function useHoverCard() {
+  const [open, setOpen] = useState(false);
+  const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelOpenTimer = () => { if (openTimer.current) { clearTimeout(openTimer.current); openTimer.current = null; } };
+  const cancelCloseTimer = () => { if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; } };
+
+  const scheduleOpen = () => {
+    cancelCloseTimer();
+    if (open || openTimer.current) return;
+    openTimer.current = setTimeout(() => { openTimer.current = null; setOpen(true); }, HOVER_OPEN_DELAY_MS);
+  };
+  const scheduleClose = () => {
+    cancelOpenTimer();
+    if (closeTimer.current) return;
+    closeTimer.current = setTimeout(() => { closeTimer.current = null; setOpen(false); }, HOVER_CLOSE_GRACE_MS);
+  };
+  const closeNow = () => { cancelOpenTimer(); cancelCloseTimer(); setOpen(false); };
+
+  useEffect(() => () => { cancelOpenTimer(); cancelCloseTimer(); }, []);
+
+  return { open, scheduleOpen, scheduleClose, closeNow };
+}
+
+// Pure selection guard: a click that's really the tail end of a text-selection
+// drag inside the card must not fire the copy. No DOM in the test environment
+// here (no jsdom), so this reads `window.getSelection` defensively and simply
+// skips the check (never treats it as a selection) when there's no `window` -
+// exercised directly by tests rather than through a live selection.
+export function hasActiveTextSelection(): boolean {
+  if (typeof window === "undefined" || typeof window.getSelection !== "function") return false;
+  const sel = window.getSelection();
+  return !!sel && sel.toString().length > 0;
+}
+
+// Pure copy action: writes `value` to the clipboard and calls `onCopied` ONLY
+// once that write actually resolves (never optimistically) - the caller uses
+// this to gate the transient "Copied" state. Guards for both a mid-drag text
+// selection (must not hijack it into a copy) and an environment without a
+// Clipboard API (fails silent, no state change), per spec.
+export function copyPrimaryValue(value: string | undefined, onCopied: () => void): void {
+  if (!value) return;
+  if (hasActiveTextSelection()) return;
+  const clipboard = typeof navigator !== "undefined" ? navigator.clipboard : undefined;
+  if (!clipboard?.writeText) return;
+  clipboard.writeText(value).then(onCopied).catch(() => {});
+}
+
+// The card's inner markup - deliberately DOM-portal-free so it can be rendered
+// (and asserted on) directly by react-test-renderer without a real `document`.
+// `HoverCard` below wraps this in `createPortal(..., document.body)`.
+export function HoverCardContent({ content, copied }: { content: React.ReactNode; copied: boolean }) {
+  return (
+    <div className="hovercard-body">
+      {content}
+      {copied && <span className="hovercard-copied">Copied</span>}
+    </div>
+  );
+}
+
+// A rich detail card that opens on hover of `anchorRef`'s element, portaled to
+// document.body (so it's never clipped by an ancestor's overflow — same
+// reasoning as Popover above). Positioned `fixed` from the anchor's measured
+// rect, flipping above the anchor if it would overflow the viewport bottom.
+// Clicking it copies `copyValue` to the clipboard; the "Copied" state only
+// appears after that write resolves (see copyPrimaryValue). Presentational
+// only — it does not trap focus or intercept Tab.
+export function HoverCard({ open, anchorRef, content, copyValue, onEnter, onLeave, onClose }: {
+  open: boolean;
+  anchorRef: React.RefObject<HTMLElement | null>;
+  content: React.ReactNode;
+  copyValue?: string;
+  onEnter?: () => void;
+  onLeave?: () => void;
+  onClose?: () => void;
+}) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useLayoutEffect(() => {
+    if (!open) { setPos(null); return; }
+    const anchor = anchorRef.current;
+    const card = cardRef.current;
+    if (!anchor || !card) return;
+    const r = anchor.getBoundingClientRect();
+    const cw = card.offsetWidth || 260;
+    const ch = card.offsetHeight || 0;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const left = Math.max(8, Math.min(r.left, vw - cw - 8));
+    let top = r.bottom + 6;
+    if (top + ch > vh - 8) top = Math.max(8, r.top - ch - 6); // flip above if it'd overflow the bottom
+    setPos({ top, left });
+  }, [open, anchorRef]);
+
+  // Escape and scroll (of anything outside the card) both dismiss.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose?.(); };
+    const onScroll = (e: Event) => { if (!cardRef.current?.contains(e.target as Node)) onClose?.(); };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onScroll, true);
+    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("scroll", onScroll, true); };
+  }, [open, onClose]);
+
+  useEffect(() => { if (!open) setCopied(false); }, [open]);
+
+  if (!open || typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      ref={cardRef}
+      className="hovercard"
+      style={{ position: "fixed", top: pos?.top ?? -9999, left: pos?.left ?? -9999, visibility: pos ? "visible" : "hidden" }}
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
+      onClick={() => copyPrimaryValue(copyValue, () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      })}
+    >
+      <HoverCardContent content={content} copied={copied} />
+    </div>,
+    document.body,
+  );
+}
+
 export function StatusDot({ status, running, awaiting, lg }: { status: Status; running?: boolean; awaiting?: boolean; lg?: boolean }) {
   // Signal language (mission-control): "needs your input" is an alert coral, a
   // *live* working session is blue (both pulse to draw the eye), and an idle

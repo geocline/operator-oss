@@ -1,10 +1,86 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Icon } from "../icons";
 import { fmtCost, relTime } from "./format";
 import { SEARCH_MIN, type AgentInfo, type ProjectRow } from "./types";
-import { SearchBar } from "./shared";
+import { SearchBar, HoverCard, useHoverCard } from "./shared";
+
+// One project row, its hover card, and the drag-reorder wiring, split out so
+// the hover state (useHoverCard) is scoped per row instead of per column.
+function ProjectRowItem({ p, selId, running, dragId, overId, onSelect, onDragStart, onDragOver, onDrop, onDragEnd }: {
+  p: ProjectRow; selId: string | null; running: Set<string>;
+  dragId: string | null; overId: string | null;
+  onSelect: () => void;
+  onDragStart: (e: React.DragEvent) => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDrop: (e: React.DragEvent) => void;
+  onDragEnd: () => void;
+}) {
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const hover = useHoverCard();
+  const isRunning = running.has(p.id);
+  return (
+    <>
+      <button
+        ref={anchorRef}
+        className={`proj ${p.id === selId ? "sel" : ""} ${dragId === p.id ? "dragging" : ""} ${overId === p.id && dragId && dragId !== p.id ? "drag-over" : ""}`}
+        onClick={onSelect}
+        draggable
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+        onDragEnd={onDragEnd}
+        onMouseEnter={hover.scheduleOpen}
+        onMouseLeave={hover.scheduleClose}
+        title="Drag to reorder"
+      >
+        <div className="pic" style={{ background: p.color }}>
+          {p.name[0]}
+          {p.awaiting_count > 0 ? (
+            <span className="proj-await" title={`${p.awaiting_count} task${p.awaiting_count !== 1 ? "s" : ""} waiting on your input`}>{p.awaiting_count}</span>
+          ) : isRunning ? (
+            <span className="proj-running" title="A task is running in this project" />
+          ) : null}
+        </div>
+        <div className="pmeta">
+          <div className="pname">{p.name}</div>
+          <div className="psub">
+            {p.task_count} task{p.task_count !== 1 ? "s" : ""}{p.sub ? ` · ${p.sub}` : ""}
+            {p.cost_usd > 0 && <span className="psub-cost" title="Total spend across this project's tasks"> · {fmtCost(p.cost_usd)}</span>}
+          </div>
+        </div>
+        <div className="pcount" title={p.last_activity ? `Last touched ${relTime(p.last_activity)}` : "Never touched"}>
+          {p.last_activity ? relTime(p.last_activity) : "never"}
+        </div>
+      </button>
+      <HoverCard
+        open={hover.open}
+        anchorRef={anchorRef}
+        copyValue={p.repo_path}
+        onEnter={hover.scheduleOpen}
+        onLeave={hover.scheduleClose}
+        onClose={hover.closeNow}
+        content={
+          <div className="hc-project">
+            <div className="hc-title">{p.name}</div>
+            <div className="hc-path">{p.repo_path}</div>
+            <div className="hc-statuses">
+              <div className="hc-status-row">
+                <span className={`ldot ${p.awaiting_count > 0 ? "awaiting" : ""}`} style={p.awaiting_count > 0 ? undefined : { background: "var(--ink-3)" }} />
+                <span>{p.awaiting_count} waiting on you</span>
+              </div>
+              <div className="hc-status-row">
+                <span className={`ldot ${isRunning ? "running" : ""}`} style={isRunning ? undefined : { background: "var(--ink-3)" }} />
+                <span>{isRunning ? "1 task running" : "0 tasks running"}</span>
+              </div>
+            </div>
+          </div>
+        }
+      />
+    </>
+  );
+}
 
 // Footer line under "Your workspace": the real auth state per connected agent,
 // from GET /api/agents (which reports the EFFECTIVE billing credential — an
@@ -63,36 +139,19 @@ export function ProjectsColumn({ projects, deprecated, agents, selId, running, w
       <div className="scroll">
         <div className="proj-list">
           {shown.map((p) => (
-            <button
+            <ProjectRowItem
               key={p.id}
-              className={`proj ${p.id === selId ? "sel" : ""} ${dragId === p.id ? "dragging" : ""} ${overId === p.id && dragId && dragId !== p.id ? "drag-over" : ""}`}
-              onClick={() => onSelect(p.id)}
-              draggable
+              p={p}
+              selId={selId}
+              running={running}
+              dragId={dragId}
+              overId={overId}
+              onSelect={() => onSelect(p.id)}
               onDragStart={(e) => { setDragId(p.id); e.dataTransfer.effectAllowed = "move"; }}
               onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (dragId) setOverId(p.id); }}
               onDrop={(e) => { e.preventDefault(); drop(p.id); }}
               onDragEnd={() => { setDragId(null); setOverId(null); }}
-              title="Drag to reorder"
-            >
-              <div className="pic" style={{ background: p.color }}>
-                {p.name[0]}
-                {p.awaiting_count > 0 ? (
-                  <span className="proj-await" title={`${p.awaiting_count} task${p.awaiting_count !== 1 ? "s" : ""} waiting on your input`}>{p.awaiting_count}</span>
-                ) : running.has(p.id) ? (
-                  <span className="proj-running" title="A task is running in this project" />
-                ) : null}
-              </div>
-              <div className="pmeta">
-                <div className="pname">{p.name}</div>
-                <div className="psub">
-                  {p.task_count} task{p.task_count !== 1 ? "s" : ""}{p.sub ? ` · ${p.sub}` : ""}
-                  {p.cost_usd > 0 && <span className="psub-cost" title="Total spend across this project's tasks"> · {fmtCost(p.cost_usd)}</span>}
-                </div>
-              </div>
-              <div className="pcount" title={p.last_activity ? `Last touched ${relTime(p.last_activity)}` : "Never touched"}>
-                {p.last_activity ? relTime(p.last_activity) : "never"}
-              </div>
-            </button>
+            />
           ))}
           {q && shown.length === 0 && <div className="search-empty">No projects match “{query.trim()}”.</div>}
           {!q && (

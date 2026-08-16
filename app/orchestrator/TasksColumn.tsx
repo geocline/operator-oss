@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icon } from "../icons";
 import { isAwaiting, relTime } from "./format";
 import { SEARCH_MIN, type ProjectRow, type TaskRow, type AgentsBundle, type TaskView } from "./types";
 import { agentLabel } from "./agents";
 import { launchConfigurationSummary, launchModelReady, needsLaunchConfiguration } from "./launchConfig";
 import { rowStatus } from "./statusLadder";
-import { StatusDot, LadderDot, PriPill, SearchBar, AgentBadge } from "./shared";
+import { StatusDot, LadderDot, PriPill, SearchBar, AgentBadge, HoverCard, ladderStatuses, useHoverCard } from "./shared";
 import { TaskCardSkeleton } from "./Layout";
 import { TaskBoard } from "./TaskBoard";
 
@@ -20,6 +20,9 @@ function TaskCard({ task, agents, selected, running, unviewed, blockedBy, onSele
   const awaiting = isAwaiting(task);
   const blocked = !!blockedBy?.length && !task.started;
   const status = rowStatus(task, { running, unviewed: !!unviewed });
+  const statuses = ladderStatuses(task, { running, unviewed: !!unviewed });
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const hover = useHoverCard();
   // Awaiting wins over running: a turn parked on a question is live but really
   // waiting on you, so it should read "waiting", not "working".
   const activity = awaiting ? `waiting on you · ${relTime(task.updated_at)}`
@@ -28,27 +31,59 @@ function TaskCard({ task, agents, selected, running, unviewed, blockedBy, onSele
     : task.status === "cancelled" ? `cancelled · ${relTime(task.updated_at)}`
     : task.started ? relTime(task.updated_at) : "not started";
   return (
-    <button className={`task ${selected ? "sel" : ""} ${awaiting ? "awaiting" : ""}`} onClick={onSelect}>
-      <div className="task-top">
-        <LadderDot status={status} />
-        <span className="ttitle">{task.title}</span>
-        {status.kind !== "none" && <span className="slabel sr-only">{status.label}</span>}
-        <AgentBadge label={agentLabel(agents, task.agent)} multi={agents.agents.length > 1} />
-        <PriPill p={task.priority} />
-      </div>
-      {blocked && (
-        <div className="blocked-chip" title={`Blocked until done: ${blockedBy!.join(", ")}`}>
-          {Icon.lock()} Blocked by {blockedBy!.length === 1 ? blockedBy![0] : `${blockedBy!.length} tasks`}
+    <>
+      <button
+        ref={anchorRef}
+        className={`task ${selected ? "sel" : ""} ${awaiting ? "awaiting" : ""}`}
+        onClick={onSelect}
+        onMouseEnter={hover.scheduleOpen}
+        onMouseLeave={hover.scheduleClose}
+      >
+        <div className="task-top">
+          <LadderDot status={status} />
+          <span className="ttitle">{task.title}</span>
+          {status.kind !== "none" && <span className="slabel sr-only">{status.label}</span>}
+          <AgentBadge label={agentLabel(agents, task.agent)} multi={agents.agents.length > 1} />
+          <PriPill p={task.priority} />
         </div>
-      )}
-      {task.description && <div className="tdesc">{task.description}</div>}
-      <div className="task-foot">
-        <span className="activity">{awaiting ? <span style={{ color: "var(--amber)" }}>●</span> : running ? <span style={{ color: "var(--blue)" }}>●</span> : null}{activity}</span>
-        <span className="spacer" />
-        {task.note_count > 0 && <span className="activity" title={`${task.note_count} note${task.note_count !== 1 ? "s" : ""} on this task (NOTES tab)`}>{Icon.edit()} {task.note_count}</span>}
-        {sessionCount > 0 && <span className="activity">{sessionCount} session{sessionCount !== 1 ? "s" : ""}</span>}
-      </div>
-    </button>
+        {blocked && (
+          <div className="blocked-chip" title={`Blocked until done: ${blockedBy!.join(", ")}`}>
+            {Icon.lock()} Blocked by {blockedBy!.length === 1 ? blockedBy![0] : `${blockedBy!.length} tasks`}
+          </div>
+        )}
+        {task.description && <div className="tdesc">{task.description}</div>}
+        <div className="task-foot">
+          <span className="activity">{awaiting ? <span style={{ color: "var(--amber)" }}>●</span> : running ? <span style={{ color: "var(--blue)" }}>●</span> : null}{activity}</span>
+          <span className="spacer" />
+          {task.note_count > 0 && <span className="activity" title={`${task.note_count} note${task.note_count !== 1 ? "s" : ""} on this task (NOTES tab)`}>{Icon.edit()} {task.note_count}</span>}
+          {sessionCount > 0 && <span className="activity">{sessionCount} session{sessionCount !== 1 ? "s" : ""}</span>}
+        </div>
+      </button>
+      <HoverCard
+        open={hover.open}
+        anchorRef={anchorRef}
+        copyValue={task.title}
+        onEnter={hover.scheduleOpen}
+        onLeave={hover.scheduleClose}
+        onClose={hover.closeNow}
+        content={
+          <div className="hc-task">
+            <div className="hc-title">{task.title}</div>
+            <div className="hc-time">{task.started ? relTime(task.updated_at) : "not started"}</div>
+            {statuses.length > 0 && (
+              <div className="hc-statuses">
+                {statuses.map((s) => (
+                  <div key={s.kind} className="hc-status-row">
+                    <span className={`ldot ${s.kind}`} />
+                    <span>{s.label}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        }
+      />
+    </>
   );
 }
 

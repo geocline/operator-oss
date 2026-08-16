@@ -4,7 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import type { Status, Priority, ToolData, AskQuestion, AskAnswers } from "@/lib/types";
 import { Icon } from "../icons";
 import TaskChanges, { type ResolveResult } from "../TaskChanges";
-import { fmtTokens, fmtCost, modelLabel, isAwaiting, buildSessions, usageSplit, costDisplay, usageTooltip, elapsed, turnClockVisible } from "./format";
+import { fmtTokens, fmtCost, modelLabel, isAwaiting, buildSessions, usageSplit, costDisplay, usageTooltip, elapsed, turnClockVisible, splitAttachments, producedFiles } from "./format";
 import {
   SLABEL, SSUB, AWAIT_LABEL, STATUSES, PLABEL, PRIORITIES,
   modelOptions, reasoningOptions, permissionOptions, RAIL_W,
@@ -16,7 +16,7 @@ import { launchModelReady, needsLaunchConfiguration } from "./launchConfig";
 import { StatusDot, Avatar, Popover, Skel } from "./shared";
 import { Modal } from "./Modal";
 import { jsend } from "./api";
-import { isFirstAssistantReply, MessageView, SessionBreak, AskPanel } from "./Transcript";
+import { isFirstAssistantReply, MessageView, SessionBreak, AskPanel, ProducedFilesFooter } from "./Transcript";
 import { Composer } from "./Composer";
 import { SessionRail } from "./SessionRail";
 import { ColResize, ColRail } from "./Layout";
@@ -309,6 +309,49 @@ function useStableHandler<A extends unknown[], R>(
   return useCallback((...args: A) => ref.current?.(...args), []);
 }
 
+// Queue dock (batch two, E1): replaces the old pinned `.msg.user.queued`
+// transcript bubbles with a strip between the transcript and the composer.
+// One pending message renders as a single compact row; two or more collapse
+// to "N queued messages" behind an expand toggle. Cancel calls the exact same
+// dequeue path the old `.queued-x` used (onCancel, unchanged); Edit cancels
+// the row and hands its text to the composer draft via onEdit. Emptying the
+// queue resets to collapsed for next time; at zero the dock renders nothing
+// (suppressed, not disabled).
+export function QueueDock({ queued, onCancel, onEdit }: {
+  queued: Msg[];
+  onCancel: (pendingId: string) => void;
+  onEdit: (pendingId: string, text: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  useEffect(() => { if (queued.length === 0) setExpanded(false); }, [queued.length]);
+  if (queued.length === 0) return null;
+
+  const row = (m: Msg) => {
+    const { text } = splitAttachments(m.content);
+    return (
+      <div className="dock-row" key={m.id}>
+        <span className="dock-row-text">{text || "(attachment only)"}</span>
+        <button className="dock-row-edit" title="Edit: remove from the queue and put it back in the composer" aria-label="Edit queued message" onClick={() => onEdit(m.id, text)}>{Icon.edit()}</button>
+        <button className="dock-row-x queued-x" title="Remove from queue" aria-label="Remove from queue" onClick={() => onCancel(m.id)}>{Icon.x()}</button>
+      </div>
+    );
+  };
+
+  if (queued.length === 1) {
+    return <div className="queue-dock">{row(queued[0])}</div>;
+  }
+
+  return (
+    <div className="queue-dock">
+      <button className="dock-summary" aria-expanded={expanded} onClick={() => setExpanded((e) => !e)}>
+        <span>{queued.length} queued messages</span>
+        <span className={`dock-chev ${expanded ? "open" : ""}`}>{Icon.chevDown()}</span>
+      </button>
+      {expanded && <div className="dock-list">{queued.map(row)}</div>}
+    </div>
+  );
+}
+
 export function SessionView({ project, task, agents, messages, running, blockedBy, transcriptLoading, onSend, onStart, onStop, onClear, onHandoff, onHandoffModel, onSetAgent, focused, onToggleFocus, onEdit, onReconnect, onSetStatus, onSetPriority, onSetModel, onSetReasoning, onSetPermission, onResolveWithAI, onMerged, onPrCreated, onAnswer, onCancelQueued, onBack, mobile, railW, onRailWidth, onRailReset, railCollapsed, onRailCollapse, onRailExpand }: {
   project: ProjectRow; task: TaskRow; agents: AgentsBundle; messages: Msg[]; running: boolean; blockedBy?: string[]; transcriptLoading?: boolean;
   onSend: (t: string) => void; onStart: () => void; onStop: () => void; onClear: () => void; onEdit: () => void;
@@ -361,6 +404,11 @@ export function SessionView({ project, task, agents, messages, running, blockedB
   // opened for.
   const [chatAboutIt, setChatAboutIt] = useState(false);
   useEffect(() => { setChatAboutIt(false); }, [task.id]);
+  // Queue dock's Edit (E1): cancel the row, then seed the composer's live
+  // draft with its text. `key` bumps on every Edit so re-editing the same
+  // text still re-applies (see Composer's seedDraft effect).
+  const [draftSeed, setDraftSeed] = useState<{ text: string; key: number } | null>(null);
+  useEffect(() => { setDraftSeed(null); }, [task.id]);
   const sessions = useMemo(() => buildSessions(messages), [messages]);
   const hasSession = task.started === 1 || messages.length > 0;
   const awaiting = isAwaiting(task);
@@ -404,6 +452,22 @@ export function SessionView({ project, task, agents, messages, running, blockedB
   const usage = usageSplit(task);
   const cost = costDisplay(findAgent(agents, task.agent));
   const multiAgent = agents.agents.length > 1;
+  // Produced-files footer (E2): once a run settles (running is false) and the
+  // transcript's last message is that run's assistant reply, show the files
+  // its tool calls touched since the previous user message. Empty while
+  // running (the run hasn't settled) or when the last message isn't an
+  // assistant reply (e.g. the transcript ends on a system notice).
+  const lastRunFiles = useMemo(() => {
+    if (running) return [];
+    const lastIdx = messages.length - 1;
+    if (lastIdx < 0 || messages[lastIdx].role !== "assistant") return [];
+    let userIdx = -1;
+    for (let i = lastIdx - 1; i >= 0; i -= 1) {
+      if (messages[i].role === "user") { userIdx = i; break; }
+    }
+    if (userIdx === -1) return [];
+    return producedFiles(messages, userIdx);
+  }, [messages, running]);
   // PR number for the header chip, parsed from the stored URL (…/pull/42).
   const prNum = task.pr_url?.match(/\/pull\/(\d+)/)?.[1];
   // The still-unanswered question, if any — drives the composer takeover
@@ -544,18 +608,14 @@ export function SessionView({ project, task, agents, messages, running, blockedB
                 // the machinery is opt-in via the twirl. Errors still surface
                 // their output automatically (see ToolView).
                 const condensed = true;
-                return <MessageView key={m.id} m={m} initial={mi === 0 && m.role === "user"} hideWho={hideWho} condensed={condensed} running={running} agent={task.agent} agentLabel={agentLabel(agents, task.agent)} onCancelQueued={stableCancelQueued} onClear={stableClear} onReconnect={stableReconnect} />;
+                return <MessageView key={m.id} m={m} initial={mi === 0 && m.role === "user"} hideWho={hideWho} condensed={condensed} running={running} agent={task.agent} agentLabel={agentLabel(agents, task.agent)} onClear={stableClear} onReconnect={stableReconnect} />;
               })}
             </div>
           ))}
           {running && !awaitingAnswer && (
             <div className="msg assistant"><div className="who"><Avatar who="cc" agent={task.agent} /> Agent</div><div className="msg-body"><span className="typing"><i /><i /><i /></span>{showTurnClock && <span className="turn-clock">{turnClockText}</span>}</div></div>
           )}
-          {/* Follow-ups queued mid-turn, pinned below the live turn — they
-              send in order once it ends. */}
-          {messages.filter((m) => m.role === "queued").map((m) => (
-            <MessageView key={m.id} m={m} initial={false} hideWho={false} onCancelQueued={stableCancelQueued} />
-          ))}
+          {!running && <ProducedFilesFooter files={lastRunFiles} />}
         </div>
       </div>
       <div className="msg-nav">
@@ -572,6 +632,15 @@ export function SessionView({ project, task, agents, messages, running, blockedB
         )}
       </div>
       </div>
+      {/* Queue dock (E1): follow-ups queued mid-turn, in a strip between the
+          transcript and the composer — replaces the old pinned queued bubbles
+          entirely. Cancel calls the same dequeue path (stableCancelQueued);
+          Edit cancels the row and seeds the composer's live draft. */}
+      <QueueDock
+        queued={messages.filter((m) => m.role === "queued")}
+        onCancel={(id) => stableCancelQueued(id)}
+        onEdit={(id, text) => { stableCancelQueued(id); setDraftSeed({ text, key: Date.now() }); }}
+      />
       {/* Composer takeover: while a question is pending, the input area is the
           AskPanel (chips/options/submit), not the textarea — the decision
           lives where the hands are. "Chat about it" swaps back to a normal
@@ -614,6 +683,7 @@ export function SessionView({ project, task, agents, messages, running, blockedB
               onSend(text);
             }}
             onStop={onStop} onClear={onClear} onHandoff={(m) => onHandoffModel?.(m)}
+            seedDraft={draftSeed}
           />
         </>
       )}

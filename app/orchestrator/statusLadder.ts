@@ -9,6 +9,11 @@
 // same two fields rather than importing the TaskRow-typed helper so it can
 // take the minimal shape callers already have (a task row, a board card, or a
 // project rollup) without widening to the full client type.
+//
+// Registry fold (batch two, Package F3): registry.ts only imports RowStatus
+// as a type, so importing its contributor list here isn't a real cycle.
+import { sessionStatusContributions } from "./registry";
+
 export type RowStatus =
   | { kind: "awaiting"; label: "Needs your input" }
   | { kind: "running"; label: "Working" }
@@ -23,5 +28,11 @@ export function rowStatus(
   if (awaiting) return { kind: "awaiting", label: "Needs your input" };
   if (opts.running) return { kind: "running", label: "Working" };
   if (opts.unviewed) return { kind: "unviewed", label: "Finished while you were away" };
+  // Registered contributors sit below every built-in, in registration order;
+  // the first to return non-null wins. Empty this batch, so this is a no-op.
+  for (const contribute of sessionStatusContributions()) {
+    const result = contribute(task, opts);
+    if (result) return result;
+  }
   return { kind: "none" };
 }
