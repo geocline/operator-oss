@@ -9,7 +9,7 @@ import { EMPTY_AGENTS, SLABEL, type ProjectRow, type ProjectSession, type TaskRo
 import { agentLabel, defaultAgentFor, driverForModel, findAgent } from "./agents";
 import { reasoningChoicesFor, suggestLaunchConfiguration } from "./launchConfig";
 import { StatusDot, Skel, ErrNote } from "./shared";
-import { Modal, BrowseDirButton, PrioritySeg, DepPicker } from "./Modal";
+import { Modal, BrowseDirButton, FolderPicker, PrioritySeg, DepPicker } from "./Modal";
 import { GitHubClonePicker } from "./github";
 import { Markdown } from "../Markdown";
 import { clientFeatures } from "@/lib/features";
@@ -54,6 +54,8 @@ function ExecutionControls({
   permissionOptions,
   projectRepoPath,
   workspaceLocked = false,
+  subdir,
+  onSubdir,
 }: {
   workspaceMode: WorkspaceMode;
   onWorkspaceMode: (mode: WorkspaceMode) => void;
@@ -62,13 +64,17 @@ function ExecutionControls({
   permissionOptions: { value: string; label: string; sub: string }[];
   projectRepoPath?: string;
   workspaceLocked?: boolean;
+  subdir?: string;
+  onSubdir?: (value: string) => void;
 }) {
+  const [browsingSub, setBrowsingSub] = useState(false);
   const access = permissionOptions.find((option) => option.value === permissionMode);
   const fullPower = permissionMode === "bypassPermissions";
-  const location = projectRepoPath || "the project folder";
+  const sub = (subdir ?? "").trim().replace(/^\/+|\/+$/g, "");
+  const location = (projectRepoPath || "the project folder") + (sub ? `/${sub}` : "");
   const summary = workspaceMode === "direct"
     ? `Runs directly in ${location} with ${fullPower ? "unrestricted harness permissions" : `${access?.label ?? "restricted"} access`}.`
-    : `Runs in an isolated worktree with ${fullPower ? "unrestricted harness permissions" : `${access?.label ?? "restricted"} access`}.`;
+    : `Runs in an isolated worktree${sub ? ` (starting in ${sub}/)` : ""} with ${fullPower ? "unrestricted harness permissions" : `${access?.label ?? "restricted"} access`}. Edits merge back when the task is done.`;
 
   return (
     <div className="execution-config">
@@ -85,9 +91,49 @@ function ExecutionControls({
           onChange={(event) => onWorkspaceMode(event.target.value as WorkspaceMode)}
         >
           <option value="direct">Project folder</option>
-          <option value="worktree">Isolated worktree</option>
+          <option value="worktree">Isolated worktree — for parallel edits</option>
         </select>
       </label>
+      {onSubdir && (
+        <label className="execution-config-row">
+          <span>
+            <strong>Start in subfolder</strong>
+            <small>Optional — created if it doesn’t exist</small>
+          </span>
+          <span style={{ display: "flex", gap: 6, minWidth: 0 }}>
+            <input
+              type="text"
+              aria-label="Start in subfolder"
+              value={subdir ?? ""}
+              placeholder="e.g. deals/stonegate/2026"
+              style={{ minWidth: 0 }}
+              onChange={(event) => onSubdir(event.target.value)}
+            />
+            {projectRepoPath && (
+              <button type="button" className="btn btn-line" style={{ flex: "none" }} title="Browse the project's folders (or create one)"
+                onClick={(event) => { event.preventDefault(); setBrowsingSub(true); }}>
+                {Icon.folder()}
+              </button>
+            )}
+          </span>
+        </label>
+      )}
+      {browsingSub && projectRepoPath && onSubdir && (
+        <FolderPicker
+          root={projectRepoPath}
+          initial={sub ? `${projectRepoPath}/${sub}` : projectRepoPath}
+          title="Start in subfolder"
+          sub="pick where in the project this session opens — or create the folder here"
+          onClose={() => setBrowsingSub(false)}
+          onPick={(p) => {
+            // Absolute pick → project-relative ("" = the root itself). The
+            // picker is fenced to the project, so anything else can't happen.
+            const prefix = projectRepoPath.endsWith("/") ? projectRepoPath : `${projectRepoPath}/`;
+            onSubdir(p === projectRepoPath ? "" : p.startsWith(prefix) ? p.slice(prefix.length) : "");
+            setBrowsingSub(false);
+          }}
+        />
+      )}
       <label className="execution-config-row">
         <span>
           <strong>Agent access</strong>
@@ -113,7 +159,7 @@ function ExecutionControls({
   );
 }
 
-export function NewTaskModal({ project, agents, tasks, appDefaults = {}, onClose, onCreate, onOpenSetup }: { project: ProjectRow; agents: AgentsBundle; tasks: TaskRow[]; appDefaults?: Record<string, string>; onClose: () => void; onCreate: (i: { title: string; desc: string; priority: Priority; agent: string; model: string; reasoning: string; startNow: boolean; depends_on: string[]; workspace_mode: WorkspaceMode; permission_mode: string }) => void; onOpenSetup?: () => void }) {
+export function NewTaskModal({ project, agents, tasks, appDefaults = {}, onClose, onCreate, onOpenSetup }: { project: ProjectRow; agents: AgentsBundle; tasks: TaskRow[]; appDefaults?: Record<string, string>; onClose: () => void; onCreate: (i: { title: string; desc: string; priority: Priority; agent: string; model: string; reasoning: string; startNow: boolean; depends_on: string[]; workspace_mode: WorkspaceMode; permission_mode: string; subdir?: string }) => void; onOpenSetup?: () => void }) {
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
   const [priority, setPriority] = useState<Priority>("med");
@@ -155,6 +201,7 @@ export function NewTaskModal({ project, agents, tasks, appDefaults = {}, onClose
   const [model, setModel] = useState(() => launchDefaultsFor(agent).model);
   const [reasoning, setReasoning] = useState(() => launchDefaultsFor(agent).reasoning);
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("direct");
+  const [subdir, setSubdir] = useState("");
   const [permissionMode, setPermissionMode] = useState(() => launchDefaultsFor(agent).permission);
   const [startNow, setStartNow] = useState(false);
   const [deps, setDeps] = useState<string[]>([]);
@@ -209,6 +256,7 @@ export function NewTaskModal({ project, agents, tasks, appDefaults = {}, onClose
     depends_on: deps,
     workspace_mode: workspaceMode,
     permission_mode: permissionMode,
+    subdir: subdir.trim().replace(/^\/+|\/+$/g, ""),
   });
   return (
     <Modal title="New task" sub={`${project.name} · title + description become ${agentLabel(agents, agent)}'s first prompt`} onClose={onClose}
@@ -279,6 +327,8 @@ export function NewTaskModal({ project, agents, tasks, appDefaults = {}, onClose
         onPermissionMode={setPermissionMode}
         permissionOptions={permissionOptions}
         projectRepoPath={project.repo_path}
+        subdir={subdir}
+        onSubdir={setSubdir}
       />
       <div className="field">
         <div className="lab">Priority</div>

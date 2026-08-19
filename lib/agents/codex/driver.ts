@@ -34,7 +34,7 @@ import {
 import {
   buildProjectContext,
   buildHarnessEnv,
-  buildWorkstreamRuntimeGuidance,
+  buildWorkstreamRuntimeGuidance, taskCwd,
 } from "../shared";
 import { getWorkstreamByTask } from "../../workstreams/store";
 import { mapThreadEvent, newState } from "./events";
@@ -147,7 +147,7 @@ async function* runTurn(
 
   const threadOptions: ThreadOptions = {
     // Prefer the task's isolated worktree; fall back to the shared repo path.
-    workingDirectory: task.worktree_path || project.repo_path || process.cwd(),
+    workingDirectory: taskCwd(task, project),
     // Worktrees are git repos, but non-git projects and the cwd fallback may not
     // be — skip the check so codex never hard-errors on a missing repo.
     skipGitRepoCheck: true,

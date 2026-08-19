@@ -7,7 +7,7 @@ import {
   LITELLM_PRIME_HOME,
   PRIME_OPERATOR_EXTENSION_PATH,
 } from "../../config";
-import { buildProjectContext, buildWorkstreamRuntimeGuidance, makeQueue } from "../shared";
+import { buildProjectContext, buildWorkstreamRuntimeGuidance, makeQueue, taskCwd } from "../shared";
 import { getWorkstreamByTask } from "../../workstreams/store";
 import { liteLLMCapabilities } from "../litellm/capabilities";
 import { modelForHarness } from "../litellm/catalog";
@@ -169,7 +169,7 @@ async function* runTurn(
 
     const args = [
       "--mode", "rpc",
-      "--cwd", task.worktree_path || project.repo_path || process.cwd(),
+      "--cwd", taskCwd(task, project),
       "--provider", PROVIDER_ID,
       "--model", selected.value,
       "--session-dir", paths.sessionDir,
@@ -186,7 +186,7 @@ async function* runTurn(
     client = startPrimeRpc({
       executable: cli,
       args,
-      cwd: task.worktree_path || project.repo_path || process.cwd(),
+      cwd: taskCwd(task, project),
       env,
       signal: abortController?.signal,
       onEvent(event) {

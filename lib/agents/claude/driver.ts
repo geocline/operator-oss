@@ -47,7 +47,7 @@ import {
   makeQueue,
   resultText,
   clip,
-  type ResultKind,
+  type ResultKind, taskCwd,
 } from "../shared";
 import {
   claudeStatus,
@@ -269,7 +269,7 @@ export async function* runClaudeTurn(
     options: {
       // Prefer the task's isolated worktree; fall back to the shared repo path
       // (non-git projects, or worktree creation skipped).
-      cwd: task.worktree_path || project.repo_path || process.cwd(),
+      cwd: taskCwd(task, project),
       resume: task.session_id ?? undefined,
       // Per-task model selection ("opus"/"sonnet"/"haiku" alias). Omit to inherit
       // Claude Code's default model.

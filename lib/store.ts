@@ -534,6 +534,7 @@ export function createTask(input: {
   reasoning?: string | null;
   workspace_mode?: WorkspaceMode;
   permission_mode?: string | null;
+  subdir?: string;
 }): Task {
   const now = Date.now();
   const id = nanoid();
@@ -546,8 +547,8 @@ export function createTask(input: {
   ).n;
   getDb()
     .prepare(
-      `INSERT INTO tasks (id, project_id, title, description, priority, status, suggested, agent, model, reasoning, permission_mode, workspace_mode, launch_config_required, position, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO tasks (id, project_id, title, description, priority, status, suggested, agent, model, reasoning, permission_mode, workspace_mode, subdir, launch_config_required, position, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       id,
@@ -562,6 +563,7 @@ export function createTask(input: {
       input.reasoning ?? null,
       input.permission_mode ?? "bypassPermissions",
       input.workspace_mode ?? "direct",
+      input.subdir ?? "",
       input.suggested ? 1 : 0,
       position,
       now,
@@ -588,7 +590,7 @@ export function updateTask(id: string, patch: Partial<Task>): Task | undefined {
   const n = { ...cur, ...patch, updated_at: Date.now() };
   getDb()
     .prepare(
-      `UPDATE tasks SET title=?, description=?, priority=?, status=?, suggested=?, agent=?, model=?, resolved_model=?, reasoning=?, permission_mode=?, workspace_mode=?,
+      `UPDATE tasks SET title=?, description=?, priority=?, status=?, suggested=?, agent=?, model=?, resolved_model=?, reasoning=?, permission_mode=?, workspace_mode=?, subdir=?,
         launch_config_required=?, launch_config_confirmed_at=?, session_id=?, worktree_path=?, work_branch=?, base_sha=?, merged_at=?, pr_url=?,
         generation=?, started=?, running=?, awaiting_input=?, turn_started_at=?, updated_at=? WHERE id=?`
     )
@@ -604,6 +606,7 @@ export function updateTask(id: string, patch: Partial<Task>): Task | undefined {
       n.reasoning ?? null,
       n.permission_mode ?? null,
       n.workspace_mode,
+      n.subdir,
       n.launch_config_required,
       n.launch_config_confirmed_at,
       n.session_id,

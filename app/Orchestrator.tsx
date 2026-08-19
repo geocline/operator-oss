@@ -206,7 +206,7 @@ export default function Orchestrator() {
       mobile={isMobile}
       width={layout.projW} onCollapse={() => o.setLayout((l) => ({ ...l, projCollapsed: true }))}
       projects={o.activeProjects} deprecated={o.deprecatedProjects} agents={o.agents.agents} selId={selProj} running={o.runningProjects}
-      onSelect={o.selectProject} onNew={() => o.setModal("project")} onOpenAppearance={() => o.setAppearanceOpen((t) => !t)}
+      onSelect={o.selectProject} onGoToTask={o.goToTask} onNew={() => o.setModal("project")} onOpenAppearance={() => o.setAppearanceOpen((t) => !t)}
       onReorder={o.reorderProjects} onRestore={(id) => o.setDeprecated(id, false)}
       settingsActive={o.view === "settings"} onOpenSettings={() => openSettings()}
     />

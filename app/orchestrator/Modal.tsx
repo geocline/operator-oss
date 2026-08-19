@@ -40,36 +40,75 @@ export function Modal({ title, sub, onClose, children, footer, width }: { title:
   );
 }
 
-export function FolderPicker({ initial, onClose, onPick }: { initial?: string; onClose: () => void; onPick: (path: string) => void }) {
+export function FolderPicker({ initial, root, title = "Select working directory", sub = "pick the folder agents run tasks in", onClose, onPick }: {
+  initial?: string;
+  /** Fence browsing inside this directory (the task-subfolder picker: never leave the project). */
+  root?: string;
+  title?: string;
+  sub?: string;
+  onClose: () => void;
+  onPick: (path: string) => void;
+}) {
   const [data, setData] = useState<FsListing | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // Inline "New folder" state: null = closed, string = the name being typed.
+  const [newName, setNewName] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   // Last path requested — so Retry after a failed listing re-asks for the same
   // folder rather than resetting the whole picker to its initial directory.
   const lastReq = useRef<string | undefined>(undefined);
+  const inRoot = useCallback((p: string) => !root || p === root || p.startsWith(root.endsWith("/") ? root : `${root}/`), [root]);
   const load = useCallback((p?: string) => {
     lastReq.current = p;
     setLoading(true);
     setError(null);
+    setNewName(null);
     jget<FsListing>(`/api/fs${p ? `?path=${encodeURIComponent(p)}` : ""}`)
       .then((d) => setData(d))
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
   }, []);
-  useEffect(() => { load(initial && initial.trim() ? initial : undefined); }, [load, initial]);
+  useEffect(() => { load(initial && initial.trim() ? initial : root || undefined); }, [load, initial, root]);
+  const mkdir = async () => {
+    const name = (newName ?? "").trim();
+    if (!data || !name || creating) return;
+    setCreating(true);
+    setError(null);
+    try {
+      const r = await jsend<{ path: string }>("/api/fs/mkdir", "POST", { parent: data.path, name });
+      load(r.path); // descend into the new folder — one tap on "Use this folder" finishes
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCreating(false);
+    }
+  };
+  const canGoUp = Boolean(data?.parent) && (!root || Boolean(data && data.path !== root && inRoot(data.parent!)));
 
   return (
-    <Modal title="Select working directory" sub="pick the folder agents run tasks in" onClose={onClose} width={580}
+    <Modal title={title} sub={sub} onClose={onClose} width={580}
       footer={<>
         <span className="spacer" />
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
         <button className="btn btn-accent" disabled={!data} onClick={() => data && onPick(data.path)}>{Icon.check()} Use this folder</button>
       </>}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-        <button className="btn btn-line" disabled={!data?.parent} onClick={() => data?.parent && load(data.parent)} title="Up one level">{Icon.chevDown({ style: { transform: "rotate(180deg)" } })} Up</button>
-        <button className="btn btn-line" onClick={() => load(data?.home)} title="Go to home directory">{Icon.folder()} Home</button>
+        <button className="btn btn-line" disabled={!canGoUp} onClick={() => canGoUp && load(data!.parent!)} title="Up one level">{Icon.chevDown({ style: { transform: "rotate(180deg)" } })} Up</button>
+        {!root && <button className="btn btn-line" onClick={() => load(data?.home)} title="Go to home directory">{Icon.folder()} Home</button>}
         <div className="ctx-mono" style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: "var(--ink-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={data?.path}>{data?.path ?? "…"}</div>
+        <button className="btn btn-line" disabled={!data || newName !== null} onClick={() => setNewName("")} title="Create a new folder inside this one">{Icon.plus()} New folder</button>
       </div>
+      {newName !== null && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+          <input type="text" autoFocus value={newName} placeholder="New folder name"
+            style={{ flex: 1, minWidth: 0 }}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") void mkdir(); if (e.key === "Escape") { e.stopPropagation(); setNewName(null); } }} />
+          <button className="btn btn-accent" disabled={!newName.trim() || creating} onClick={() => void mkdir()}>{creating ? "Creating…" : "Create"}</button>
+          <button className="btn btn-ghost" onClick={() => setNewName(null)}>Cancel</button>
+        </div>
+      )}
       {error && <ErrNote style={{ marginBottom: 10 }} onRetry={() => load(lastReq.current)}>{error}</ErrNote>}
       <div style={{ border: "1px solid var(--line-strong)", borderRadius: "var(--r)", background: "var(--raise)", maxHeight: 320, overflowY: "auto" }}>
         {loading && [56, 42, 64, 38, 50].map((w, i) => (

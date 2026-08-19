@@ -31,6 +31,7 @@ const suggested: TaskRow = {
   reasoning: null,
   permission_mode: null,
   workspace_mode: "direct",
+  subdir: "",
   launch_config_required: 1,
   launch_config_confirmed_at: 0,
   session_id: null,

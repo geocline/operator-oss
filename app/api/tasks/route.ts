@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
+import fs from "fs";
+import path from "path";
 import { createTask, getProject, listAllTasksLite } from "@/lib/store";
+import { publishGlobal } from "@/lib/events";
 import { track } from "@/lib/analytics";
 import { getCapabilities, isKnownAgent } from "@/lib/agents/capabilities";
 import { resolvedRunDefault, validateLaunchConfiguration } from "@/lib/agents/launchConfig";
@@ -20,6 +23,21 @@ export async function POST(req: Request) {
   const workspaceMode = body.workspace_mode ?? "direct";
   if (workspaceMode !== "direct" && workspaceMode !== "worktree") {
     return NextResponse.json({ error: "workspace_mode must be direct or worktree" }, { status: 400 });
+  }
+  // Optional starting subfolder: repo-relative only. Escapes are rejected here;
+  // taskCwd() re-guards at run time and falls back to the workspace root if the
+  // folder is missing.
+  const subdir = typeof body.subdir === "string" ? body.subdir.trim().replace(/^\/+|\/+$/g, "") : "";
+  if (subdir && (subdir.startsWith("~") || subdir.split("/").includes(".."))) {
+    return NextResponse.json({ error: "subdir must be a relative path inside the project" }, { status: 400 });
+  }
+  // A typed subfolder that doesn't exist yet is created now, so "start a task
+  // in deals/newdeal/2026" just works instead of silently opening at the
+  // project root (taskCwd falls back when the folder is missing). Best-effort:
+  // an unwritable project folder shouldn't block creating the task row.
+  const repoPath = getProject(body.project_id)!.repo_path;
+  if (subdir && repoPath) {
+    try { fs.mkdirSync(path.join(repoPath, subdir), { recursive: true }); } catch { /* taskCwd falls back to the root */ }
   }
   const agent =
     typeof body.agent === "string"
@@ -67,9 +85,13 @@ export async function POST(req: Request) {
     reasoning,
     workspace_mode: workspaceMode,
     permission_mode: permissionMode,
+    subdir,
   });
   // `suggested` tasks are agent proposals in the tray; a real user-created task
   // is the funnel's "first task" step. Flag which so the funnel can filter.
   track("task_created", { task_id: task.id, project_id: task.project_id, suggested: !!body.suggested });
+  // Route-published mutation fact: without it a freshly created task is
+  // invisible to global listeners (the rail's Recent view) until its first turn.
+  publishGlobal(task.id, { type: "task_updated" });
   return NextResponse.json(task, { status: 201 });
 }

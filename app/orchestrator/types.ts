@@ -39,6 +39,7 @@ export interface TaskRow {
   reasoning: string | null; // thinking preset; null = inherit default
   permission_mode: string | null; // run permission; null = bypassPermissions (default)
   workspace_mode: WorkspaceMode; // direct project folder or isolated git worktree
+  subdir: string; // repo-relative starting subfolder ("" = workspace root)
   launch_config_required: number;
   launch_config_confirmed_at: number;
   session_id: string | null;

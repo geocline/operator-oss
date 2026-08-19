@@ -81,6 +81,8 @@ export function init(db: Database.Database) {
       awaiting_input INTEGER NOT NULL DEFAULT 0,
       -- When the current turn started (ms epoch); NULL while idle. See migrate().
       turn_started_at INTEGER,
+      -- Repo-relative starting subfolder for the agent session ('' = workspace root).
+      subdir      TEXT NOT NULL DEFAULT '',
       position    INTEGER NOT NULL DEFAULT 0,
       created_at  INTEGER NOT NULL,
       updated_at  INTEGER NOT NULL
@@ -478,6 +480,10 @@ export function migrate(db: Database.Database) {
   if (!taskCols.includes("launch_config_confirmed_at")) {
     db.exec("ALTER TABLE tasks ADD COLUMN launch_config_confirmed_at INTEGER NOT NULL DEFAULT 0");
   }
+  // Optional repo-relative starting subfolder: the agent session opens there
+  // instead of the workspace root (deep-folder workflows, e.g. one deal's
+  // documents inside a big finance repo). Diff/merge still run repo-wide.
+  if (!taskCols.includes("subdir")) db.exec("ALTER TABLE tasks ADD COLUMN subdir TEXT NOT NULL DEFAULT ''");
   // Agent-driver seam: which driver runs this task's sessions. Every pre-seam
   // task ran Claude, so the column default backfills existing rows correctly.
   if (!taskCols.includes("agent")) db.exec("ALTER TABLE tasks ADD COLUMN agent TEXT NOT NULL DEFAULT 'claude'");

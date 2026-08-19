@@ -4,7 +4,8 @@
 // knows which agent is running — drivers reuse these to emit the normalized
 // StreamEvent contract (see lib/agents/types.ts).
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { isAbsolute, join, normalize } from "node:path";
 import type { Project, Task, AskQuestion, AskAnswers, ToolPeek, DiffLine } from "../types";
 import { listSummaries, listTaskNotes } from "../store";
 import { getWorkstreamByTask } from "../workstreams/store";
@@ -22,6 +23,22 @@ export function loadSessionRules(filePath = SESSION_RULES_PATH): string {
   } catch {
     return "";
   }
+}
+
+/**
+ * The directory an agent session starts in: the task's worktree (isolated
+ * mode) or the project folder (direct mode), descended into the task's
+ * optional starting subfolder. The subfolder is repo-relative and validated
+ * at create time (app/api/tasks/route.ts); it's re-guarded here and skipped
+ * if it doesn't exist on disk, so a renamed folder degrades to the workspace
+ * root instead of failing the turn.
+ */
+export function taskCwd(task: Task, project: Project): string {
+  const root = task.worktree_path || project.repo_path || process.cwd();
+  const sub = (task.subdir || "").trim();
+  if (!sub || isAbsolute(sub) || normalize(sub).split(/[\\/]/).includes("..")) return root;
+  const dir = join(root, sub);
+  return existsSync(dir) ? dir : root;
 }
 
 export function buildHarnessEnv(
@@ -80,6 +97,9 @@ export function buildProjectContext(project: Project, task: Task): string {
         `- Completed edits reach the project checkout through the task's Changes tab and merge action.\n` +
         `- Do not describe the task workspace as the wrong folder, claim you are locked out because the project checkout is outside the sandbox, or recommend copying a temporary patch into the project checkout as the normal workflow.`
     );
+  }
+  if (task.subdir) {
+    lines.push(`\nThis task is scoped to the subfolder \`${task.subdir}\` (your session starts there). Keep your work inside it unless the task requires touching files elsewhere in the project.`);
   }
   lines.push(`\n---\nThe current task is: "${task.title}"`);
   if (task.description) lines.push(`Task details: ${task.description}`);

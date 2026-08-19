@@ -46,6 +46,7 @@ async function renderColumn(projects: ProjectRow[], running: Set<string>) {
         running,
         width: 236,
         onSelect: vi.fn(),
+        onGoToTask: vi.fn(),
         onNew: vi.fn(),
         onOpenAppearance: vi.fn(),
         onReorder: vi.fn(),

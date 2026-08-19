@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import type { Project, StreamEvent, Task } from "../../types";
 import type { AgentDriver, AgentLoginSession } from "../types";
 import { DSH_CLI_PATH, INTERNAL_BASE_URL, LITELLM_DSH_HOME } from "../../config";
-import { buildProjectContext, buildWorkstreamRuntimeGuidance, makeQueue } from "../shared";
+import { buildProjectContext, buildWorkstreamRuntimeGuidance, makeQueue, taskCwd } from "../shared";
 import { getWorkstreamByTask } from "../../workstreams/store";
 import { listMessages } from "../../store";
 import { liteLLMCapabilities } from "../litellm/capabilities";
@@ -230,7 +230,7 @@ async function* runTurn(
     const relay = await getLiteLLMRelay();
     writeDshConfig(paths.configFile);
 
-    const workDir = task.worktree_path || project.repo_path || process.cwd();
+    const workDir = taskCwd(task, project);
     const env = buildDshHarnessEnv(task.id);
     env.DEEPSEEK_API_KEY = relay.childApiKey;
     env.DEEPSEEK_BASE_URL = relay.baseUrl;

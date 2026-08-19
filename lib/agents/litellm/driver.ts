@@ -10,7 +10,7 @@ import type {
 import type { Project, StreamEvent, Task } from "../../types";
 import type { AgentDriver, AgentLoginSession } from "../types";
 import { LITELLM_CODEX_HOME, CODEX_CLI_PATH, INTERNAL_BASE_URL, ORCH_MCP_SCRIPT } from "../../config";
-import { buildHarnessEnv, buildProjectContext, buildWorkstreamRuntimeGuidance } from "../shared";
+import { buildHarnessEnv, buildProjectContext, buildWorkstreamRuntimeGuidance, taskCwd } from "../shared";
 import { getWorkstreamByTask } from "../../workstreams/store";
 import { mapThreadEvent, newState } from "../codex/events";
 import { liteLLMCapabilities } from "./capabilities";
@@ -114,7 +114,7 @@ async function* runTurn(
     ? requestedEffort
     : undefined;
   const threadOptions: ThreadOptions = {
-    workingDirectory: task.worktree_path || project.repo_path || process.cwd(),
+    workingDirectory: taskCwd(task, project),
     skipGitRepoCheck: true,
     sandboxMode: controls.sandboxMode,
     approvalPolicy: controls.approvalPolicy,

@@ -48,6 +48,7 @@ export interface Task {
   reasoning: string | null; // thinking preset ("off"|"think"|"think_hard"|"ultrathink"); null = inherit default
   permission_mode: string | null; // run permission ("acceptEdits"|"plan"); null = bypassPermissions (default)
   workspace_mode: WorkspaceMode; // direct project folder or isolated git worktree
+  subdir: string; // repo-relative starting subfolder for the session ("" = workspace root)
   launch_config_required: number; // 1 when an agent-suggested task needs pre-start review
   launch_config_confirmed_at: number; // epoch ms; 0 until launch settings are confirmed
   session_id: string | null; // the agent's opaque session/thread id for the current generation

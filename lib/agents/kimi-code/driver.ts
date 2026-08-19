@@ -12,7 +12,7 @@ import { appendOperatorSessionIndex } from "../litellm/session-index";
 import { getLiteLLMRelay } from "../litellm/relay";
 import {
   buildProjectContext,
-  buildWorkstreamRuntimeGuidance,
+  buildWorkstreamRuntimeGuidance, taskCwd,
 } from "../shared";
 import { getWorkstreamByTask } from "../../workstreams/store";
 import { kimiCodeCapabilities } from "./capabilities";
@@ -132,7 +132,7 @@ async function* runTurn(
   env.ORCH_KIMI_TASK_HOME = home;
   const suggested: string[] = [];
   const session = createSession({
-    workDir: task.worktree_path || project.repo_path || process.cwd(),
+    workDir: taskCwd(task, project),
     ...(task.session_id ? { sessionId: task.session_id } : {}),
     // The environment overlay selects the exact temporary model. Passing
     // `model` here would add `-m`, which has higher priority and would bypass
