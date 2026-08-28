@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Status, Priority, ToolData, AskQuestion, AskAnswers } from "@/lib/types";
 import { Icon } from "../icons";
 import TaskChanges, { type ResolveResult } from "../TaskChanges";
@@ -352,7 +352,7 @@ export function QueueDock({ queued, onCancel, onEdit }: {
   );
 }
 
-export function SessionView({ project, task, agents, messages, running, blockedBy, transcriptLoading, onSend, onStart, onStop, onClear, onHandoff, onHandoffModel, onSetAgent, focused, onToggleFocus, onEdit, onReconnect, onSetStatus, onSetPriority, onSetModel, onSetReasoning, onSetPermission, onResolveWithAI, onMerged, onPrCreated, onAnswer, onCancelQueued, onBack, mobile, railW, onRailWidth, onRailReset, railCollapsed, onRailCollapse, onRailExpand }: {
+export function SessionView({ project, task, agents, messages, running, blockedBy, transcriptLoading, onSend, onStart, onStop, onClear, onHandoff, onHandoffModel, onSetAgent, focused, focusSlot, onToggleFocus, onEdit, onReconnect, onSetStatus, onSetPriority, onSetModel, onSetReasoning, onSetPermission, onResolveWithAI, onMerged, onPrCreated, onAnswer, onCancelQueued, onBack, mobile, railW, onRailWidth, onRailReset, railCollapsed, onRailCollapse, onRailExpand }: {
   project: ProjectRow; task: TaskRow; agents: AgentsBundle; messages: Msg[]; running: boolean; blockedBy?: string[]; transcriptLoading?: boolean;
   onSend: (t: string) => void; onStart: () => void; onStop: () => void; onClear: () => void; onEdit: () => void;
   // Hand the task to another connected driver across a /clear boundary (same
@@ -367,6 +367,8 @@ export function SessionView({ project, task, agents, messages, running, blockedB
   onSetAgent?: (agent: string) => void;
   // Focus mode: session fills the workspace (desktop). Esc exits in the shell.
   focused?: boolean;
+  // Extra chrome absorbed from the hidden titlebar in focus mode (NEED YOU pill).
+  focusSlot?: ReactNode;
   onToggleFocus?: () => void;
   // Deep-link to Settings → Agents, for the transcript's "your login died" recovery button.
   onReconnect?: () => void;
@@ -692,7 +694,7 @@ export function SessionView({ project, task, agents, messages, running, blockedB
 
   return (
       <div className="session">
-        <div className="sess-head">
+        <div className={`sess-head${focused ? " focusbar" : ""}`}>
           {onBack && <button className="mobile-back" onClick={onBack} title="Back to tasks" aria-label="Back to tasks">{Icon.chevRight({ style: { transform: "rotate(180deg)" } })}</button>}
           <div className="sh-main">
             <div className="crumb">
@@ -702,6 +704,7 @@ export function SessionView({ project, task, agents, messages, running, blockedB
             <div className="sh-title">{task.title}</div>
           </div>
           <div className="sh-tools">
+            {focusSlot}
             {showTurnClock && <span className="turn-clock turn-clock-chip" title="Time since this turn started">{turnClockText}</span>}
             <WorkstreamTaskControls taskId={task.id} />
             {task.pr_url && (

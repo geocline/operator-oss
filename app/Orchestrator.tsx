@@ -123,6 +123,9 @@ export default function Orchestrator() {
     return () => window.removeEventListener("keydown", onKey);
   }, [focusMode]);
   useEffect(() => { if (!task || o.view !== "workspace") setFocusMode(false); }, [task, o.view]);
+  // Desktop focus mode collapses ALL chrome to one bar: the global titlebar is
+  // hidden and the session header absorbs the essentials (NEED YOU pill).
+  const inFocus = focusMode && !!task && o.view === "workspace" && !isMobile;
   // Which Settings section to land on when opened programmatically (e.g. the
   // "connect another agent" nudge deep-links to Agents). undefined = default.
   const [settingsSection, setSettingsSection] = useState<string | undefined>();
@@ -227,6 +230,27 @@ export default function Orchestrator() {
     />
   );
 
+  // Rendered in the titlebar normally, or handed to the session header as a
+  // slot in focus mode (where the titlebar is hidden).
+  const needsYouPill = o.needsYouTotal > 0 && (
+    <div style={{ position: "relative" }}>
+      <button
+        className="needs-you-pill"
+        onClick={(e) => { e.stopPropagation(); setNeedsYouOpen((v) => !v); }}
+        title="Pick a task waiting on your input"
+      >
+        <span className="ny-dot" />
+        {o.needsYouTotal} NEED YOU
+      </button>
+      {needsYouOpen && (
+        <NeedsYouMenu
+          onJump={(projectId, taskId) => o.goToTask(projectId, taskId)}
+          onClose={() => setNeedsYouOpen(false)}
+        />
+      )}
+    </div>
+  );
+
   const sessionColumn = (
     <div className="col col-session">
       {project?.seeded === 1 && !isMobile && <WelcomeCoach />}
@@ -243,6 +267,7 @@ export default function Orchestrator() {
             onStop={() => o.stopTurn(task.id)}
             onClear={() => o.clearSession(task.id)} onHandoff={(agent) => o.clearSession(task.id, { agent })} onHandoffModel={(m) => o.handoffSession(task.id, m)} onSetAgent={o.setAgent} onEdit={() => o.setEditId(task.id)}
             focused={focusMode} onToggleFocus={() => setFocusMode((v) => !v)}
+            focusSlot={inFocus ? needsYouPill : undefined}
             onReconnect={() => openSettings("agents")}
             onSetStatus={o.setStatus} onSetPriority={o.setPriority} onSetModel={o.setModel}
             onSetReasoning={o.setReasoning} onSetPermission={o.setPermission}
@@ -400,7 +425,7 @@ export default function Orchestrator() {
 
   return (
     <div className={`app${isMobile ? " mobile" : ""}`}>
-      <div className="titlebar">
+      {!inFocus && <div className="titlebar">
         <div className="tb-left">
           <div className="tb-logo" title="Operator">
             <span className="tb-ring"><span className="tb-core" /><span className="tb-arc" /></span>
@@ -426,24 +451,7 @@ export default function Orchestrator() {
         )}
 
         <div className="tb-right">
-          {o.needsYouTotal > 0 && (
-            <div style={{ position: "relative" }}>
-              <button
-                className="needs-you-pill"
-                onClick={(e) => { e.stopPropagation(); setNeedsYouOpen((v) => !v); }}
-                title="Pick a task waiting on your input"
-              >
-                <span className="ny-dot" />
-                {o.needsYouTotal} NEED YOU
-              </button>
-              {needsYouOpen && (
-                <NeedsYouMenu
-                  onJump={(projectId, taskId) => o.goToTask(projectId, taskId)}
-                  onClose={() => setNeedsYouOpen(false)}
-                />
-              )}
-            </div>
-          )}
+          {needsYouPill}
           {isMobile && project && (
             <button
               className={`tb-icon${o.termOpen ? " on" : ""}`}
@@ -505,7 +513,7 @@ export default function Orchestrator() {
             {(o.accessEmail?.[0] ?? "A").toUpperCase()}
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* An agent's login died — nothing can run until it's reconnected, and that
           is true for every project, so it lives above the whole workspace rather
