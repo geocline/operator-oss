@@ -1449,8 +1449,18 @@ button.tpeek-more:hover{color:var(--accent-ink);}
   .app.mobile .send{width:40px;height:40px;}
 
   /* Ask card options are tap targets — give them room. */
+  .app.mobile .ask-panel{display:flex;flex-direction:column;min-height:0;max-height:min(70dvh,620px);flex:0 1 auto;}
+  .app.mobile .ask-panel-body{min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
+  .app.mobile .ask-panel>.ask-head,.app.mobile .ask-panel>.ask-foot,.app.mobile .ask-panel>.ask-incomplete{flex:0 0 auto;}
   .app.mobile .ask-opt{padding:10px 13px;}
   .app.mobile .ask-other{padding:11px;font-size:16px;}
+
+  /* Focus mode stays a single slim row on phones too. Without these stronger
+     mobile overrides, the normal phone header rules re-expand it to two rows
+     and take the height back from the scrollable chat. */
+  .app.mobile .sess-head.focusbar{flex-wrap:nowrap;min-height:44px;padding:6px 12px;row-gap:0;}
+  .app.mobile .sess-head.focusbar .sh-main{flex:1 1 auto;order:1;}
+  .app.mobile .sess-head.focusbar .sh-tools{flex:0 1 auto;order:2;overflow-x:auto;padding-bottom:0;}
 
   /* Modals go near-fullscreen so their forms are usable. */
   .app.mobile .modal{width:100%;max-width:calc(100vw - 16px);max-height:calc(100dvh - 32px);}
@@ -1696,6 +1706,7 @@ button.tpeek-more:hover{color:var(--accent-ink);}
    AskUserQuestion rules above) with its own outer class since it now lives in
    the composer, not the transcript. */
 .ask-panel{border:1px solid var(--accent-soft);border-radius:var(--r);background:var(--surface-2);overflow:hidden;margin:0 14px 10px;}
+.ask-panel-body>.ask-q:first-child{border-top:1px solid var(--line-2);}
 .ask-panel .ask-foot{justify-content:flex-start;gap:10px;}
 .ask-incomplete{padding:0 13px 11px;font-size:11px;color:var(--ink-3);}
 

@@ -234,20 +234,22 @@ export function AskPanel({ data, agentLabel, onAnswer, onChatAboutIt }: {
   return (
     <div className="ask-panel">
       <div className="ask-head">{Icon.spark()} {agentLabel} needs your input</div>
-      {questions.map((q, i) => (
-        <div className="ask-q" key={i}>
-          <div className="ask-qh"><span className="ask-chip">{q.header}</span>{q.question}{q.multiSelect && <span className="ask-multi">pick any</span>}</div>
-          <div className="ask-opts">
-            {q.options.map((o) => (
-              <button key={o.label} className={`ask-opt ${state[i].picked.includes(o.label) ? "on" : ""}`} onClick={() => toggle(i, o.label, !!q.multiSelect)} disabled={submitted}>
-                <span className="ask-opt-l">{o.label}</span>
-                {o.description && <span className="ask-opt-d">{o.description}</span>}
-              </button>
-            ))}
-            <input className="ask-other" placeholder="Other…" value={state[i].other} disabled={submitted} onChange={(e) => setOther(i, e.target.value)} />
+      <div className="ask-panel-body">
+        {questions.map((q, i) => (
+          <div className="ask-q" key={i}>
+            <div className="ask-qh"><span className="ask-chip">{q.header}</span>{q.question}{q.multiSelect && <span className="ask-multi">pick any</span>}</div>
+            <div className="ask-opts">
+              {q.options.map((o) => (
+                <button key={o.label} className={`ask-opt ${state[i].picked.includes(o.label) ? "on" : ""}`} onClick={() => toggle(i, o.label, !!q.multiSelect)} disabled={submitted}>
+                  <span className="ask-opt-l">{o.label}</span>
+                  {o.description && <span className="ask-opt-d">{o.description}</span>}
+                </button>
+              ))}
+              <input className="ask-other" placeholder="Other…" value={state[i].other} disabled={submitted} onChange={(e) => setOther(i, e.target.value)} />
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
       <div className="ask-foot">
         {submitError && <span className="ask-submit-error" role="alert">{submitError}</span>}
         <button className="btn btn-line btn-sm" onClick={onChatAboutIt} disabled={submitted} title="Answer in plain text instead of picking an option">Chat about it</button>

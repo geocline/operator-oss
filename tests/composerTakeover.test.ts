@@ -135,4 +135,15 @@ describe("composer takeover for asks", () => {
     expect(transcript).toContain("function AskView({ data, agentLabel }: { data: ToolData; agentLabel: string })");
     expect(transcript).toContain("export function AskPanel({ data, agentLabel, onAnswer, onChatAboutIt }");
   });
+
+  it("keeps long question sets scrollable inside the available iPhone viewport", () => {
+    const transcript = source("app/orchestrator/Transcript.tsx");
+    const css = source("app/globals.css");
+
+    expect(transcript).toContain('<div className="ask-panel-body">');
+    expect(css).toContain(".app.mobile .ask-panel{display:flex;flex-direction:column;min-height:0;max-height:");
+    expect(css).toContain(".app.mobile .ask-panel-body{min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;");
+    expect(css).toContain(".app.mobile .ask-panel>.ask-head,.app.mobile .ask-panel>.ask-foot,.app.mobile .ask-panel>.ask-incomplete{flex:0 0 auto;}");
+    expect(css).toContain(".ask-panel-body>.ask-q:first-child{border-top:1px solid var(--line-2);}");
+  });
 });
