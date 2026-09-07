@@ -114,13 +114,13 @@ function orchestratorServer(
           // Resolve refs (id passes through; a title from earlier this session maps
           // to its id) then create + wire deps via the shared logic. Record this
           // task's title→id so later suggestions can reference it by title.
-          const { task, text } = createSuggestedTask(project, {
+          const { task: suggested, text } = createSuggestedTask(project, {
             title: args.title,
             description: args.description,
             priority: args.priority,
             blocked_by: resolveTitleRefs(args.blocked_by, createdByTitle),
-          });
-          createdByTitle.set(args.title, task.id);
+          }, task);
+          createdByTitle.set(args.title, suggested.id);
           onSuggest(args.title);
           return { content: [{ type: "text", text }] };
         }

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getProject } from "@/lib/store";
+import { getProject, getTask } from "@/lib/store";
 import { createSuggestedTask } from "@/lib/agentTools";
 import type { Priority } from "@/lib/types";
 
@@ -16,6 +16,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
   let body: {
     projectId?: string;
+    taskId?: string;
     title?: string;
     description?: string;
     priority?: Priority;
@@ -31,11 +32,15 @@ export async function POST(req: NextRequest) {
   if (!project) return NextResponse.json({ error: "unknown project" }, { status: 404 });
   if (!body.title?.trim()) return NextResponse.json({ error: "title is required" }, { status: 400 });
 
+  // The calling task (the bridge always sends ORCH_TASK_ID) so the suggestion
+  // inherits the proposing session's agent/model rather than the project default.
+  // Ignore a task that belongs to another project — the parent must be local.
+  const parent = body.taskId ? getTask(body.taskId) : undefined;
   const { task, text } = createSuggestedTask(project, {
     title: body.title,
     description: body.description ?? "",
     priority: body.priority,
     blocked_by: Array.isArray(body.blocked_by) ? body.blocked_by : undefined,
-  });
+  }, parent?.project_id === project.id ? parent : null);
   return NextResponse.json({ ok: true, id: task.id, title: task.title, text });
 }

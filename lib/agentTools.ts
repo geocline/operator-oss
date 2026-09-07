@@ -660,14 +660,26 @@ export async function proposeCardChange(
  * MCP server and the HTTP endpoint hand back to the agent verbatim. Bad deps
  * degrade to a note rather than throwing (setTaskDeps drops foreign ids and
  * rejects cycles).
+ *
+ * `parent` is the task whose session called the tool. Follow-up work inherits
+ * that session's agent AND model: a suggestion made from an Opus session is
+ * work the user asked Opus for, so it should not silently land on the project
+ * default (a different family, or a cheaper model) just because it was proposed
+ * by a tool rather than typed into the new-task modal. Absent a parent (an old
+ * bridge that doesn't send taskId) createTask's project-default path stands.
  */
-export function createSuggestedTask(project: Project, input: SuggestTaskInput): { task: Task; text: string } {
+export function createSuggestedTask(
+  project: Project,
+  input: SuggestTaskInput,
+  parent?: Task | null,
+): { task: Task; text: string } {
   const task = createTask({
     project_id: project.id,
     title: input.title,
     description: input.description,
     priority: input.priority ?? "med",
     suggested: true,
+    ...(parent ? { agent: parent.agent, model: parent.model, reasoning: parent.reasoning } : {}),
   });
   let depNote = "";
   // Gated on SUGGEST_TASK_DEPS_ENABLED (lib/agentToolDefs.mjs), which is off:

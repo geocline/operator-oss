@@ -83,6 +83,28 @@ describe("agentTools shared logic", () => {
     expect(text).toContain(task.id);
   });
 
+  // A suggestion is follow-up work for the session that proposed it, so it
+  // inherits that session's run controls instead of the project default —
+  // an Opus session's follow-up must not land on a different agent/model.
+  it("createSuggestedTask inherits the proposing task's agent, model and reasoning", () => {
+    const project = createProject({ name: "Inherit" });
+    const parent = createTask({
+      project_id: project.id,
+      title: "Parent",
+      agent: "codex",
+      model: "gpt-5.4",
+      reasoning: "high",
+    });
+    const { task } = createSuggestedTask(project, { title: "Follow-up", description: "" }, parent);
+    expect(getTask(task.id)).toMatchObject({ agent: "codex", model: "gpt-5.4", reasoning: "high" });
+  });
+
+  it("createSuggestedTask falls back to the project default with no parent", () => {
+    const project = createProject({ name: "NoParent" });
+    const { task } = createSuggestedTask(project, { title: "Orphan", description: "" });
+    expect(getTask(task.id)).toMatchObject({ agent: project.default_agent, model: null });
+  });
+
   // Agent-set dependencies are gated by SUGGEST_TASK_DEPS_ENABLED
   // (lib/agentToolDefs.mjs), currently off: a suggested task must never arrive
   // already blocked, because the user never chose that. These pin both halves —

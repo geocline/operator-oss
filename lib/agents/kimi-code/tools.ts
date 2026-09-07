@@ -34,7 +34,7 @@ export function kimiCodeOperatorTools(
         priority: z.enum(["hi", "med", "lo"]).default("med"),
       }),
       handler: async (params) => {
-        const result = createSuggestedTask(project, params);
+        const result = createSuggestedTask(project, params, task);
         onSuggested(params.title);
         return { output: result.text, message: result.text };
       },
