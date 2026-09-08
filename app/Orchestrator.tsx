@@ -13,6 +13,7 @@ import { SessionView } from "./orchestrator/SessionView";
 import { ProjectLanding } from "./orchestrator/ProjectLanding";
 import { SettingsView } from "./orchestrator/SettingsView";
 import { InsightsView } from "./orchestrator/InsightsView";
+import { OfficeView } from "./orchestrator/office/OfficeView";
 import { QuotaView } from "./orchestrator/QuotaView";
 import { QuotaStrip } from "./orchestrator/QuotaStrip";
 import { AppearancePanel } from "./orchestrator/AppearancePanel";
@@ -104,7 +105,9 @@ export default function Orchestrator() {
   // selected, the task - which is what tells two Operator tabs apart. The other
   // views have no selection worth naming, so they just say which view they are.
   useDocumentTitle(
-    o.view !== "workspace"
+    o.officeOpen
+      ? "Office"
+      : o.view !== "workspace"
       ? o.view === "settings" ? "Settings" : o.view === "insights" ? "Insights" : "Quota"
       : !project ? null
       : task ? `${project.name} / ${task.title}`
@@ -129,7 +132,7 @@ export default function Orchestrator() {
   // Which Settings section to land on when opened programmatically (e.g. the
   // "connect another agent" nudge deep-links to Agents). undefined = default.
   const [settingsSection, setSettingsSection] = useState<string | undefined>();
-  const openSettings = (sect?: string) => { setSettingsSection(sect); o.setView("settings"); };
+  const openSettings = (sect?: string) => { setSettingsSection(sect); o.setOfficeOpen(false); o.setView("settings"); };
   // Drop the open flag if the pill itself disappears (count → 0), so it doesn't
   // silently re-open when a task next starts waiting.
   useEffect(() => { if (o.needsYouTotal === 0) setNeedsYouOpen(false); }, [o.needsYouTotal]);
@@ -201,8 +204,8 @@ export default function Orchestrator() {
   // elements sit side by side. Which pane shows is derived purely from the
   // selection state, so the titlebar "needs you" pill (which drives selection)
   // navigates correctly from any level.
-  const mobilePane: "projects" | "tasks" | "session" | "settings" | "insights" | "quota" =
-    o.view === "settings" ? "settings" : o.view === "insights" ? "insights" : o.view === "quota" ? "quota" : !project ? "projects" : !task ? "tasks" : "session";
+  const mobilePane: "projects" | "tasks" | "session" | "settings" | "insights" | "quota" | "office" =
+    o.officeOpen ? "office" : o.view === "settings" ? "settings" : o.view === "insights" ? "insights" : o.view === "quota" ? "quota" : !project ? "projects" : !task ? "tasks" : "session";
 
   const projectsColumn = (
     <ProjectsColumn
@@ -403,6 +406,12 @@ export default function Orchestrator() {
     <InsightsView agents={o.agents} onClose={() => o.setView("workspace")} />
   );
 
+  const openOffice = () => { o.setView("workspace"); o.setOfficeOpen(true); };
+  const closeOffice = () => o.setOfficeOpen(false);
+  const officeColumn = (
+    <OfficeView agents={o.agents} onGoToTask={o.goToTask} onClose={closeOffice} />
+  );
+
   const quotaColumn = (
     <QuotaView onClose={() => o.setView("workspace")} />
   );
@@ -436,7 +445,7 @@ export default function Orchestrator() {
               <span className="tb-div" />
               <div className="tb-crumb">
                 <span className="cz">fleet</span><span className="cs">/</span>
-                <span className="cn">{o.view === "insights" ? "insights" : project ? project.name : "—"}</span>
+                <span className="cn">{o.officeOpen ? "office" : o.view === "insights" ? "insights" : project ? project.name : "—"}</span>
               </div>
             </>
           )}
@@ -485,13 +494,20 @@ export default function Orchestrator() {
           </div>
 
           <button
+            className={`tb-icon tb-mobile-hide${o.officeOpen ? " on" : ""}`}
+            title="Office - a pixel-art floor of every live task" aria-label="Office"
+            onClick={() => (o.officeOpen ? closeOffice() : openOffice())}
+          >
+            {Icon.board()}
+          </button>
+          <button
             className={`tb-icon tb-mobile-hide${o.view === "insights" ? " on" : ""}`}
             title="Insights - spend, tokens, tasks shipped, code merged" aria-label="Insights"
-            onClick={() => o.setView(o.view === "insights" ? "workspace" : "insights")}
+            onClick={() => { o.setOfficeOpen(false); o.setView(o.view === "insights" ? "workspace" : "insights"); }}
           >
             {Icon.chart()}
           </button>
-          <QuotaStrip onOpenQuota={() => o.setView("quota")} />
+          <QuotaStrip onOpenQuota={() => { o.setOfficeOpen(false); o.setView("quota"); }} />
           {/* Geo's local dashboards - Work Cockpit (8770) and Conversations (8772). */}
           <a className="tb-icon tb-mobile-hide" href="http://localhost:8770/#cockpit" target="_blank" rel="noopener noreferrer" title="Work Cockpit (Mission Board)" aria-label="Work Cockpit">
             {Icon.external()}
@@ -502,7 +518,7 @@ export default function Orchestrator() {
           <button
             className={`tb-icon tb-mobile-hide${o.view === "quota" ? " on" : ""}`}
             title="Provider quotas - real-time fuel gauge" aria-label="Provider quotas"
-            onClick={() => o.setView(o.view === "quota" ? "workspace" : "quota")}
+            onClick={() => { o.setOfficeOpen(false); o.setView(o.view === "quota" ? "workspace" : "quota"); }}
           >
             {Icon.gauge()}
           </button>
@@ -539,12 +555,13 @@ export default function Orchestrator() {
           <BootSkeleton mobile={isMobile} />
         ) : isMobile ? (
           mobilePane === "projects" ? projectsColumn
+            : mobilePane === "office" ? officeColumn
             : mobilePane === "settings" ? settingsColumn
             : mobilePane === "insights" ? insightsColumn
             : mobilePane === "quota" ? quotaColumn
             : mobilePane === "tasks" ? tasksColumn
             : sessionColumn
-        ) : focusMode && task && o.view === "workspace" ? (
+        ) : !o.officeOpen && focusMode && task && o.view === "workspace" ? (
           // Focus mode: the session column alone, full width.
           sessionColumn
         ) : (
@@ -562,7 +579,7 @@ export default function Orchestrator() {
               </>
             )}
 
-            {o.view === "settings" ? settingsColumn : o.view === "insights" ? insightsColumn : o.view === "quota" ? quotaColumn : boardMode ? boardWorkspace : (
+            {o.officeOpen ? officeColumn : o.view === "settings" ? settingsColumn : o.view === "insights" ? insightsColumn : o.view === "quota" ? quotaColumn : boardMode ? boardWorkspace : (
               <>
                 {project ? (
                   layout.taskCollapsed ? (
@@ -641,7 +658,8 @@ export default function Orchestrator() {
             project && { id: "toggle-task-view", label: o.taskView === "board" ? "Show tasks as list" : "Show tasks as board", hint: "⌘⇧B", keywords: "kanban board list columns view", icon: o.taskView === "board" ? Icon.list() : Icon.board(), run: () => setTaskView(o.taskView === "board" ? "list" : "board") },
             { id: "toggle-theme", label: "Toggle theme", hint: isDark ? "switch to light" : "switch to dark", keywords: "dark light mode appearance", icon: isDark ? Icon.sun() : Icon.moon(), run: () => o.setAppearance("theme", isDark ? "light" : "dark") },
             { id: "open-settings", label: "Open Settings", keywords: "preferences defaults setup", icon: Icon.gear(), run: () => openSettings() },
-            { id: "open-insights", label: "Open Insights", keywords: "usage spend cost tokens analytics dashboard metrics stats", icon: Icon.chart(), run: () => o.setView("insights") },
+            { id: "open-insights", label: "Open Insights", keywords: "usage spend cost tokens analytics dashboard metrics stats", icon: Icon.chart(), run: () => { o.setOfficeOpen(false); o.setView("insights"); } },
+            { id: "open-office", label: "Open Office", keywords: "avatars floor rooms pixel art tasks visual", icon: Icon.board(), run: openOffice },
             { id: "connect-agent", label: "Connect an agent", keywords: "codex claude agent connect login subscription prime kimi litellm openrouter", icon: Icon.bolt(), run: () => openSettings("agents") },
             { id: "open-appearance", label: "Open Appearance", keywords: "appearance density theme dark light mode", icon: Icon.sliders(), run: () => o.setAppearanceOpen(true) },
             project && features.services && { id: "toggle-services", label: "Toggle Services", hint: o.servicesOpen ? "hide" : "show", keywords: "dev server setup test drawer", icon: Icon.sliders(), run: () => { o.setServicesMounted(true); o.setServicesOpen((s) => !s); } },

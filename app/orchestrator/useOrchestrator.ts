@@ -67,6 +67,13 @@ export function useOrchestrator() {
   const [modal, setModal] = useState<Modal>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
+  // Office view (the pixel-art task floor). A sibling boolean rather than a
+  // "view" id: View lives in types.ts (owned by another agent's parallel work
+  // here) and adding a literal to that union is out of scope for this file.
+  // Orchestrator.tsx treats officeOpen the same way it treats o.view === "insights"
+  // for mounting purposes, it just isn't part of the deep-link/back-button
+  // machinery in navHistory.ts/usePrefs.ts yet (follow-up if that's wanted).
+  const [officeOpen, setOfficeOpen] = useState(false);
   const [termOpen, setTermOpen] = useState(false);
   const [termMounted, setTermMounted] = useState(false); // mount once, then keep alive across collapses
   const [termHeight, setTermHeight] = useState(300);
@@ -513,6 +520,7 @@ export function useOrchestrator() {
   // (useEffect on selProj), so it won't clobber the selTask we set here.
   const goToTask = (projectId: string, taskId: string) => {
     setView("workspace");
+    setOfficeOpen(false);
     setSelProj(projectId);
     setSelTask(taskId);
   };
@@ -797,7 +805,7 @@ export function useOrchestrator() {
     tasks, realTasks, suggested, selTask, task, messages, running, runningProjects, unviewed,
     blockedBy, liveAwaiting, needsYouTotal,
     modal, setModal, editId, setEditId, view, setView, taskView, setTaskView,
-    appearance, setAppearance, appearanceOpen, setAppearanceOpen,
+    appearance, setAppearance, appearanceOpen, setAppearanceOpen, officeOpen, setOfficeOpen,
     settings, setSetting, appDefaults, setAppDefault, agents, refreshAgents, brokenAgents,
     onboarding, wizardOpen, finishWizard, rerunOnboarding, nudge, setNudge, onMerged, onPrCreated,
     layout, setLayout, accessEmail, recaps,
