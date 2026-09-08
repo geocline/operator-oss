@@ -494,7 +494,7 @@ export default function Orchestrator() {
           </div>
 
           <button
-            className={`tb-icon tb-mobile-hide${o.officeOpen ? " on" : ""}`}
+            className={`tb-icon${o.officeOpen ? " on" : ""}`}
             title="Office - a pixel-art floor of every live task" aria-label="Office"
             onClick={() => (o.officeOpen ? closeOffice() : openOffice())}
           >
