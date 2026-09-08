@@ -703,6 +703,13 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 /* status control */
 .status-ctl{display:flex;align-items:center;gap:7px;height:30px;padding:0 11px;border-radius:99px;border:1px solid var(--line);background:var(--surface-2);font-size:12px;font-weight:600;color:var(--ink-2);white-space:nowrap;flex:0 0 auto;}
 .status-ctl:hover{border-color:var(--line-strong);}
+/* the session header's "Status" line - newest task note, click jumps the rail
+   to NOTES. Reuses .status-ctl's pill chrome; content gets its own ellipsis
+   so a long note doesn't stretch the header. */
+.status-line{max-width:280px;cursor:pointer;}
+.status-line .sl-label{font-weight:700;color:var(--ink-3);flex:0 0 auto;}
+.status-line .sl-content{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1 1 auto;color:var(--ink-2);font-weight:500;}
+.status-line .sl-time{flex:0 0 auto;color:var(--ink-3);font-weight:500;}
 .viewseg{display:inline-flex;align-items:center;gap:2px;border:1px solid var(--line);border-radius:99px;background:var(--surface-2);padding:2px;flex:0 0 auto;}
 .viewseg-btn{height:26px;padding:0 14px;border-radius:99px;font-size:12px;font-weight:600;color:var(--ink-2);background:transparent;border:none;cursor:pointer;white-space:nowrap;transition:background .12s,color .12s;}
 .viewseg-btn.on{background:var(--accent);color:var(--on-accent);}

@@ -4,7 +4,7 @@ import {
   getWorkstreamByTask,
   setWorkstreamState,
 } from "@/lib/workstreams/store";
-import { readRemoteWorkstreamState } from "@/lib/workstreams/client";
+import { readRemoteWorkstreamState, trackerCardUrl } from "@/lib/workstreams/client";
 
 export const dynamic = "force-dynamic";
 
@@ -18,13 +18,19 @@ export async function GET(
   }
   const link = getWorkstreamByTask(id);
   if (!link || link.state === "disconnected") {
-    return NextResponse.json({ workstream: link ?? null });
+    return NextResponse.json({
+      workstream: link ?? null,
+      card_url: link ? trackerCardUrl(link.external_card_id) : null,
+    });
   }
   const remote = await readRemoteWorkstreamState(
     link.external_workstream_id,
   );
   if (!remote.ok) {
-    return NextResponse.json({ workstream: link });
+    return NextResponse.json({
+      workstream: link,
+      card_url: trackerCardUrl(link.external_card_id),
+    });
   }
   const localState =
     remote.state === "active"
@@ -41,5 +47,6 @@ export async function GET(
       remote.state === "activating"
         ? { ...reconciled, state: "activating" }
         : reconciled,
+    card_url: trackerCardUrl(reconciled.external_card_id),
   });
 }

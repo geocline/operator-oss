@@ -117,6 +117,18 @@ export interface TaskNote {
   created_at: number;
 }
 
+// A task's "office floor" appearance. Optional per task (see
+// lib/store.ts getTaskVisual) — no row means "use the deterministic default
+// look". `avatar` is an opaque JSON-serialized recipe (<= 2KB), interpreted
+// only by the client; the server never inspects its shape beyond validating
+// it's a plain object at write time.
+export interface TaskVisual {
+  task_id: string;
+  display_name: string;
+  avatar: string; // JSON string; '' = unset
+  updated_at: number;
+}
+
 // A follow-up the user typed while a turn was still running. Parked in the
 // pending_messages table (FIFO per task) and shown as "queued" in the
 // transcript; the runner dequeues the oldest one as the next turn when the

@@ -9,7 +9,7 @@ import { clientFeatures } from "@/lib/features";
 import type { ServiceInfo } from "@/lib/types";
 import type { ProjectRow, TaskRow, TaskNoteRow } from "./types";
 
-type Tab = "diff" | "preview" | "context" | "notes";
+export type Tab = "diff" | "preview" | "context" | "notes";
 type Session = { n: number; summaryBefore: string | null };
 
 // The live URL a project's dev server is reachable at when no registered
@@ -114,7 +114,7 @@ function ContextPane({ task, sessions, onClear }: { task: TaskRow; sessions: Ses
 // with the session generation it was written during. The same notes are fed
 // into the next generation's seed (lib/agents/shared.ts) so the agent resumes
 // knowing what the user last intended.
-export function NotesPane({ task, onCountChange }: { task: TaskRow; onCountChange?: (n: number) => void }) {
+export function NotesPane({ task, onCountChange, onNotesChange }: { task: TaskRow; onCountChange?: (n: number) => void; onNotesChange?: (notes: TaskNoteRow[]) => void }) {
   const [notes, setNotes] = useState<TaskNoteRow[] | null>(null);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
@@ -124,11 +124,12 @@ export function NotesPane({ task, onCountChange }: { task: TaskRow; onCountChang
     setNotes(null);
     setErr(null);
     jget<{ notes: TaskNoteRow[] }>(`/api/tasks/${task.id}/notes`)
-      .then((j) => { if (!dead) setNotes(j.notes); })
+      .then((j) => { if (!dead) { setNotes(j.notes); onNotesChange?.(j.notes); } })
       .catch(() => { if (!dead) setErr("Couldn't load notes."); });
     return () => { dead = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task.id]);
-  const sync = (next: TaskNoteRow[]) => { setNotes(next); onCountChange?.(next.length); };
+  const sync = (next: TaskNoteRow[]) => { setNotes(next); onCountChange?.(next.length); onNotesChange?.(next); };
   const add = async () => {
     const content = draft.trim();
     if (!content || saving) return;
@@ -184,12 +185,19 @@ export function NotesPane({ task, onCountChange }: { task: TaskRow; onCountChang
   );
 }
 
-export function SessionRail({ project, task, sessions, running, onResolveWithAI, onMerged, onPrCreated, onClear, onCollapse, onSwitchToChat }: {
+// A one-shot request from a parent to jump the rail to a given tab (e.g. the
+// session header's "Status" line jumping to NOTES). `nonce` makes repeated
+// requests for the same tab distinguishable so the effect fires every click.
+export interface RailTabRequest { tab: Tab; nonce: number }
+
+export function SessionRail({ project, task, sessions, running, onResolveWithAI, onMerged, onPrCreated, onClear, onCollapse, onSwitchToChat, tabRequest, onTabRequestHandled, onNotesChange }: {
   project: ProjectRow; task: TaskRow; sessions: Session[]; running: boolean;
   onResolveWithAI: (taskId: string) => Promise<ResolveResult>;
   onMerged?: () => void;
   onPrCreated?: (url: string) => void;
   onClear: () => void; onCollapse: () => void; onSwitchToChat: () => void;
+  tabRequest?: RailTabRequest | null; onTabRequestHandled?: () => void;
+  onNotesChange?: (notes: TaskNoteRow[]) => void;
 }) {
   // PREVIEW (project live-URL view) rides on the remote-execution backend, which
   // isn't real yet — keep it behind a flag (default off) so it ships only once
@@ -201,6 +209,15 @@ export function SessionRail({ project, task, sessions, running, onResolveWithAI,
   const showDiff = task.workspace_mode === "worktree" || Boolean(task.worktree_path);
   const [tab, setTab] = useState<Tab>(showDiff ? "diff" : "notes");
   useEffect(() => { if (!showDiff && tab === "diff") setTab("notes"); }, [showDiff, tab]);
+  // External jump request (e.g. clicking the header's Status line) - applies
+  // on every new nonce, including the initial mount right after the rail is
+  // expanded from its collapsed spine.
+  useEffect(() => {
+    if (!tabRequest) return;
+    setTab(tabRequest.tab);
+    onTabRequestHandled?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabRequest]);
   const Tab = ({ id, label }: { id: Tab; label: string }) => (
     <button className={`rail-tab ${tab === id ? "on" : ""}`} onClick={() => setTab(id)}>{label}</button>
   );
@@ -223,7 +240,7 @@ export function SessionRail({ project, task, sessions, running, onResolveWithAI,
           }} />
         )}
         {tab === "preview" && showPreview && <PreviewPane project={project} />}
-        {tab === "notes" && <NotesPane task={task} />}
+        {tab === "notes" && <NotesPane task={task} onNotesChange={onNotesChange} />}
         {tab === "context" && <ContextPane task={task} sessions={sessions} onClear={onClear} />}
       </div>
     </aside>

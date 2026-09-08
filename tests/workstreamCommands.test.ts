@@ -90,7 +90,12 @@ describe("task workstream API", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ workstream: link });
+    // card_url is the browser-facing "Open card" link, derived from the
+    // tracker base URL + the card id; it rides alongside the link row.
+    expect(await response.json()).toEqual({
+      workstream: link,
+      card_url: `https://tracker.example/?card=${encodeURIComponent(link.external_card_id)}`,
+    });
   });
 
   it.each([

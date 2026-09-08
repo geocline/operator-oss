@@ -4,21 +4,21 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type React
 import type { Status, Priority, ToolData, AskQuestion, AskAnswers } from "@/lib/types";
 import { Icon } from "../icons";
 import TaskChanges, { type ResolveResult } from "../TaskChanges";
-import { fmtTokens, fmtCost, modelLabel, isAwaiting, buildSessions, usageSplit, costDisplay, usageTooltip, elapsed, turnClockVisible, splitAttachments, producedFiles } from "./format";
+import { fmtTokens, fmtCost, modelLabel, isAwaiting, buildSessions, usageSplit, costDisplay, usageTooltip, elapsed, turnClockVisible, splitAttachments, producedFiles, relTime } from "./format";
 import {
   SLABEL, SSUB, AWAIT_LABEL, STATUSES, PLABEL, PRIORITIES,
   modelOptions, reasoningOptions, permissionOptions, RAIL_W,
   type ProjectRow, type TaskRow, type Msg, type SyncStatusResp, type AgentsBundle,
-  type WorkstreamLinkT,
+  type WorkstreamLinkT, type WorkstreamResponse, type TaskNoteRow,
 } from "./types";
 import { capsFor, agentLabel, findAgent, publicHarnessId } from "./agents";
 import { launchModelReady, needsLaunchConfiguration } from "./launchConfig";
 import { StatusDot, Avatar, Popover, Skel } from "./shared";
 import { Modal } from "./Modal";
-import { jsend } from "./api";
+import { jsend, jget } from "./api";
 import { isFirstAssistantReply, MessageView, SessionBreak, AskPanel, ProducedFilesFooter } from "./Transcript";
 import { Composer } from "./Composer";
-import { SessionRail } from "./SessionRail";
+import { SessionRail, type RailTabRequest } from "./SessionRail";
 import { ColResize, ColRail } from "./Layout";
 
 // Optional "why is this done?" prompt shown on the not-done → done transition.
@@ -131,6 +131,7 @@ function WorkstreamTaskControls({ taskId }: { taskId: string }) {
   const [workstream, setWorkstream] = useState<
     WorkstreamLinkT | null | undefined
   >(undefined);
+  const [cardUrl, setCardUrl] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<WorkstreamUiCommand | null>(null);
   const [failed, setFailed] = useState(false);
@@ -141,25 +142,27 @@ function WorkstreamTaskControls({ taskId }: { taskId: string }) {
         `/api/tasks/${taskId}/workstream`,
         { cache: "no-store" },
       );
-      if (!response.ok) return null;
-      const body = (await response.json()) as {
-        workstream?: WorkstreamLinkT | null;
-      };
-      return body.workstream ?? null;
+      if (!response.ok) return { workstream: null, card_url: null };
+      const body = (await response.json()) as Partial<WorkstreamResponse>;
+      return { workstream: body.workstream ?? null, card_url: body.card_url ?? null };
     } catch {
-      return null;
+      return { workstream: null, card_url: null };
     }
   }, [taskId]);
 
   useEffect(() => {
     let current = true;
     setWorkstream(undefined);
+    setCardUrl(null);
     setOpen(false);
     setFailed(false);
     const refresh = () => {
       void load()
-      .then((value) => {
-        if (current) setWorkstream(value);
+      .then(({ workstream: value, card_url }) => {
+        if (current) {
+          setWorkstream(value);
+          setCardUrl(card_url);
+        }
       });
     };
     refresh();
@@ -233,6 +236,20 @@ function WorkstreamTaskControls({ taskId }: { taskId: string }) {
       {open && (
         <Popover onClose={() => setOpen(false)}>
           <div className="pop-sec">Workstream updates</div>
+          {/* Shown regardless of link state (even paused/disconnected) - it's
+              just a link to the card, not a workstream command. */}
+          {cardUrl && (
+            <a
+              className="pop-item"
+              href={cardUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ width: "100%", boxSizing: "border-box", color: "inherit", textDecoration: "none" }}
+              onClick={() => setOpen(false)}
+            >
+              <span>Open card</span>
+            </a>
+          )}
           {workstream.state === "active" &&
             action("pause", "Pause updates")}
           {workstream.state === "paused" &&
@@ -249,6 +266,25 @@ function WorkstreamTaskControls({ taskId }: { taskId: string }) {
         </Popover>
       )}
     </div>
+  );
+}
+
+// The session header's status line: the newest task note (the task's status
+// log - see NotesPane, and the tracker sync it feeds). Single line, ellipsized,
+// with a relative time; clicking jumps the rail to NOTES. Hidden on mobile,
+// where the rail (and its NOTES tab) isn't reachable from this view.
+function StatusLine({ note, onOpen }: { note: TaskNoteRow | null; onOpen: () => void }) {
+  if (!note) return null;
+  return (
+    <button
+      className="status-ctl status-line"
+      title={note.content}
+      onClick={onOpen}
+    >
+      <span className="sl-label">Status</span>
+      <span className="sl-content">{note.content}</span>
+      <span className="sl-time">{relTime(note.created_at)}</span>
+    </button>
   );
 }
 
@@ -392,6 +428,25 @@ export function SessionView({ project, task, agents, messages, running, blockedB
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
   const [view, setView] = useState<"chat" | "changes">("chat");
+  // The session header's "Status" line: the newest task note (the task's status
+  // log, see NotesPane). Fetched independently of the rail (which only mounts
+  // NotesPane when its NOTES tab is active) so the line is visible immediately.
+  const [latestNote, setLatestNote] = useState<TaskNoteRow | null | undefined>(undefined);
+  useEffect(() => {
+    let dead = false;
+    setLatestNote(undefined);
+    jget<{ notes: TaskNoteRow[] }>(`/api/tasks/${task.id}/notes`)
+      .then((j) => { if (!dead) setLatestNote(j.notes[0] ?? null); })
+      .catch(() => { if (!dead) setLatestNote(null); });
+    return () => { dead = true; };
+  }, [task.id]);
+  // One-shot request to jump the (desktop) rail to the NOTES tab, fired by
+  // clicking the Status line. Consumed by SessionRail via onTabRequestHandled.
+  const [railTabRequest, setRailTabRequest] = useState<RailTabRequest | null>(null);
+  const openNotesTab = useCallback(() => {
+    if (railCollapsed) onRailExpand();
+    setRailTabRequest({ tab: "notes", nonce: Date.now() });
+  }, [railCollapsed, onRailExpand]);
   // Armed agent id for the two-step handoff button; disarms after 5s or on task switch.
   const [armedHandoff, setArmedHandoff] = useState<string | null>(null);
   useEffect(() => {
@@ -707,6 +762,7 @@ export function SessionView({ project, task, agents, messages, running, blockedB
             {focusSlot}
             {showTurnClock && <span className="turn-clock turn-clock-chip" title="Time since this turn started">{turnClockText}</span>}
             <WorkstreamTaskControls taskId={task.id} />
+            {!mobile && <StatusLine note={latestNote ?? null} onOpen={openNotesTab} />}
             {task.pr_url && (
               <a className="pr-chip" href={task.pr_url} target="_blank" rel="noreferrer" title={`Open this task's pull request — ${task.pr_url}`}>
                 {Icon.github()} PR{prNum ? ` #${prNum}` : ""} {Icon.external()}
@@ -946,6 +1002,8 @@ export function SessionView({ project, task, agents, messages, running, blockedB
               <SessionRail
                 project={project} task={task} sessions={sessions} running={running}
                 onResolveWithAI={onResolveWithAI} onMerged={onMerged} onPrCreated={onPrCreated} onClear={onClear} onCollapse={onRailCollapse} onSwitchToChat={() => { /* desktop transcript is always visible */ }}
+                tabRequest={railTabRequest} onTabRequestHandled={() => setRailTabRequest(null)}
+                onNotesChange={(notes) => setLatestNote(notes[0] ?? null)}
               />
             </div>
           )

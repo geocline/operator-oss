@@ -70,6 +70,13 @@ export interface WorkstreamLinkT {
   created_at: number;
   updated_at: number;
 }
+// Shape of GET /api/tasks/[id]/workstream. card_url is the browser-facing
+// tracker card link (null when no link exists or the tracker base URL isn't
+// configured) - always present alongside workstream, even when paused.
+export interface WorkstreamResponse {
+  workstream: WorkstreamLinkT | null;
+  card_url: string | null;
+}
 // A single row in the titlebar "need you" dropdown: an awaiting task plus enough
 // of its project to label and color it. Mirrors lib/store.ts listNeedsYou().
 export interface NeedsYouRow {

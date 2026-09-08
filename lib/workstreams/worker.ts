@@ -49,6 +49,11 @@ export const WORKSTREAM_LIFECYCLE_MESSAGES = {
 export type WorkstreamLifecycleKind =
   keyof typeof WORKSTREAM_LIFECYCLE_MESSAGES;
 
+interface StatusNotePayload {
+  note: { id: string; content: string; created_at: number; generation: number };
+  task_status: string;
+}
+
 interface RoutineUpdatePayload {
   body: string;
   attachments: Array<{
@@ -205,6 +210,155 @@ function routinePayload(
   return validation.ok ? { body, attachments } : null;
 }
 
+function statusNotePayload(
+  payload: Record<string, unknown>,
+): StatusNotePayload | null {
+  const note = payload.note;
+  const taskStatus = payload.task_status;
+  if (!note || typeof note !== "object" || Array.isArray(note)) return null;
+  const record = note as Record<string, unknown>;
+  if (
+    typeof record.id !== "string" ||
+    !record.id.trim() ||
+    typeof record.content !== "string" ||
+    !record.content.trim() ||
+    typeof record.created_at !== "number" ||
+    typeof record.generation !== "number" ||
+    typeof taskStatus !== "string" ||
+    !taskStatus.trim()
+  ) {
+    return null;
+  }
+  const validation = validateCardFacingPayload({ text: record.content });
+  if (!validation.ok) return null;
+  return {
+    note: {
+      id: record.id,
+      content: record.content,
+      created_at: record.created_at,
+      generation: record.generation,
+    },
+    task_status: taskStatus,
+  };
+}
+
+// Card-facing status_note delivery. Mirrors postWorkstreamUpdateDetailed's
+// auth/headers/timeout/retry semantics (lib/workstreams/client.ts) without
+// importing that module — client.ts is owned by another agent working the
+// same feature in parallel, and it doesn't expose a generic request helper.
+const DEFAULT_STATUS_NOTE_TIMEOUT_MS = 10_000;
+
+function statusNoteTrackerConfig(): { baseUrl: string; token: string } | null {
+  const rawBaseUrl = process.env.ARDENT_TRACKER_BASE_URL?.trim();
+  const token = process.env.ARDENT_WORKSTREAM_BRIDGE_TOKEN?.trim();
+  if (!rawBaseUrl || !token) return null;
+  try {
+    const url = new URL(rawBaseUrl);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return { baseUrl: url.toString().replace(/\/$/, ""), token };
+  } catch {
+    return null;
+  }
+}
+
+async function postStatusNote(
+  externalWorkstreamId: string,
+  payload: StatusNotePayload,
+  options: WorkstreamBridgeRequestOptions,
+): Promise<WorkstreamBridgeResult> {
+  const config = statusNoteTrackerConfig();
+  if (!config) {
+    return {
+      ok: false,
+      retryable: true,
+      category: "configuration",
+      error: "tracker delivery is not configured",
+    };
+  }
+  const controller = new AbortController();
+  const timeoutMs = Math.max(
+    1,
+    Math.min(options.timeoutMs ?? DEFAULT_STATUS_NOTE_TIMEOUT_MS, 60_000),
+  );
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await (options.fetchImpl ?? fetch)(
+      `${config.baseUrl}/api/workstream-bridge/update`,
+      {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${config.token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          workstream_id: externalWorkstreamId,
+          event_type: "status_note",
+          note: payload.note,
+          task_status: payload.task_status,
+        }),
+        cache: "no-store",
+        signal: controller.signal,
+      },
+    );
+    if (!response.ok) {
+      const retryable =
+        response.status === 429 || response.status === 423 || response.status >= 500;
+      const category: WorkstreamBridgeFailureCategory =
+        response.status === 429
+          ? "rate_limit"
+          : response.status >= 500
+            ? "server"
+            : response.status === 401 || response.status === 403
+              ? "auth"
+              : response.status === 404
+                ? "not_found"
+                : response.status === 409 || response.status === 423
+                  ? "state"
+                  : "policy";
+      return {
+        ok: false,
+        retryable,
+        category,
+        status: response.status,
+        error: retryable
+          ? "tracker delivery is temporarily unavailable"
+          : "tracker rejected the status note",
+      };
+    }
+    const value = (await response.json().catch(() => null)) as unknown;
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return {
+        ok: false,
+        retryable: true,
+        category: "invalid_response",
+        error: "tracker returned an invalid delivery response",
+        status: response.status,
+      };
+    }
+    return { ok: true, value: value as Record<string, unknown> };
+  } catch (cause) {
+    if (
+      controller.signal.aborted ||
+      (cause instanceof Error && cause.name === "AbortError")
+    ) {
+      return {
+        ok: false,
+        retryable: true,
+        category: "timeout",
+        error: "tracker delivery timed out",
+      };
+    }
+    return {
+      ok: false,
+      retryable: true,
+      category: "network",
+      error: "tracker delivery network failure",
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function proposalPayload(
   payload: Record<string, unknown>,
 ): ProposedChangePayload | null {
@@ -333,6 +487,19 @@ export async function deliverWorkstreamOutboxEvent(
           ? { sessionModified: payload.session_modified }
           : {}),
       },
+      options,
+    );
+  }
+  if (context.event.event_type === "status_note") {
+    const payload = statusNotePayload(context.event.payload);
+    if (!payload) {
+      return permanentFailure(
+        "queued status note failed the card-facing delivery policy",
+      );
+    }
+    return postStatusNote(
+      context.link.external_workstream_id,
+      payload,
       options,
     );
   }

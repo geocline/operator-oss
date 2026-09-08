@@ -10,7 +10,7 @@ import {
   removeArtifactFilesForProject,
   removeArtifactFilesForTask,
 } from "./artifacts";
-import type { Project, Task, Message, PendingMessage, Summary, TaskNote, Session, Priority, Status, MsgRole, TurnUsage, UsageTotals, WorkspaceMode } from "./types";
+import type { Project, Task, Message, PendingMessage, Summary, TaskNote, TaskVisual, Session, Priority, Status, MsgRole, TurnUsage, UsageTotals, WorkspaceMode } from "./types";
 
 // ---------- projects ----------
 
@@ -839,6 +839,173 @@ export function addTaskNote(taskId: string, generation: number, content: string)
 export function deleteTaskNote(taskId: string, noteId: string): boolean {
   const res = getDb().prepare("DELETE FROM task_notes WHERE id = ? AND task_id = ?").run(noteId, taskId);
   return res.changes > 0;
+}
+
+// ---------- task visuals (office floor appearance) ----------
+
+const TASK_VISUAL_DISPLAY_NAME_MAX = 24;
+const TASK_VISUAL_AVATAR_MAX_BYTES = 2048;
+
+export function getTaskVisual(taskId: string): TaskVisual | undefined {
+  return getDb().prepare("SELECT * FROM task_visuals WHERE task_id = ?").get(taskId) as TaskVisual | undefined;
+}
+
+// Insert-or-update a task's display alias and/or avatar recipe. Either field
+// may be omitted (left unchanged); `avatar: null` clears it back to "unset"
+// (deterministic default look). Throws a plain Error with a user-facing
+// message on validation failure — callers (the PATCH route) turn that into a
+// 400. display_name is trimmed and capped at 24 chars; avatar must be a
+// plain, JSON-serializable object no larger than 2KB when serialized.
+export function upsertTaskVisual(
+  taskId: string,
+  patch: { display_name?: string; avatar?: Record<string, unknown> | null },
+): TaskVisual {
+  const current = getTaskVisual(taskId);
+  let displayName = current?.display_name ?? "";
+  if (patch.display_name !== undefined) {
+    const trimmed = patch.display_name.trim();
+    if (trimmed.length > TASK_VISUAL_DISPLAY_NAME_MAX) {
+      throw new Error(`display_name must be ${TASK_VISUAL_DISPLAY_NAME_MAX} characters or fewer`);
+    }
+    displayName = trimmed;
+  }
+  let avatar = current?.avatar ?? "";
+  if (patch.avatar !== undefined) {
+    if (patch.avatar === null) {
+      avatar = "";
+    } else {
+      if (typeof patch.avatar !== "object" || Array.isArray(patch.avatar)) {
+        throw new Error("avatar must be a plain object or null");
+      }
+      let serialized: string;
+      try {
+        serialized = JSON.stringify(patch.avatar);
+      } catch {
+        throw new Error("avatar must be JSON-serializable");
+      }
+      if (!serialized || Buffer.byteLength(serialized, "utf8") > TASK_VISUAL_AVATAR_MAX_BYTES) {
+        throw new Error(`avatar must serialize to ${TASK_VISUAL_AVATAR_MAX_BYTES} bytes or fewer`);
+      }
+      avatar = serialized;
+    }
+  }
+  const now = Date.now();
+  getDb()
+    .prepare(
+      `INSERT INTO task_visuals (task_id, display_name, avatar, updated_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(task_id) DO UPDATE SET
+         display_name = excluded.display_name,
+         avatar = excluded.avatar,
+         updated_at = excluded.updated_at`
+    )
+    .run(taskId, displayName, avatar, now);
+  return getTaskVisual(taskId)!;
+}
+
+// ---------- office view ----------
+
+export interface OfficeTask {
+  id: string;
+  project_id: string;
+  title: string;
+  status: Status;
+  running: number;
+  awaiting_input: number;
+  started: number;
+  agent: string;
+  priority: Priority;
+  updated_at: number;
+  turn_started_at: number | null;
+  display_name: string;
+  avatar: Record<string, unknown> | null;
+  latest_note: { content: string; created_at: number } | null;
+  card_url: string | null;
+}
+
+// The browser-facing tracker card link, built without importing
+// lib/workstreams/client.ts (owned by another agent working the same
+// feature in parallel) — same URL shape as that module's trackerCardUrl.
+function officeCardUrl(externalCardId: string | null | undefined): string | null {
+  if (!externalCardId) return null;
+  const raw = process.env.ARDENT_TRACKER_BASE_URL?.trim();
+  if (!raw) return null;
+  const base = raw.replace(/\/+$/, "");
+  return `${base}/?card=${encodeURIComponent(externalCardId)}`;
+}
+
+// Active projects only ({id,name} — enough for the office view's project
+// switcher).
+export function listOfficeProjects(): { id: string; name: string }[] {
+  return getDb()
+    .prepare("SELECT id, name FROM projects WHERE deprecated = 0 ORDER BY position ASC, created_at ASC")
+    .all() as { id: string; name: string }[];
+}
+
+// Every live task across active projects, joined to its visual override
+// (if any), its latest status note (if any), and its linked tracker card
+// (if connected and not disconnected) — one query, no N+1 per task. Excludes
+// done/cancelled tasks and agent-suggested tasks not yet started.
+export function listOfficeTasks(): OfficeTask[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT t.id, t.project_id, t.title, t.status, t.running, t.awaiting_input, t.started,
+              t.agent, t.priority, t.updated_at, t.turn_started_at,
+              COALESCE(v.display_name, '') AS display_name,
+              v.avatar AS avatar_json,
+              n.content AS note_content, n.created_at AS note_created_at,
+              wl.external_card_id AS external_card_id
+       FROM tasks t
+       JOIN projects p ON p.id = t.project_id
+       LEFT JOIN task_visuals v ON v.task_id = t.id
+       LEFT JOIN (
+         SELECT task_id, content, created_at,
+                ROW_NUMBER() OVER (PARTITION BY task_id ORDER BY created_at DESC, rowid DESC) AS rn
+         FROM task_notes
+       ) n ON n.task_id = t.id AND n.rn = 1
+       LEFT JOIN workstream_links wl ON wl.task_id = t.id AND wl.state != 'disconnected'
+       WHERE p.deprecated = 0 AND t.suggested = 0 AND t.status NOT IN ('done', 'cancelled')
+       ORDER BY t.updated_at DESC`
+    )
+    .all() as {
+      id: string;
+      project_id: string;
+      title: string;
+      status: Status;
+      running: number;
+      awaiting_input: number;
+      started: number;
+      agent: string;
+      priority: Priority;
+      updated_at: number;
+      turn_started_at: number | null;
+      display_name: string;
+      avatar_json: string | null;
+      note_content: string | null;
+      note_created_at: number | null;
+      external_card_id: string | null;
+    }[];
+
+  return rows.map((r) => ({
+    id: r.id,
+    project_id: r.project_id,
+    title: r.title,
+    status: r.status,
+    running: r.running,
+    awaiting_input: r.awaiting_input,
+    started: r.started,
+    agent: r.agent,
+    priority: r.priority,
+    updated_at: r.updated_at,
+    turn_started_at: r.turn_started_at,
+    display_name: r.display_name,
+    avatar: r.avatar_json ? (JSON.parse(r.avatar_json) as Record<string, unknown>) : null,
+    latest_note:
+      r.note_content !== null && r.note_created_at !== null
+        ? { content: r.note_content, created_at: r.note_created_at }
+        : null,
+    card_url: officeCardUrl(r.external_card_id),
+  }));
 }
 
 export function addSummary(taskId: string, generation: number, summary: string): Summary {

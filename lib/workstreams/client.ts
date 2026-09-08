@@ -71,17 +71,36 @@ export interface RegisterWorkstreamConversationInput {
 const DEFAULT_WORKSTREAM_DELIVERY_TIMEOUT_MS = 10_000;
 const MAX_WORKSTREAM_BRIDGE_RESPONSE_BYTES = 64 * 1024;
 
-function trackerConfig(): { baseUrl: string; token: string } | null {
+// Base-URL parsing only, no token required - shared by trackerConfig() (which
+// needs the token for authenticated bridge calls) and trackerCardUrl() (a
+// plain browser-facing link that needs no auth).
+function trackerBaseUrl(): string | null {
   const rawBaseUrl = process.env.ARDENT_TRACKER_BASE_URL?.trim();
-  const token = process.env.ARDENT_WORKSTREAM_BRIDGE_TOKEN?.trim();
-  if (!rawBaseUrl || !token) return null;
+  if (!rawBaseUrl) return null;
   try {
     const url = new URL(rawBaseUrl);
     if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-    return { baseUrl: url.toString().replace(/\/$/, ""), token };
+    return url.toString().replace(/\/$/, "");
   } catch {
     return null;
   }
+}
+
+function trackerConfig(): { baseUrl: string; token: string } | null {
+  const baseUrl = trackerBaseUrl();
+  const token = process.env.ARDENT_WORKSTREAM_BRIDGE_TOKEN?.trim();
+  if (!baseUrl || !token) return null;
+  return { baseUrl, token };
+}
+
+// The card-facing URL for a linked tracker card, e.g. for an "Open card" link
+// in the UI. Returns null when the tracker base URL isn't configured or is
+// invalid - the token is irrelevant here, this is just a browser link.
+export function trackerCardUrl(externalCardId: string): string | null {
+  const baseUrl = trackerBaseUrl();
+  const id = externalCardId.trim();
+  if (!baseUrl || !id) return null;
+  return `${baseUrl}/?card=${encodeURIComponent(id)}`;
 }
 
 async function boundedJsonObject(

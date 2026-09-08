@@ -9,7 +9,8 @@ export type WorkstreamOutboxState =
 export type WorkstreamEventType =
   | "routine_update"
   | "proposed_change"
-  | "conversation_registration";
+  | "conversation_registration"
+  | "status_note";
 
 export type WorkstreamEventPayload = Record<string, unknown>;
 

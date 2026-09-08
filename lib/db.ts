@@ -219,6 +219,18 @@ export function init(db: Database.Database) {
       PRIMARY KEY (task_id, depends_on_id)
     );
 
+    -- Per-task "office floor" appearance: a short display alias (never the
+    -- title) and an opaque avatar recipe (JSON, <= 2KB, interpreted client-side
+    -- only). Row is optional per task — absence means "use the deterministic
+    -- default look" (see lib/store.ts getTaskVisual). No migrate() entry
+    -- needed; CREATE TABLE IF NOT EXISTS backfills existing DBs on next boot.
+    CREATE TABLE IF NOT EXISTS task_visuals (
+      task_id      TEXT PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+      display_name TEXT NOT NULL DEFAULT '',
+      avatar       TEXT NOT NULL DEFAULT '',
+      updated_at   INTEGER NOT NULL
+    );
+
     -- Stable links between an Operator task and an external card. Provider data
     -- stays isolated here instead of leaking into the generic tasks table.
     CREATE TABLE IF NOT EXISTS workstream_links (
