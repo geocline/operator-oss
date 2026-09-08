@@ -224,6 +224,17 @@ export const PRIME_OPERATOR_EXTENSION_PATH = path.join(
 export const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || "").replace(/\/+$/, "");
 
 /**
+ * Absolute path to an extracted LimeZu "Modern Interiors" pack (purchased
+ * separately; its license forbids redistribution, so no tile image ever ships
+ * in this repo or its Docker image). When set, the Office view's tiled skin
+ * (app/orchestrator/office/skin/) serves PNGs from this directory read-only
+ * via GET /api/office/skin/[...path] and paints room floors/walls/furniture
+ * from it. Empty (the default) disables the skin entirely — the Office view
+ * renders its plain CSS rooms, unchanged.
+ */
+export const OFFICE_SKIN_DIR = process.env.ORCH_OFFICE_SKIN_DIR || "";
+
+/**
  * The base URL for the OpenCodex proxy's provider-quotas endpoint
  * (e.g. http://127.0.0.1:10100). Used to fetch real-time quota/fuel-gauge data.
  * Loopback-only on Geo's fork; the proxy serves quota.reports[] with percent-used
