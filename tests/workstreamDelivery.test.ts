@@ -14,6 +14,7 @@ import {
 import {
   MAX_WORKSTREAM_DELIVERY_ATTEMPTS,
   NEVER_RETRY_WORKSTREAM_AT,
+  WORKSTREAM_RECONCILE_IDLE_INTERVAL_MS,
   WORKSTREAM_RECONCILE_WARNING_INTERVAL_MS,
   WORKSTREAM_RETRY_BASE_MS,
   getWorkstreamStorageReconciliationStatus,
@@ -690,7 +691,7 @@ describe("scheduled tracker storage reconciliation", () => {
     },
   };
 
-  it("runs after worker boot and every scheduled pass with no due outbox rows", async () => {
+  it("runs after worker boot, then backs off while the last sweep is still fresh", async () => {
     vi.useFakeTimers();
     const reconcileStorage = vi
       .fn<() => Promise<WorkstreamStorageReconcileResult>>()
@@ -699,7 +700,15 @@ describe("scheduled tracker storage reconciliation", () => {
     await startWorkstreamWorker({ reconcileStorage });
     await vi.waitFor(() => expect(reconcileStorage).toHaveBeenCalledTimes(1));
 
+    // The outbox tick keeps running at 15s, but reconciliation is housekeeping
+    // and already succeeded - it must not spend a round trip on every pass.
     await vi.advanceTimersByTimeAsync(15_000);
+    expect(reconcileStorage).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(reconcileStorage).toHaveBeenCalledTimes(1);
+
+    // Once the idle window lapses the next pass sweeps again.
+    await vi.advanceTimersByTimeAsync(WORKSTREAM_RECONCILE_IDLE_INTERVAL_MS);
     await vi.waitFor(() => expect(reconcileStorage).toHaveBeenCalledTimes(2));
   });
 

@@ -37,6 +37,23 @@ const WORKSTREAM_WORKER_INTERVAL_MS = 15_000;
 const WORKSTREAM_WORKER_BATCH_SIZE = 20;
 export const WORKSTREAM_RECONCILE_WARNING_INTERVAL_MS = 5 * 60_000;
 
+/**
+ * How long a SUCCESSFUL storage reconciliation is trusted before the worker
+ * sweeps again.
+ *
+ * Reconciliation is housekeeping - it cleans up orphaned tracker attachment
+ * storage - so it is not latency-sensitive, but it is the only part of a
+ * worker pass that always hits the network. Tied to the 15s outbox tick it was
+ * ~5,760 empty round trips a day per Operator instance, independent of how
+ * many workstreams exist or whether anything had changed. At 5 minutes that is
+ * ~288, and the outbox keeps draining on its own 15s cadence.
+ *
+ * Deliberately keyed off the last SUCCESS, not the last attempt: a failed
+ * sweep still retries on the very next pass, so a transient tracker outage
+ * recovers in seconds rather than waiting out this window.
+ */
+export const WORKSTREAM_RECONCILE_IDLE_INTERVAL_MS = 5 * 60_000;
+
 export const WORKSTREAM_LIFECYCLE_MESSAGES = {
   activation: "This work is connected for updates.",
   work_started: "Work has started.",
@@ -112,6 +129,8 @@ export interface WorkstreamWorkerOptions
     link: WorkstreamLink,
   ) => Promise<RemoteWorkstreamStateResult>;
   reconcileStorage?: () => Promise<WorkstreamStorageReconcileResult>;
+  /** Test seam for WORKSTREAM_RECONCILE_IDLE_INTERVAL_MS. */
+  reconcileIdleIntervalMs?: number;
 }
 
 export interface WorkstreamWorkerSummary {
@@ -777,6 +796,17 @@ function triggerStorageReconciliation(
   }
   const attemptedAt = Date.now();
   const previous = registry.storageReconciliationStatus!;
+  // Nothing has failed and the last sweep is still fresh: skip this pass
+  // rather than spend a network round trip confirming there is still nothing
+  // to clean up. See WORKSTREAM_RECONCILE_IDLE_INTERVAL_MS.
+  if (
+    previous.state === "ok" &&
+    previous.lastSuccessAt !== null &&
+    attemptedAt - previous.lastSuccessAt <
+      (options.reconcileIdleIntervalMs ?? WORKSTREAM_RECONCILE_IDLE_INTERVAL_MS)
+  ) {
+    return Promise.resolve();
+  }
   registry.storageReconciliationStatus = {
     state: "running",
     lastAttemptAt: attemptedAt,
