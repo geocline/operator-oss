@@ -16,12 +16,14 @@ import type { TurnUsage } from "../../types";
 // Retired models keep their rows: historical turns still price against the
 // model they actually ran on, even once the picker stops offering it.
 const PRICES: { prefix: string; input: number; cachedInput: number; output: number }[] = [
+  { prefix: "gpt-6-astra", input: 10.0, cachedInput: 1.0, output: 50.0 },
   { prefix: "gpt-5.6-sol", input: 5.0, cachedInput: 0.5, output: 30.0 },
   { prefix: "gpt-5.6-terra", input: 2.0, cachedInput: 0.2, output: 12.0 },
   { prefix: "gpt-5.6-luna", input: 0.2, cachedInput: 0.02, output: 1.2 },
   { prefix: "gpt-5.5", input: 5.0, cachedInput: 0.5, output: 30.0 },
   { prefix: "gpt-5.4-mini", input: 0.75, cachedInput: 0.075, output: 4.5 },
   { prefix: "gpt-5.4", input: 2.5, cachedInput: 0.25, output: 15.0 },
+  { prefix: "gpt-5.3-codex-spark", input: 1.75, cachedInput: 0.175, output: 14.0 },
   { prefix: "gpt-5.3-codex", input: 1.75, cachedInput: 0.175, output: 14.0 },
   { prefix: "gpt-5.2", input: 1.75, cachedInput: 0.175, output: 14.0 },
   { prefix: "gpt-5.1-codex-mini", input: 0.25, cachedInput: 0.025, output: 2.0 },
@@ -33,12 +35,12 @@ const PRICES: { prefix: string; input: number; cachedInput: number; output: numb
   { prefix: "gpt-5", input: 1.25, cachedInput: 0.125, output: 10.0 },
 ];
 
-// The codex CLI's own default model, assumed when a task doesn't pick one
-// (tasks.model = null → we omit the model override and the CLI runs its
-// default). Used to resolve pricing and the resolved-model badge; bump when
-// upstream changes its default. Verify against the CLI's preset table rather
-// than guessing: the default is the preset the `/model` menu marks "(default)"
-// — equivalently, `priority: 0`.
+// The model assumed when a task doesn't pick one (tasks.model = null → we omit
+// the model override and the CLI runs its default). Used to resolve pricing and
+// the resolved-model badge. As of codex-cli 0.154.0 (2026-09-13) the catalog's
+// top-priority preset is gpt-6-astra, but a user's ~/.codex/config.toml `model`
+// wins over it and Astra draws plan quota ~2x faster, so Sol stays the assumed
+// default: the honest mid estimate for an unpinned turn. Bump deliberately.
 export const DEFAULT_CODEX_MODEL = "gpt-5.6-sol";
 
 /** The model a codex turn effectively runs: the task's choice, else the CLI default. */

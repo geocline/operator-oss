@@ -25,11 +25,22 @@ describe("modelLabel", () => {
   });
 
   it("falls back to capability labels for ids with no version shape", () => {
+    expect(modelLabel("gpt-6-astra", CODEX_CAPABILITIES)).toBe("GPT-6 Astra");
     expect(modelLabel("gpt-5.5", CODEX_CAPABILITIES)).toBe("GPT-5.5");
-    expect(modelLabel("gpt-5.3-codex", CODEX_CAPABILITIES)).toBe("GPT-5.3 Codex");
-    // "gpt-5.4-mini" also contains "gpt-5.4" — longest-first matching must not
-    // let the shorter value shadow the more specific one.
-    expect(modelLabel("gpt-5.4-mini", CODEX_CAPABILITIES)).toBe("GPT-5.4 Mini");
+    expect(modelLabel("gpt-5.3-codex-spark", CODEX_CAPABILITIES)).toBe("GPT-5.3 Codex Spark");
+    // A value that is a prefix of another ("x" vs "x-mini") - longest-first
+    // matching must not let the shorter value shadow the more specific one.
+    const caps = {
+      ...CODEX_CAPABILITIES,
+      models: [
+        { value: "gpt-x", label: "GPT-X", sub: "", contextWindow: 1, group: "g" },
+        { value: "gpt-x-mini", label: "GPT-X Mini", sub: "", contextWindow: 1, group: "g" },
+      ],
+    };
+    expect(modelLabel("gpt-x-mini", caps)).toBe("GPT-X Mini");
+    // Retired ids (no longer in the catalog) degrade to the raw id, never a
+    // wrong label from a neighbouring entry.
+    expect(modelLabel("gpt-5.4-mini", CODEX_CAPABILITIES)).toBe("gpt-5.4-mini");
   });
 
   it("degrades to the family, then the raw id", () => {
@@ -65,17 +76,25 @@ describe("claude model list", () => {
 });
 
 describe("codex model list", () => {
-  it("offers the current GPT-5.6 family first", () => {
-    expect(CODEX_CAPABILITIES.models.slice(0, 3).map((m) => m.value)).toEqual([
+  it("offers GPT-6 Astra then the GPT-5.6 family first, in catalog priority order", () => {
+    expect(CODEX_CAPABILITIES.models.slice(0, 4).map((m) => m.value)).toEqual([
+      "gpt-6-astra",
       "gpt-5.6-sol",
       "gpt-5.6-terra",
       "gpt-5.6-luna",
     ]);
   });
 
-  it("uses the 1.05M GPT-5.6 context window", () => {
-    for (const model of CODEX_CAPABILITIES.models.filter((m) => m.value.startsWith("gpt-5.6-"))) {
-      expect(model.contextWindow).toBe(1_050_000);
+  it("uses the window codex actually runs (272k), not the API maximum", () => {
+    for (const model of CODEX_CAPABILITIES.models.filter((m) => /^gpt-(6|5\.6)-/.test(m.value))) {
+      expect(model.contextWindow).toBe(272_000);
+    }
+  });
+
+  it("no longer offers models the catalog retired", () => {
+    const values = CODEX_CAPABILITIES.models.map((m) => m.value);
+    for (const retired of ["gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex", "gpt-5.2"]) {
+      expect(values).not.toContain(retired);
     }
   });
 });

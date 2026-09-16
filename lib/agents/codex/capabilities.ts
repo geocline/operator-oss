@@ -7,32 +7,37 @@
 import type { AgentCapabilities } from "../types";
 import { codexApiKey } from "./auth";
 
-const CTX_56 = 1_050_000;
-const CTX_PREVIOUS = 272_000;
+// Context windows are what the codex CLI itself runs against (the catalog's
+// `context_window`, the basis of its compaction trigger and /status gauge), not
+// the API maximum: GPT-6 Astra is 1.05M via the API but codex runs it at 272k
+// (max_context_window 872k is the extended tier codex may grow into). Verified
+// against the live catalog (codex-cli 0.154.0, 2026-09-13).
+const CTX_CODEX = 272_000;
+const CTX_SPARK = 128_000;
 
 export const CODEX_CAPABILITIES: AgentCapabilities = {
-  // Mirrors the codex CLI's own model preset table (what its `/model` menu
-  // lists), NOT a hand-picked subset: values are the presets' `slug`s, ordered
-  // by their `priority`. "Previous versions" are the presets the CLI tags with
-  // an `upgrade` target — still selectable, and worth offering for the same
-  // reason Claude pins older versions, but not what a new task should default
-  // to. Groups must stay contiguous: the picker opens a new section whenever
+  // Mirrors the codex CLI's own model catalog (what its `/model` menu lists),
+  // NOT a hand-picked subset: values are the presets' `slug`s, ordered by their
+  // `priority`; hidden presets (gpt-reserve, codex-auto-review) are omitted.
+  // Groups must stay contiguous: the picker opens a new section whenever
   // `group` changes (SessionView.tsx). Re-check this list when bumping
-  // @openai/codex — the codex model line moves faster than Claude's, and a
-  // stale entry here is a model the CLI no longer accepts.
+  // @openai/codex - the codex model line moves faster than Claude's, and a
+  // stale entry here is a model the CLI no longer accepts (GPT-5.4, 5.4 Mini,
+  // 5.3 Codex and 5.2 all left the catalog between 0.142 and 0.154; their
+  // pricing rows stay in ./pricing so historical turns still price).
   models: [
-    { value: "gpt-5.6-sol", label: "GPT-5.6 Sol", sub: "frontier capability for complex professional work", contextWindow: CTX_56, group: "Latest" },
-    { value: "gpt-5.6-terra", label: "GPT-5.6 Terra", sub: "balanced intelligence and cost", contextWindow: CTX_56, group: "Latest" },
-    { value: "gpt-5.6-luna", label: "GPT-5.6 Luna", sub: "efficient high-volume work", contextWindow: CTX_56, group: "Latest" },
-    { value: "gpt-5.5", label: "GPT-5.5", sub: "previous frontier model", contextWindow: CTX_PREVIOUS, group: "Previous versions" },
-    { value: "gpt-5.4", label: "GPT-5.4", sub: "previous everyday coding model", contextWindow: CTX_PREVIOUS, group: "Previous versions" },
-    { value: "gpt-5.4-mini", label: "GPT-5.4 Mini", sub: "previous fast, cost-efficient model", contextWindow: CTX_PREVIOUS, group: "Previous versions" },
-    { value: "gpt-5.3-codex", label: "GPT-5.3 Codex", sub: "previous coding-optimized model", contextWindow: CTX_PREVIOUS, group: "Previous versions" },
-    { value: "gpt-5.2", label: "GPT-5.2", sub: "previous model for long-running agents", contextWindow: CTX_PREVIOUS, group: "Previous versions" },
+    { value: "gpt-6-astra", label: "GPT-6 Astra", sub: "most capable · computer use", contextWindow: CTX_CODEX, group: "Latest" },
+    { value: "gpt-5.6-sol", label: "GPT-5.6 Sol", sub: "reliable agentic workhorse", contextWindow: CTX_CODEX, group: "Latest" },
+    { value: "gpt-5.6-terra", label: "GPT-5.6 Terra", sub: "balanced intelligence and cost", contextWindow: CTX_CODEX, group: "Latest" },
+    { value: "gpt-5.6-luna", label: "GPT-5.6 Luna", sub: "efficient high-volume work", contextWindow: CTX_CODEX, group: "Latest" },
+    { value: "gpt-5.5", label: "GPT-5.5", sub: "previous frontier model", contextWindow: CTX_CODEX, group: "Previous versions" },
+    { value: "gpt-5.3-codex-spark", label: "GPT-5.3 Codex Spark", sub: "ultra-fast, small context", contextWindow: CTX_SPARK, group: "Previous versions" },
   ],
   // Off/Think/Think hard/Ultrathink → codex's model_reasoning_effort scale
   // (low/medium/high/xhigh — see EFFORT in ./driver.ts). Codex can't disable
-  // reasoning ("minimal" 400s the turn), so "Off" is its floor, "low"; the
+  // reasoning ("minimal" 400s the turn), so "Off" is its floor, "low". The
+  // GPT-5.6/6 line also accepts "max" (and "ultra" on Astra/Sol/Terra) but
+  // GPT-5.5 and Spark stop at xhigh, so xhigh stays the portable ceiling; the
   // subs name the actual effort each preset sends so the picker stays honest.
   reasoningOptions: [
     { value: "off", label: "Off", sub: "low effort — codex's minimum" },
