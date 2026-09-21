@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -14,6 +14,7 @@ import {
   getWorkstreamByTask,
 } from "../lib/workstreams/store";
 import { WORKSTREAM_LIFECYCLE_MESSAGES } from "../lib/workstreams/worker";
+import { buildProjectContext, taskCwd } from "../lib/agents/shared";
 
 const TRACKER_BASE = "https://tracker.example";
 const BRIDGE_TOKEN = "dedicated-bridge-secret";
@@ -135,10 +136,69 @@ describe("workstream activation deep link", () => {
     expect(getTask(taskId!)?.description).not.toContain(cardPath);
     expect(getWorkstreamByTask(taskId!)?.external_card_id).toBe("card-create");
     expect(getWorkstreamByTask(taskId!)?.state).toBe("active");
+    // The card folder the tracker sent becomes the task's starting subfolder,
+    // so the session opens on the card instead of the lane root.
+    expect(getTask(taskId!)?.subdir).toBe("card-project");
     expect(outboxPayloads(taskId!)).toContainEqual({
       body: WORKSTREAM_LIFECYCLE_MESSAGES.activation,
       attachments: [],
     });
+  });
+
+  it("names the linked card as home in the session prompt, with the local sync date", async () => {
+    const lanePath = mkdtempSync(path.join(os.tmpdir(), "operator-lane-"));
+    const cardPath = path.join(lanePath, "card-projects", "wells-fargo");
+    mkdirSync(cardPath, { recursive: true });
+    writeFileSync(
+      path.join(cardPath, ".card-project.json"),
+      JSON.stringify({ card_id: "card-home", last_synced: "2026-08-25T08:05:43.154Z" }),
+    );
+    const lane = createProject({ name: "Chamblee", repo_path: lanePath });
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockImplementationOnce(async () =>
+          Response.json(exchangeBody({ card_id: "card-home", title: "Wells Fargo - Cash Management", project_path: cardPath })),
+        )
+        .mockImplementationOnce(async () => Response.json({ workstream: { status: "active" } })),
+    );
+    const response = await GET(new Request("http://operator.test/open?workstream_token=opaque-activation"));
+    const taskId = new URL(response.headers.get("location")!).searchParams.get("task")!;
+    const task = getTask(taskId)!;
+
+    expect(task.subdir).toBe("card-projects/wells-fargo");
+    expect(taskCwd(task, lane)).toBe(cardPath);
+    const prompt = buildProjectContext(lane, task);
+    expect(prompt).toContain("Linked tracker card - this is home");
+    expect(prompt).toContain('Card: "Wells Fargo - Cash Management" (id card-home)');
+    expect(prompt).toContain(`Card folder: \`${cardPath}\``);
+    expect(prompt).toContain("(2026-08-25)");
+    expect(prompt).toContain("Check the card folder first");
+    // The generic subdir line is replaced, not doubled, for linked tasks.
+    expect(prompt).not.toContain("Keep your work inside it");
+  });
+
+  it("backfills the card folder onto an already-linked task that predates subdir capture", async () => {
+    const lanePath = mkdtempSync(path.join(os.tmpdir(), "operator-lane-"));
+    const cardPath = path.join(lanePath, "card-projects", "old-card");
+    const lane = createProject({ name: "WR2", repo_path: lanePath });
+    const exchange = () =>
+      Response.json(exchangeBody({ card_id: "card-old", project_path: cardPath }));
+    const ack = () => Response.json({ workstream: { status: "active" } });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementationOnce(exchange).mockImplementationOnce(ack).mockImplementationOnce(exchange).mockImplementationOnce(ack),
+    );
+    const first = await GET(new Request("http://operator.test/open?workstream_token=t1"));
+    const taskId = new URL(first.headers.get("location")!).searchParams.get("task")!;
+    updateTask(taskId, { subdir: "" });
+    expect(getTask(taskId)?.subdir).toBe("");
+
+    const second = await GET(new Request("http://operator.test/open?workstream_token=t2"));
+    expect(new URL(second.headers.get("location")!).searchParams.get("task")).toBe(taskId);
+    expect(getTask(taskId)?.subdir).toBe("card-projects/old-card");
+    expect(getTask(taskId)?.project_id).toBe(lane.id);
   });
 
   // Deep links must land the user back on the origin they clicked from: a

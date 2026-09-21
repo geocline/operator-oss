@@ -12,6 +12,7 @@ import {
   findUnambiguousExternalSessionImport,
   findUnambiguousLegacySessionImport,
   getTask,
+  updateTask,
 } from "@/lib/store";
 import {
   acknowledgeWorkstreamActivation,
@@ -235,17 +236,25 @@ export async function GET(req: Request): Promise<Response> {
     const lane = findProjectContaining(remote.project_path);
     if (!lane) return home("/?workstream_error=unavailable");
 
+    // The tracker's project_path is the card's own folder inside the lane
+    // (card-projects/<slug>). Keep it as the task's starting subfolder so the
+    // session opens on the card and the prompt can name it as "home" - a task
+    // that starts at the lane root has no way to know which card it serves.
+    const cardSubdir = path.relative(lane.repo_path, remote.project_path).replace(/\\/g, "/");
     const linked = getWorkstreamByExternalCard("ardent", remote.card_id);
     const linkedTask = linked ? getTask(linked.task_id) : undefined;
     const task =
       linked && linkedTask
-        ? linkedTask
+        ? linkedTask.subdir
+          ? linkedTask
+          : (updateTask(linkedTask.id, { subdir: cardSubdir }) ?? linkedTask)
         : createTask({
             project_id: lane.id,
             title: remote.title.slice(0, 120),
             description:
               "Work from the linked tracker card. Review its current details and attachments before starting. " +
               "Use the deal lane context for supporting knowledge and publish team-facing updates only through the linked workstream.",
+            subdir: cardSubdir,
           });
     const pending = activateWorkstream({
       taskId: task.id,

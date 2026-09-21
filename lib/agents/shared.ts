@@ -74,6 +74,30 @@ export function buildWorkstreamRuntimeGuidance(
 }
 
 /**
+ * The "home" of a task linked to a tracker card: the card id, its title, and
+ * the card folder the session starts in (task.subdir, set at activation by
+ * app/open/route.ts). Returns null for unlinked tasks or when the link is not
+ * active. lastSynced comes from the folder's .card-project.json when present so
+ * the prompt can say how fresh the local copy is.
+ */
+export function linkedCardHome(
+  task: Task,
+  project: Project,
+): { id: string; title: string; folder: string; lastSynced: string } | null {
+  const link = getWorkstreamByTask(task.id);
+  if (!link || link.state !== "active") return null;
+  const folder = taskCwd(task, project);
+  let lastSynced = "";
+  try {
+    const meta = JSON.parse(readFileSync(join(folder, ".card-project.json"), "utf8")) as { last_synced?: string };
+    if (typeof meta.last_synced === "string") lastSynced = meta.last_synced.slice(0, 10);
+  } catch {
+    /* no sync metadata - fine */
+  }
+  return { id: link.external_card_id, title: task.title, folder, lastSynced };
+}
+
+/**
  * Build the context string that is prepended to every task's session via the
  * agent's system prompt. This is the "write project context once" feature:
  * project description + conventions + the task framing + any prior-session
@@ -98,7 +122,18 @@ export function buildProjectContext(project: Project, task: Task): string {
         `- Do not describe the task workspace as the wrong folder, claim you are locked out because the project checkout is outside the sandbox, or recommend copying a temporary patch into the project checkout as the normal workflow.`
     );
   }
-  if (task.subdir) {
+  const card = linkedCardHome(task, project);
+  if (card) {
+    lines.push(
+      `\nLinked tracker card - this is home:\n` +
+        `- Card: "${card.title}" (id ${card.id})\n` +
+        `- Card folder: \`${card.folder}\` (your session starts there). It holds card.md, comments.md, emails/, and attachments/ as of the last sync` +
+        (card.lastSynced ? ` (${card.lastSynced})` : "") +
+        `.\n` +
+        `- Anything asked about "this card", "the email", "the attachment", "the comment", or "the PDF" means THIS card. Check the card folder first, then the live card via the deal-tracker \`get_card\` tool (the folder can lag behind the tracker; comments and attachments added since the last sync exist only on the card).\n` +
+        `- The rest of the project folder and the wider workspace are available for supporting knowledge. Use them AFTER the card, never instead of it, and never treat a different card's or deal's files as this card's.`
+    );
+  } else if (task.subdir) {
     lines.push(`\nThis task is scoped to the subfolder \`${task.subdir}\` (your session starts there). Keep your work inside it unless the task requires touching files elsewhere in the project.`);
   }
   lines.push(`\n---\nThe current task is: "${task.title}"`);
