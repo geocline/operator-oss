@@ -16,7 +16,8 @@ import { launchModelReady, needsLaunchConfiguration } from "./launchConfig";
 import { StatusDot, Avatar, Popover, Skel } from "./shared";
 import { Modal } from "./Modal";
 import { jsend, jget } from "./api";
-import { isFirstAssistantReply, MessageView, SessionBreak, AskPanel, ProducedFilesFooter } from "./Transcript";
+import { MessageView, SessionBreak, AskPanel, ProducedFilesFooter, WorkGroup } from "./Transcript";
+import { groupTranscript } from "./workGroups";
 import { Composer } from "./Composer";
 import { SessionRail, type RailTabRequest } from "./SessionRail";
 import { ColResize, ColRail } from "./Layout";
@@ -654,18 +655,17 @@ export function SessionView({ project, task, agents, messages, running, blockedB
             <div key={s.n}>
               {si > 0 && s.summaryBefore && <SessionBreak summary={s.summaryBefore} />}
               <div className="session-label"><span className="ln" />Session {s.n}{si === sessions.length - 1 ? " · current" : ""}<span className="ln" /></div>
-              {s.messages.map((m, mi) => {
-                // Tool activity can precede the first prose reply. Show one
-                // response header there, then collapse later assistant chunks.
-                const hideWho =
-                  m.role === "assistant" &&
-                  !isFirstAssistantReply(s.messages, mi);
-                // Tool noise control: every tool call renders as its one-line
-                // header only, Claude Code style - the conversation is prose,
-                // the machinery is opt-in via the twirl. Errors still surface
-                // their output automatically (see ToolView).
-                const condensed = true;
-                return <MessageView key={m.id} m={m} initial={mi === 0 && m.role === "user"} hideWho={hideWho} condensed={condensed} running={running} agent={task.agent} agentLabel={agentLabel(agents, task.agent)} onClear={stableClear} onReconnect={stableReconnect} />;
+              {groupTranscript(s.messages, running && si === sessions.length - 1).map((it) => {
+                // Tool noise control: each stretch of tool calls and the
+                // narration between them folds into one "worked" row (see
+                // workGroups.ts); a finished turn shows only your message, that
+                // row, and the answer. Every tool call is its one-line header,
+                // Claude Code style - the machinery is opt-in via the twirl.
+                const view = (m: Msg, index: number, hideWho: boolean) => (
+                  <MessageView key={m.id} m={m} initial={index === 0 && m.role === "user"} hideWho={hideWho} condensed running={running} agent={task.agent} agentLabel={agentLabel(agents, task.agent)} onClear={stableClear} onReconnect={stableReconnect} />
+                );
+                if (it.kind === "work") return <WorkGroup key={it.id} group={it} renderItem={(w) => view(w.m, w.index, true)} />;
+                return view(it.m, it.index, it.hideWho);
               })}
             </div>
           ))}

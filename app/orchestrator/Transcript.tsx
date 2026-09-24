@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState } from "react";
+import { memo, useState, type ReactNode } from "react";
 import type { ToolData, ToolPeek, AskAnswers } from "@/lib/types";
 import { Icon } from "../icons";
 import { Markdown } from "../Markdown";
@@ -9,6 +9,7 @@ import { CONTEXT_OVERFLOW_NOTICE } from "@/lib/promptLimits";
 import { AUTH_EXPIRED_NOTICE } from "@/lib/authFailure";
 import { USAGE_LIMIT_NOTICE } from "@/lib/usageLimit";
 import type { Msg } from "./types";
+import { workLabel, type TranscriptItem, type WorkItem } from "./workGroups";
 import { Avatar } from "./shared";
 import { CopyButton } from "../CopyButton";
 import { registerToolCard, getToolCard } from "./registry";
@@ -118,12 +119,14 @@ function ToolView({ data, condensed }: { data: ToolData; condensed?: boolean }) 
   const [open, setOpen] = useState(false);
   const hasDiff = !!data.diff?.length;
   const expandable = !!(data.detail || hasDiff || data.result !== undefined);
-  // Failures surface their output automatically, like Claude Code.
-  const showBody = open || (!!data.isError && data.result !== undefined);
-  // Older tool calls collapse to their one-line header so a long transcript
-  // reads as prose; the peek tier only renders for the latest activity (or
-  // errors, or anything the user explicitly opened).
-  const showPeek = data.peek && !showBody && (!condensed || !!data.isError);
+  // Uncondensed, failures surface their output automatically, like Claude
+  // Code. Condensed (the transcript default), a failure is just the red x on
+  // its row - most are routine (a retried command) and the agent's answer says
+  // if something actually broke - and it opens only when clicked.
+  const showBody = open || (!condensed && !!data.isError && data.result !== undefined);
+  // Condensed tool calls are their one-line header only, so a long transcript
+  // reads as prose; the peek tier renders only when uncondensed.
+  const showPeek = data.peek && !showBody && !condensed;
   return (
     <div className="tool">
       <button className="tool-h" style={{ cursor: expandable ? "pointer" : "default" }} onClick={() => expandable && setOpen((o) => !o)}>
@@ -402,6 +405,31 @@ export const MessageView = memo(function MessageView({ m, initial, hideWho, runn
     </div>
   );
 });
+
+// One folded stretch of agent work (see workGroups.ts): a single row that
+// opens on its own - never a transcript-wide switch - to list every step. While
+// the turn is live and the row is closed, it shows only the latest step, so
+// you can see what it's doing without the pile. Open state is per row and
+// keyed by the row's first message, so it survives the live -> finished flip.
+export function WorkGroup({ group, renderItem }: { group: Extract<TranscriptItem, { kind: "work" }>; renderItem: (it: WorkItem) => ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const tail = group.items[group.items.length - 1];
+  return (
+    <div className={`work${group.live ? " live" : ""}${open ? " open" : ""}`}>
+      <button className="work-h" onClick={() => setOpen((o) => !o)} aria-expanded={open} title={open ? "Hide steps" : "Show every step"}>
+        <span className={`tchev ${open ? "open" : ""}`}>{Icon.chevRight()}</span>
+        {group.live && <span className="work-pulse" aria-hidden />}
+        <span className="work-label">{workLabel(group)}</span>
+        {group.failed > 0 && <span className="work-failed">{group.failed} failed</span>}
+      </button>
+      {open ? (
+        <div className="work-body">{group.items.map(renderItem)}</div>
+      ) : group.live && tail ? (
+        <div className="work-body work-tail">{renderItem(tail)}</div>
+      ) : null}
+    </div>
+  );
+}
 
 // Produced-files footer (batch two, E2): a quiet lane of file chips under the
 // last assistant message of a run that just settled, derived from that run's
