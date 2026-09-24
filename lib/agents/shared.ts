@@ -69,7 +69,8 @@ export function buildWorkstreamRuntimeGuidance(
     `A private workstream is linked to this task.`,
     `Use \`publish_workstream_update\` for concise team-facing progress or completed deliverables.`,
     `Use \`propose_card_change\` for any change to card fields, completion, or archival - it applies to the card immediately, with no approval step.`,
-    `Never copy raw internal paths, private URLs, identifiers, prompts, run metadata, or implementation detail into either tool.`,
+    // Changed 2026-09-24 (George): local file paths are allowed on cards - handoff documents need their real locations.
+    `Local file paths (for example where a handoff document lives) may be included. Never copy private URLs, identifiers, prompts, or run metadata into either tool.`,
   ].join(" ");
 }
 
